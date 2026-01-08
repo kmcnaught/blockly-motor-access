@@ -863,6 +863,38 @@ function changePegman(skinId: number) {
   updateUrlState();
 }
 
+/**
+ * Cycle to the next character in the enabled skins list.
+ */
+function cycleCharacterNext() {
+  const currentSkin = mazeGame.getSkin();
+  const currentIndex = ENABLED_SKIN_IDS.indexOf(currentSkin);
+  const nextIndex = (currentIndex + 1) % ENABLED_SKIN_IDS.length;
+  changePegman(ENABLED_SKIN_IDS[nextIndex]);
+}
+
+/**
+ * Cycle to the previous character in the enabled skins list.
+ */
+function cycleCharacterPrevious() {
+  const currentSkin = mazeGame.getSkin();
+  const currentIndex = ENABLED_SKIN_IDS.indexOf(currentSkin);
+  const prevIndex = (currentIndex - 1 + ENABLED_SKIN_IDS.length) % ENABLED_SKIN_IDS.length;
+  changePegman(ENABLED_SKIN_IDS[prevIndex]);
+}
+
+/**
+ * Cycle to the next language.
+ */
+function cycleLanguage() {
+  const locales: SupportedLocale[] = ['en', 'fr'];
+  const currentIndex = locales.indexOf(currentLocale);
+  const nextIndex = (currentIndex + 1) % locales.length;
+  const newLocale = locales[nextIndex];
+  localStorage.setItem('mazeGameLocale', newLocale);
+  location.href = buildGameUrl({lang: newLocale});
+}
+
 // Show pegman menu on button click
 if (pegmanButton) {
   pegmanButton.addEventListener('click', (e) => {
@@ -1551,7 +1583,12 @@ function goToNextLevel() {
  * - [: Previous level
  * - ]: Next level
  * - R: Run the program
- * - ? or /: Show shortcuts dialog
+ * - F: Toggle fullscreen mode
+ * - G: Toggle game panel/sidebar
+ * - ,: Previous character
+ * - .: Next character
+ * - L: Cycle language
+ * - Esc: Exit fullscreen mode
  */
 // Use capture phase (true) to handle shortcuts before Blockly intercepts them
 document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -1663,6 +1700,36 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       toggleSidebar();
+      return;
+    }
+  }
+
+  // ,: Previous character (no modifiers)
+  if (e.key === ',') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      cycleCharacterPrevious();
+      return;
+    }
+  }
+
+  // .: Next character (no modifiers)
+  if (e.key === '.') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      cycleCharacterNext();
+      return;
+    }
+  }
+
+  // L: Cycle language (no modifiers)
+  if (e.key === 'l' || e.key === 'L') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      cycleLanguage();
       return;
     }
   }
