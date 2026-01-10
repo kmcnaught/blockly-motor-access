@@ -1119,6 +1119,9 @@ function hideHint() {
  * This implements the original blockly-games hint logic.
  */
 function levelHelp() {
+  // Don't show hints in practice mode - only show the single practice instruction
+  if (currentExecutionMode === 'practice') return;
+
   // Don't show hints while executing
   if (mazeGame.isExecuting()) return;
 
