@@ -68,6 +68,10 @@ function getInitialExecutionMode(): ExecutionMode {
 // Current execution mode (practice = direct control, coding = Blockly programming)
 let currentExecutionMode: ExecutionMode = getInitialExecutionMode();
 
+// Grid mode flag (active when grid=1 URL param AND mode=practice)
+// Used inside Grid 3 AAC software where all interaction comes via keyboard from a gridset
+const isGridMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'practice';
+
 // Initialize locale (URL param > localStorage > browser detection)
 const urlLang = getStringParamFromUrl('lang', '');
 let currentLocale: SupportedLocale =
@@ -471,7 +475,7 @@ const mazeGame = new MazeGame('mazeCanvas', initialLevel, savedSkin);
 /**
  * Build a URL with current game state parameters.
  */
-function buildGameUrl(overrides: {level?: number, skin?: number, lang?: string, mode?: string} = {}): string {
+function buildGameUrl(overrides: {level?: number, skin?: number, lang?: string, mode?: string, grid?: boolean} = {}): string {
   const params = new URLSearchParams();
   params.set('lang', overrides.lang ?? currentLocale);
   params.set('level', String(overrides.level ?? mazeGame.getLevel()));
@@ -479,6 +483,11 @@ function buildGameUrl(overrides: {level?: number, skin?: number, lang?: string, 
   const mode = overrides.mode ?? currentExecutionMode;
   if (mode !== 'coding') {
     params.set('mode', mode); // Always writes 'practice' (never 'practise')
+  }
+  // Preserve grid mode in URL
+  const gridParam = overrides.grid !== undefined ? overrides.grid : isGridMode;
+  if (gridParam) {
+    params.set('grid', '1');
   }
   return location.pathname + '?' + params.toString();
 }
@@ -496,14 +505,30 @@ const immediateModeController = new ImmediateModeController(
   mazeGame
 );
 
+// Register instruction count callback for Grid mode
+if (isGridMode) {
+  immediateModeController.onInstructionCountChange((count) => {
+    const instructionCountEl = document.getElementById('gridModeInstructionCount');
+    if (instructionCountEl) {
+      instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', count);
+    }
+  });
+}
+
 // Register completion callback for immediate mode
 immediateModeController.onLevelComplete((success) => {
   if (success) {
     const currentLevel = mazeGame.getLevel();
     const maxLevel = MazeGame.getMaxLevel();
 
-    // Check if this was the last practice level
-    if (MazeGame.isPracticeModeEnabled() && currentLevel >= maxLevel) {
+    if (isGridMode) {
+      // Grid mode: launch confetti first, then show success dialog after delay
+      launchConfetti();
+      setTimeout(() => {
+        showGridModeSuccess(immediateModeController.getInstructionCount());
+      }, 1500);
+    } else if (MazeGame.isPracticeModeEnabled() && currentLevel >= maxLevel) {
+      // Check if this was the last practice level
       // Show graduation modal after a short delay
       setTimeout(() => {
         showGraduationModal();
@@ -1039,20 +1064,13 @@ function updateInstructionBar() {
 
   // Update level instruction
   const level = mazeGame.getLevel();
-  // Use practice-specific level instructions when using practice mazes,
-  // otherwise use regular instructions (with _PRACTICE suffix in practice mode)
-  let instructionKey: string;
-  if (MazeGame.isPracticeModeEnabled()) {
-    // Using practice maze set - use MAZE_PRACTICE_LEVEL_N messages
-    instructionKey = `MAZE_PRACTICE_LEVEL_${level}`;
-  } else if (currentExecutionMode === 'practice') {
-    // Coding mazes in practice mode - use MAZE_INSTRUCTION_N_PRACTICE messages
-    instructionKey = `MAZE_INSTRUCTION_${level}_PRACTICE`;
+  // Practice mode (including grid mode) uses a single fixed instruction for all levels
+  if (currentExecutionMode === 'practice') {
+    levelInstruction.textContent = msg('MAZE_PRACTICE_INSTRUCTION');
   } else {
-    // Coding mode - use regular MAZE_INSTRUCTION_N messages
-    instructionKey = `MAZE_INSTRUCTION_${level}`;
+    // Coding mode - use level-specific MAZE_INSTRUCTION_N messages
+    levelInstruction.textContent = msg(`MAZE_INSTRUCTION_${level}`);
   }
-  levelInstruction.textContent = msg(instructionKey);
 
   // Handle hints visibility
   if (contextualHint) {
@@ -1460,6 +1478,121 @@ graduationModal.addEventListener('keydown', (e: KeyboardEvent) => {
   }
 });
 
+// ========== GRID MODE SUCCESS ==========
+
+let gridModeCountdownInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Show success message for Grid mode with instruction count and auto-advance.
+ */
+function showGridModeSuccess(instructionCount: number): void {
+  // Get the result modal elements (reuse the existing result modal)
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set localized text with instruction count
+  resultModalTitle.textContent = msg('MAZE_GRID_SUCCESS_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_SUCCESS_MESSAGE', instructionCount);
+  okText.textContent = 'OK';
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button
+  resultModalCancel.hidden = true;
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+
+  // Start 5 second countdown with progress bar
+  const countdownDuration = 5000;
+  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
+  resultModalOk.classList.add('countdown');
+
+  gridModeCountdownInterval = setTimeout(() => {
+    hideGridModeSuccess(true);
+  }, countdownDuration);
+
+  // Handle OK button click (advance immediately)
+  const handleOk = () => {
+    hideGridModeSuccess(true);
+    resultModalOk.removeEventListener('click', handleOk);
+  };
+  resultModalOk.addEventListener('click', handleOk);
+}
+
+/**
+ * Hide the Grid mode success modal.
+ */
+function hideGridModeSuccess(advance: boolean): void {
+  // Clear timer
+  if (gridModeCountdownInterval) {
+    clearTimeout(gridModeCountdownInterval);
+    gridModeCountdownInterval = null;
+  }
+
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+
+  resultModal.hidden = true;
+  resultModalOk.classList.remove('countdown');
+  okProgress.style.animation = '';
+
+  if (advance) {
+    // Reset instruction count and advance to next level
+    immediateModeController.resetInstructionCount();
+    goToNextLevel();
+
+    // Update grid mode level display
+    const gridModeLevel = document.getElementById('gridModeLevel');
+    if (gridModeLevel) {
+      gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+    }
+  }
+}
+
+/**
+ * Initialize Grid mode UI if active.
+ */
+function initializeGridMode(): void {
+  if (!isGridMode) return;
+
+  // Add grid-mode class to body for CSS targeting
+  document.body.classList.add('grid-mode');
+
+  // Show grid mode level label
+  const gridModeLevel = document.getElementById('gridModeLevel');
+  if (gridModeLevel) {
+    gridModeLevel.classList.remove('hidden');
+    gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+  }
+
+  // Show instruction count
+  const instructionCountEl = document.getElementById('gridModeInstructionCount');
+  if (instructionCountEl) {
+    instructionCountEl.classList.remove('hidden');
+    instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', 0);
+  }
+
+  // Update instruction bar text for grid mode
+  const levelInstruction = document.getElementById('levelInstruction');
+  if (levelInstruction) {
+    levelInstruction.textContent = msg('MAZE_GRID_INSTRUCTION');
+  }
+}
+
+// Initialize Grid mode if active
+initializeGridMode();
+
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.BLOCK_CREATE ||
@@ -1520,6 +1653,15 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
     resetHintState();
     // Update URL to reflect level change
     updateUrlState();
+
+    // Update Grid mode level display and reset instruction count
+    if (isGridMode) {
+      const gridModeLevel = document.getElementById('gridModeLevel');
+      if (gridModeLevel) {
+        gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${newLevel}`;
+      }
+      immediateModeController.resetInstructionCount();
+    }
 
     // Step 3: Fade in the canvas
     canvasWrapper?.classList.remove('fade-out');

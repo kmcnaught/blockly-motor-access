@@ -1402,8 +1402,9 @@ export class MazeGame {
    * Execute a single move forward command immediately with animation.
    * Returns a promise that resolves with result when animation completes.
    * @returns 'success' if reached goal, 'continue' if moved, 'wall' if hit wall
+   *          (recoverable), 'fell' if fell off (non-recoverable, needs reset)
    */
-  public async executeImmediateMove(): Promise<'success' | 'continue' | 'wall'> {
+  public async executeImmediateMove(): Promise<'success' | 'continue' | 'wall' | 'fell'> {
     if (this.executing) {
       return 'continue';
     }
@@ -1423,6 +1424,11 @@ export class MazeGame {
       this.executing = true;
       await this.animateCrash(delta.x, delta.y);
       this.executing = false;
+      // SPIN/FALL crash types cause character to fly off screen - non-recoverable
+      if (this.skin.crashType === CrashType.SPIN ||
+          this.skin.crashType === CrashType.FALL) {
+        return 'fell';
+      }
       return 'wall';
     }
 

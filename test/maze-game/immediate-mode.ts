@@ -76,10 +76,18 @@ export class ImmediateModeController {
   private boundKeyHandler: (e: KeyboardEvent) => void;
   private onLevelCompleteCallback: ((success: boolean) => void) | null = null;
 
+  // Instruction counting for Grid mode
+  private instructionCount = 0;
+  private onInstructionCountChangeCallback: ((count: number) => void) | null = null;
+
   // Button elements
   private forwardBtn: HTMLButtonElement | null = null;
   private turnLeftBtn: HTMLButtonElement | null = null;
   private turnRightBtn: HTMLButtonElement | null = null;
+
+  // Fall overlay elements
+  private fallOverlay: HTMLElement | null = null;
+  private fallOverlayText: HTMLElement | null = null;
 
   // Per-button touch tracking to avoid confusion when touching multiple buttons
   private touchStarts: Map<HTMLElement, {x: number; y: number}> = new Map();
@@ -102,6 +110,10 @@ export class ImmediateModeController {
     this.turnRightBtn = document.getElementById(
       'cmdTurnRight',
     ) as HTMLButtonElement;
+
+    // Cache fall overlay references
+    this.fallOverlay = document.getElementById('fallOverlay');
+    this.fallOverlayText = document.getElementById('fallOverlayText');
 
     // Bind keyboard handler
     this.boundKeyHandler = this.handleKeyDown.bind(this);
@@ -187,6 +199,28 @@ export class ImmediateModeController {
   }
 
   /**
+   * Register callback for when instruction count changes (for Grid mode).
+   */
+  public onInstructionCountChange(callback: (count: number) => void): void {
+    this.onInstructionCountChangeCallback = callback;
+  }
+
+  /**
+   * Get the current instruction count.
+   */
+  public getInstructionCount(): number {
+    return this.instructionCount;
+  }
+
+  /**
+   * Reset the instruction count to zero.
+   */
+  public resetInstructionCount(): void {
+    this.instructionCount = 0;
+    this.onInstructionCountChangeCallback?.(this.instructionCount);
+  }
+
+  /**
    * Update the MazeGame reference (called when level changes).
    */
   public setMazeGame(mazeGame: MazeGame): void {
@@ -264,6 +298,7 @@ export class ImmediateModeController {
       case 'r':
       case 'R':
         e.preventDefault();
+        this.resetInstructionCount();
         this.mazeGame.reset();
         break;
     }
@@ -280,9 +315,22 @@ export class ImmediateModeController {
     try {
       const result = await this.mazeGame.executeImmediateMove();
 
+      // Count successful moves (not wall collisions)
+      if (result === 'success' || result === 'continue') {
+        this.instructionCount++;
+        this.onInstructionCountChangeCallback?.(this.instructionCount);
+      }
+
       if (result === 'success') {
         // Level completed!
         this.onLevelCompleteCallback?.(true);
+      } else if (result === 'fell') {
+        // Character fell off - show overlay, wait, then auto-reset
+        this.showFallOverlay();
+        await this.delay(2000);
+        this.hideFallOverlay();
+        this.resetInstructionCount();
+        this.mazeGame.reset();
       }
       // 'continue' and 'wall' just let the player keep trying
     } finally {
@@ -301,6 +349,10 @@ export class ImmediateModeController {
 
     try {
       await this.mazeGame.executeImmediateTurn(direction);
+
+      // Count turn as an instruction
+      this.instructionCount++;
+      this.onInstructionCountChangeCallback?.(this.instructionCount);
     } finally {
       this.setExecuting(false, btn);
     }
@@ -322,5 +374,29 @@ export class ImmediateModeController {
         btn.classList.remove('executing');
       }
     }
+  }
+
+  /**
+   * Show the fall overlay with "Oh no!" message.
+   */
+  private showFallOverlay(): void {
+    if (this.fallOverlayText) {
+      this.fallOverlayText.textContent = msg('MAZE_PRACTICE_FELL');
+    }
+    this.fallOverlay?.classList.add('active');
+  }
+
+  /**
+   * Hide the fall overlay.
+   */
+  private hideFallOverlay(): void {
+    this.fallOverlay?.classList.remove('active');
+  }
+
+  /**
+   * Promise-based delay helper.
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

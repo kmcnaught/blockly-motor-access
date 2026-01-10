@@ -1149,6 +1149,48 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
   opacity: 1;
 }
 
+/* Fall Overlay (shown when character falls off in practice mode) */
+.fall-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.fall-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.fall-overlay-text {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: fall-overlay-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes fall-overlay-bounce {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* ============================================
    Result Modal (replaces alert boxes)
    ============================================ */
@@ -1344,4 +1386,116 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
 
 .graduation-secondary:active {
   background: #424242;
+}
+
+/* ============================================================
+   Grid Mode Styles
+   Used when grid=1 URL parameter is active with practice mode
+   For use inside Grid 3 AAC software where all interaction
+   comes via keyboard from a gridset.
+   ============================================================ */
+
+/* Hide elements in grid mode */
+body.grid-mode .mode-label,
+body.grid-mode .mode-toggle,
+body.grid-mode .blockly-container,
+body.grid-mode .sidebar-toggle,
+body.grid-mode .level-selector,
+body.grid-mode #runButton,
+body.grid-mode #resetButton,
+body.grid-mode .shortcut-hints {
+  display: none !important;
+}
+
+/* Container layout for grid mode - use natural sizing instead of flex fill */
+body.grid-mode .container {
+  flex: none;
+  justify-content: center;
+  overflow: visible;
+  min-height: auto;
+  padding: 16px;
+}
+
+body.grid-mode .game-container {
+  flex: none;
+  max-width: 100%;
+  min-width: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* Level label above maze (Grid mode) - kept compact to prioritize maze size */
+.grid-mode-level {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2e7d32;
+  text-align: center;
+  padding: 8px 16px;
+  background: #e8f5e9;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.grid-mode-level.hidden {
+  display: none;
+}
+
+/* Instruction count below maze (Grid mode) */
+.grid-mode-instruction-count {
+  font-size: 20px;
+  font-weight: 500;
+  color: #1565c0;
+  text-align: center;
+  padding: 12px 32px;
+  background: #e3f2fd;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.grid-mode-instruction-count.hidden {
+  display: none;
+}
+
+/* Canvas wrapper in grid mode - natural sizing with minimum */
+body.grid-mode .canvas-wrapper {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: auto;
+  min-height: 200px; /* Match canvas minimum to prevent collapse */
+}
+
+/* Hide game controls section in grid mode */
+body.grid-mode .game-controls {
+  display: none;
+}
+
+/* Override sidebar-collapsed styles in grid mode - sidebar is already hidden,
+   so game-container should remain visible */
+body.grid-mode .container.sidebar-collapsed .game-container {
+  width: 100%;
+  min-width: auto;
+  padding: 0;
+  overflow: visible;
+  opacity: 1;
+}
+
+/* Grid mode body - scrollable for small screens */
+body.grid-mode {
+  height: auto;
+  min-height: 100vh;
+  overflow-y: auto;
+  background: white;
+}
+
+/* Ensure canvas is visible and scales down on small screens */
+body.grid-mode #mazeCanvas {
+  max-width: calc(100vw - 32px);
+  /* Use max() to ensure minimum 200px height even when viewport is very small */
+  max-height: max(200px, calc(100vh - 250px));
 }

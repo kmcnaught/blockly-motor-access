@@ -82,6 +82,9 @@
           <button id="nextLevel">Next &gt;</button>
         </div>
 
+        <!-- Grid Mode Level Label (shown above maze in Grid mode) -->
+        <div id="gridModeLevel" class="grid-mode-level hidden">Level 1</div>
+
         <div class="canvas-wrapper">
           <canvas id="mazeCanvas"></canvas>
           <!-- Level Banner (positioned over maze) -->
@@ -90,7 +93,14 @@
           </div>
           <!-- Confetti Container (positioned over maze) -->
           <div id="confettiContainer"></div>
+          <!-- Fall Overlay (shown when character falls off in practice mode) -->
+          <div id="fallOverlay" class="fall-overlay" aria-live="polite">
+            <span id="fallOverlayText" class="fall-overlay-text"></span>
+          </div>
         </div>
+
+        <!-- Grid Mode Instruction Count (shown below maze in Grid mode) -->
+        <div id="gridModeInstructionCount" class="grid-mode-instruction-count hidden">Instructions: 0</div>
 
         <div class="game-controls">
           <button id="runButton">Run Program</button>

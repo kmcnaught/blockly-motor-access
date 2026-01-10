@@ -84,6 +84,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_PRACTICE_TURN_LEFT: 'Turn Left',
     MAZE_PRACTICE_TURN_RIGHT: 'Turn Right',
     MAZE_PRACTICE_HINT: 'Use the buttons to control the character. Can you move them to the goal?',
+    MAZE_PRACTICE_FELL: 'Oh no! Try again.',
     MAZE_MODE_PRACTICE: 'Practice',
     MAZE_MODE_CODING: 'Coding',
     MAZE_SWITCH_TO_PRACTICE: 'Switch to Practice',
@@ -115,6 +116,13 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_PRACTICE_GRADUATION_MESSAGE: 'Ready to write your own programs?',
     MAZE_PRACTICE_TRY_CODING: 'Try Coding Mode [Enter]',
     MAZE_PRACTICE_STAY: 'Stay in Practice [Esc]',
+    MAZE_PRACTICE_INSTRUCTION: 'Give the player instructions to move them to the goal',
+
+    // Grid mode (for use inside Grid 3 AAC software)
+    MAZE_GRID_INSTRUCTION: 'Give the player instructions to move them to the goal',
+    MAZE_GRID_INSTRUCTIONS: 'Instructions used: %1',
+    MAZE_GRID_SUCCESS_TITLE: 'Hurrah!',
+    MAZE_GRID_SUCCESS_MESSAGE: 'You got to the goal with %1 instructions!',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
@@ -198,6 +206,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_PRACTICE_TURN_LEFT: 'Tourner à gauche',
     MAZE_PRACTICE_TURN_RIGHT: 'Tourner à droite',
     MAZE_PRACTICE_HINT: 'Utilisez les boutons pour contrôler le personnage. Pouvez-vous l\'amener jusqu\'au but ?',
+    MAZE_PRACTICE_FELL: 'Oh non ! Réessayez.',
     MAZE_MODE_PRACTICE: 'Pratique',
     MAZE_MODE_CODING: 'Programmation',
     MAZE_SWITCH_TO_PRACTICE: 'Passer à Pratique',
@@ -229,6 +238,13 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_PRACTICE_GRADUATION_MESSAGE: 'Prêt à écrire vos propres programmes ?',
     MAZE_PRACTICE_TRY_CODING: 'Essayer le mode Programmation [Entrée]',
     MAZE_PRACTICE_STAY: 'Rester en Pratique [Échap]',
+    MAZE_PRACTICE_INSTRUCTION: 'Donnez des instructions au joueur pour le guider vers l\'objectif',
+
+    // Grid mode (for use inside Grid 3 AAC software)
+    MAZE_GRID_INSTRUCTION: 'Donnez des instructions au joueur pour le guider vers l\'objectif',
+    MAZE_GRID_INSTRUCTIONS: 'Instructions utilisées : %1',
+    MAZE_GRID_SUCCESS_TITLE: 'Hourra !',
+    MAZE_GRID_SUCCESS_MESSAGE: 'Vous avez atteint l\'objectif avec %1 instructions !',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
