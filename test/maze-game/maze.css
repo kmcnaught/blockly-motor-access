@@ -1407,20 +1407,21 @@ body.grid-mode .shortcut-hints {
   display: none !important;
 }
 
-/* Container layout for grid mode - use natural sizing instead of flex fill */
+/* Container layout for grid mode - fill viewport */
 body.grid-mode .container {
-  flex: none;
+  flex: 1;
   justify-content: center;
-  overflow: visible;
-  min-height: auto;
+  overflow: hidden;
   padding: 16px;
+  height: 100%;
 }
 
 body.grid-mode .game-container {
-  flex: none;
+  flex: 1;
   max-width: 100%;
   min-width: auto;
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1446,7 +1447,7 @@ body.grid-mode .game-container {
 
 /* Instruction count below maze (Grid mode) */
 .grid-mode-instruction-count {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
   color: #1565c0;
   text-align: center;
@@ -1460,14 +1461,15 @@ body.grid-mode .game-container {
   display: none;
 }
 
-/* Canvas wrapper in grid mode - natural sizing with minimum */
+/* Canvas wrapper in grid mode - fill remaining space after labels */
 body.grid-mode .canvas-wrapper {
-  flex: none;
+  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
   min-width: auto;
-  min-height: 200px; /* Match canvas minimum to prevent collapse */
+  min-height: 0; /* Allow flex shrinking */
+  overflow: hidden;
 }
 
 /* Hide game controls section in grid mode */
@@ -1485,17 +1487,15 @@ body.grid-mode .container.sidebar-collapsed .game-container {
   opacity: 1;
 }
 
-/* Grid mode body - scrollable for small screens */
+/* Grid mode body - fit viewport without scrolling */
 body.grid-mode {
-  height: auto;
-  min-height: 100vh;
-  overflow-y: auto;
+  height: 100vh;
+  overflow: hidden;
   background: white;
 }
 
-/* Ensure canvas is visible and scales down on small screens */
+/* Ensure canvas fits within its container */
 body.grid-mode #mazeCanvas {
   max-width: calc(100vw - 32px);
-  /* Use max() to ensure minimum 200px height even when viewport is very small */
-  max-height: max(200px, calc(100vh - 250px));
+  max-height: 100%;
 }

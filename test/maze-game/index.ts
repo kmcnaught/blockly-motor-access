@@ -1593,6 +1593,28 @@ function initializeGridMode(): void {
 // Initialize Grid mode if active
 initializeGridMode();
 
+// Hide level label when viewport is too small (works regardless of zoom level)
+function checkGridModeLevelVisibility(): void {
+  if (!isGridMode) return;
+
+  const gridModeLevel = document.getElementById('gridModeLevel');
+  if (!gridModeLevel) return;
+
+  // Hide level label when viewport height is under threshold
+  // This handles zoom, small screens, or any situation where space is limited
+  const hideThreshold = 600; // pixels
+
+  if (window.innerHeight < hideThreshold) {
+    gridModeLevel.style.display = 'none';
+  } else {
+    gridModeLevel.style.display = '';
+  }
+}
+
+// Check on load and when window resizes
+checkGridModeLevelVisibility();
+window.addEventListener('resize', checkGridModeLevelVisibility);
+
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.BLOCK_CREATE ||
