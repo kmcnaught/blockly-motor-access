@@ -423,7 +423,11 @@ export class MazeGame {
   private animationFrame: number = 0; // Current animation frame (0-15 for direction, 16-18 for victory)
   private readonly PEGMAN_WIDTH = 49;
   private readonly PEGMAN_HEIGHT = 51;
+  private readonly PEGMAN_SCALE = 1.15; // Scale up for visibility
   private tileShapeCache: string[][] = []; // Cache tile shapes so they don't change on each draw
+
+  // Track if character has moved (for start ring visibility)
+  private hasMovedSinceReset = false;
 
   /**
    * Get the current maze array based on practice mode setting.
@@ -469,6 +473,9 @@ export class MazeGame {
     this.computeTileShapes();
     this.calculateScale();
     this.loadAssets();
+
+    // Start ring animation for start/goal indicators
+    this.startRingAnimation();
   }
 
   /**
@@ -830,7 +837,11 @@ export class MazeGame {
 
     // Draw player with pegman image using animation frame
     if (!skipPegman) {
+      // Draw visibility effects that go behind the character
+      this.drawVisibilityEffect();
+
       this.drawPegman(this.playerPos.x, this.playerPos.y, this.animationFrame);
+
       // Restore transform
       this.ctx.restore();
     }
@@ -867,6 +878,14 @@ export class MazeGame {
       const destX = px + (this.squareSize - this.PEGMAN_WIDTH) / 2;
       const destY = py + (this.squareSize - this.PEGMAN_HEIGHT) / 2 - 5;
 
+      // Apply scale for visibility
+      const centerX = px + this.squareSize / 2;
+      const centerY = py + this.squareSize / 2 - 5;
+      this.ctx.save();
+      this.ctx.translate(centerX, centerY);
+      this.ctx.scale(this.PEGMAN_SCALE, this.PEGMAN_SCALE);
+      this.ctx.translate(-centerX, -centerY);
+
       this.ctx.drawImage(
         this.pegmanImage,
         srcX,
@@ -878,6 +897,8 @@ export class MazeGame {
         this.PEGMAN_WIDTH,
         this.PEGMAN_HEIGHT
       );
+
+      this.ctx.restore();
     } else {
       // Fallback rendering
       const centerX = px + this.squareSize / 2;
@@ -953,6 +974,121 @@ export class MazeGame {
       // Fallback - just draw normal pegman
       this.drawPegman(x, y, frame);
     }
+  }
+
+  // ========== START RING EFFECT ==========
+
+  private ringAnimationId: number | null = null;
+  private ringAnimationStartTime: number = 0;
+
+  // Ring timing constants (in seconds)
+  // One pulse cycle = π/2 seconds ≈ 1.57s (based on sin(time * 4))
+  private static readonly RING_PULSE_PERIOD = Math.PI / 2;
+  private static readonly RING_FADE_START_PULSE = 2;  // Start fading after pulse 2
+  private static readonly RING_FADE_PULSES = 1;       // Fade over 1 pulse
+
+  /**
+   * Draw start rings around player and goal (before first action).
+   */
+  private drawVisibilityEffect(): void {
+    if (!this.hasMovedSinceReset) {
+      const opacity = this.getRingOpacity();
+      if (opacity > 0) {
+        // Draw ring around player
+        const cx = this.playerPos.x * this.squareSize + this.squareSize / 2;
+        const cy = this.playerPos.y * this.squareSize + this.squareSize / 2;
+        this.drawRing(cx, cy, opacity);
+
+        // Draw ring around goal
+        const goalCx = this.finishPos.x * this.squareSize + this.squareSize / 2;
+        const goalCy = this.finishPos.y * this.squareSize + this.squareSize / 2;
+        this.drawRing(goalCx, goalCy, opacity);
+      }
+    }
+  }
+
+  /**
+   * Calculate the current ring opacity based on elapsed time.
+   * Full opacity for first 2 pulses, then fades over 1 pulse.
+   */
+  private getRingOpacity(): number {
+    const elapsed = (performance.now() - this.ringAnimationStartTime) / 1000;
+    const fadeStartTime = MazeGame.RING_FADE_START_PULSE * MazeGame.RING_PULSE_PERIOD;
+    const fadeDuration = MazeGame.RING_FADE_PULSES * MazeGame.RING_PULSE_PERIOD;
+
+    if (elapsed < fadeStartTime) {
+      return 1.0;
+    }
+
+    const fadeElapsed = elapsed - fadeStartTime;
+    if (fadeElapsed >= fadeDuration) {
+      return 0;
+    }
+
+    return 1.0 - (fadeElapsed / fadeDuration);
+  }
+
+  /**
+   * Draw a pulsing ring with specified opacity.
+   */
+  private drawRing(cx: number, cy: number, opacity: number): void {
+    const time = performance.now() / 1000;
+    const pulseScale = 1 + Math.sin(time * 4) * 0.15;
+    const radius = this.squareSize * 0.55 * pulseScale;
+
+    // Outer glow
+    this.ctx.strokeStyle = `rgba(76, 175, 80, ${0.3 * opacity})`;
+    this.ctx.lineWidth = 8;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    this.ctx.stroke();
+
+    // Inner ring
+    this.ctx.strokeStyle = `rgba(76, 175, 80, ${0.8 * opacity})`;
+    this.ctx.lineWidth = 3;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    this.ctx.stroke();
+  }
+
+  /**
+   * Start the ring pulsing animation.
+   */
+  private startRingAnimation(): void {
+    this.stopRingAnimation();
+    this.ringAnimationStartTime = performance.now();
+
+    const animate = () => {
+      if (this.hasMovedSinceReset) {
+        this.ringAnimationId = null;
+        return;
+      }
+      // Stop animation when fully faded
+      if (this.getRingOpacity() <= 0) {
+        this.ringAnimationId = null;
+        return;
+      }
+      this.draw();
+      this.ringAnimationId = requestAnimationFrame(animate);
+    };
+    this.ringAnimationId = requestAnimationFrame(animate);
+  }
+
+  /**
+   * Stop the ring animation.
+   */
+  private stopRingAnimation(): void {
+    if (this.ringAnimationId !== null) {
+      cancelAnimationFrame(this.ringAnimationId);
+      this.ringAnimationId = null;
+    }
+  }
+
+  /**
+   * Dismiss the start/goal rings when player begins an action.
+   */
+  private dismissRings(): void {
+    this.hasMovedSinceReset = true;
   }
 
   /**
@@ -1350,6 +1486,10 @@ export class MazeGame {
     this.playerPos = {...this.startPos};
     this.playerDir = Direction.EAST;
     this.animationFrame = this.playerDir * 4;
+    this.hasMovedSinceReset = false;
+
+    // Start ring animation for start/goal indicators
+    this.startRingAnimation();
 
     // Clear block highlighting
     if (this.highlightCallback) {
@@ -1409,6 +1549,8 @@ export class MazeGame {
       return 'continue';
     }
 
+    this.dismissRings();
+
     const dirDeltas = [
       {x: 0, y: -1}, // NORTH
       {x: 1, y: 0},  // EAST
@@ -1458,6 +1600,8 @@ export class MazeGame {
     if (this.executing) {
       return;
     }
+
+    this.dismissRings();
 
     this.executing = true;
     const startFrame = this.playerDir * 4;
@@ -1719,6 +1863,8 @@ export class MazeGame {
    * Animate movement in a direction (async version for log playback).
    */
   private async animateMoveAsync(deltaX: number, deltaY: number): Promise<void> {
+    this.dismissRings();
+
     const startX = this.playerPos.x;
     const startY = this.playerPos.y;
     const endX = startX + deltaX;
@@ -1734,6 +1880,8 @@ export class MazeGame {
    * @param direction -1 for left, 1 for right
    */
   private async animateTurnAsync(direction: number): Promise<void> {
+    this.dismissRings();
+
     const startFrame = this.playerDir * 4;
     const endDir = this.constrainDirection4(this.playerDir + direction);
     const endFrame = endDir * 4;
