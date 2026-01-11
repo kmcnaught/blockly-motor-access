@@ -1560,6 +1560,77 @@ function hideGridModeSuccess(advance: boolean): void {
   }
 }
 
+// ========== GRID MODE GRADUATION ==========
+
+let gridModeGraduationTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Show completion message for Grid mode after finishing all levels.
+ * Simpler than regular graduation modal - just OK with auto-dismiss.
+ */
+function showGridModeGraduation(): void {
+  // Get the result modal elements (reuse the existing result modal)
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set localized text
+  resultModalTitle.textContent = msg('MAZE_GRID_GRADUATION_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_GRADUATION_MESSAGE');
+  okText.textContent = 'OK';
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button
+  resultModalCancel.hidden = true;
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+
+  // Start 5 second countdown with progress bar
+  const countdownDuration = 5000;
+  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
+  resultModalOk.classList.add('countdown');
+
+  gridModeGraduationTimer = setTimeout(() => {
+    hideGridModeGraduation();
+  }, countdownDuration);
+
+  // Handle OK button click (dismiss immediately)
+  const handleOk = () => {
+    hideGridModeGraduation();
+    resultModalOk.removeEventListener('click', handleOk);
+  };
+  resultModalOk.addEventListener('click', handleOk);
+}
+
+/**
+ * Hide the Grid mode graduation modal.
+ */
+function hideGridModeGraduation(): void {
+  // Clear timer
+  if (gridModeGraduationTimer) {
+    clearTimeout(gridModeGraduationTimer);
+    gridModeGraduationTimer = null;
+  }
+
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+
+  resultModal.hidden = true;
+  resultModalOk.classList.remove('countdown');
+  okProgress.style.animation = '';
+}
+
 /**
  * Initialize Grid mode UI if active.
  */
@@ -1734,7 +1805,11 @@ function goToNextLevel() {
     performLevelTransition(newLevel, true);
   } else if (MazeGame.isPracticeModeEnabled()) {
     // At last practice level - offer to switch to coding mode
-    showGraduationModal();
+    if (isGridMode) {
+      showGridModeGraduation();
+    } else {
+      showGraduationModal();
+    }
   }
 }
 

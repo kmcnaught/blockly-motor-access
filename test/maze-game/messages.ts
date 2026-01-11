@@ -123,6 +123,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_INSTRUCTIONS: 'Instructions used: %1',
     MAZE_GRID_SUCCESS_TITLE: 'Hurrah!',
     MAZE_GRID_SUCCESS_MESSAGE: 'You got to the goal with %1 instructions!',
+    MAZE_GRID_GRADUATION_TITLE: 'Well done!',
+    MAZE_GRID_GRADUATION_MESSAGE: 'You finished all the mazes! In Coding mode, you can write a program to guide the character for you.',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
@@ -245,6 +247,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_INSTRUCTIONS: 'Instructions utilisées : %1',
     MAZE_GRID_SUCCESS_TITLE: 'Hourra !',
     MAZE_GRID_SUCCESS_MESSAGE: 'Vous avez atteint l\'objectif avec %1 instructions !',
+    MAZE_GRID_GRADUATION_TITLE: 'Bravo !',
+    MAZE_GRID_GRADUATION_MESSAGE: 'Vous avez terminé tous les labyrinthes ! En mode Programmation, vous pouvez écrire un programme pour guider le personnage.',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
