@@ -585,7 +585,7 @@ export class MazeGame {
     // Load crash sound
     this.crashAudio = new Audio();
     this.crashAudio.src = this.skin.crashSound[0]; // Use first format (mp3)
-    this.crashAudio.volume = 0.5;
+    this.crashAudio.volume = 0.375;
     this.crashAudio.load();
   }
 
