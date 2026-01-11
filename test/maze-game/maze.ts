@@ -411,6 +411,9 @@ export class MazeGame {
   // Flag to signal animation cancellation
   private animationCancelled = false;
 
+  // Timeout ID for delayed result dialog (allows cancellation on reset)
+  private resultDelayTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
   private pegmanImage: HTMLImageElement | null = null;
   private tilesImage: HTMLImageElement | null = null;
   private backgroundImage: HTMLImageElement | null = null;
@@ -1500,6 +1503,12 @@ export class MazeGame {
     this.animationCancelled = true;
     this.executing = false;
 
+    // Cancel any pending result dialog timeout
+    if (this.resultDelayTimeoutId !== null) {
+      clearTimeout(this.resultDelayTimeoutId);
+      this.resultDelayTimeoutId = null;
+    }
+
     this.playerPos = {...this.startPos};
     this.playerDir = Direction.EAST;
     this.animationFrame = this.playerDir * 4;
@@ -1936,22 +1945,35 @@ export class MazeGame {
         await this.animateVictory();
         // Notify completion first (triggers confetti), then show modal after delay
         this.notifyCompletion(true);
-        setTimeout(() => {
+        this.resultDelayTimeoutId = setTimeout(() => {
+          this.resultDelayTimeoutId = null;
           this.notifyResult('success');
         }, 1500);
         break;
       case 'failure':
-        this.notifyResult('failure');
         this.notifyCompletion(false);
+        // Add delay before showing failure dialog (can be cancelled by reset)
+        this.resultDelayTimeoutId = setTimeout(() => {
+          this.resultDelayTimeoutId = null;
+          this.notifyResult('failure');
+        }, 500);
         break;
       case 'timeout':
-        this.notifyResult('timeout');
         this.notifyCompletion(false);
+        // Add delay before showing timeout dialog (can be cancelled by reset)
+        this.resultDelayTimeoutId = setTimeout(() => {
+          this.resultDelayTimeoutId = null;
+          this.notifyResult('timeout');
+        }, 500);
         break;
       case 'error':
         // Wall collision - show modal after crash animation completes
         this.notifyCompletion(false);
-        setTimeout(() => this.notifyResult('error'), 500);
+        // Delay before showing error dialog (can be cancelled by reset)
+        this.resultDelayTimeoutId = setTimeout(() => {
+          this.resultDelayTimeoutId = null;
+          this.notifyResult('error');
+        }, 500);
         break;
     }
   }
