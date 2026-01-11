@@ -191,6 +191,18 @@ export class Navigation {
       return;
     }
 
+    // When blocks are created in the flyout, disable their fields to prevent
+    // accidental clicks on fields instead of selecting the block.
+    if (e.type === Blockly.Events.BLOCK_CREATE) {
+      const {blockId} = e as Blockly.Events.BlockCreate;
+      if (blockId) {
+        const block = flyoutWorkspace.getBlockById(blockId);
+        if (block) {
+          this.disableFlyoutBlockFields(block);
+        }
+      }
+    }
+
     // This is called for simple toolboxes and for toolboxes that have a flyout
     // that does not close. Autoclosing flyouts close before we need to focus
     // the cursor on the block that was clicked.
@@ -226,6 +238,26 @@ export class Navigation {
       // When variables are created, that recreates the flyout contents, leaving the
       // cursor in an invalid state.
       this.defaultFlyoutCursorIfNeeded(mainWorkspace);
+    }
+  }
+
+  /**
+   * Disables all fields on a flyout block to prevent accidental editing.
+   * This ensures users click on the block itself to select it, not on fields.
+   *
+   * @param block The flyout block to disable fields on.
+   */
+  private disableFlyoutBlockFields(block: Blockly.BlockSvg) {
+    // Disable fields on the block itself using setEnabled(false)
+    // This prevents the field from being editable while keeping the block editable
+    for (const input of block.inputList) {
+      for (const field of input.fieldRow) {
+        field.setEnabled(false);
+      }
+    }
+    // Also disable fields on any child blocks (e.g., shadow blocks)
+    for (const child of block.getChildren(false)) {
+      this.disableFlyoutBlockFields(child);
     }
   }
 

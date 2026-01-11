@@ -1,0 +1,3 @@
+COMPLETED: Made flyout block fields non-editable.
+Modified src/navigation.ts: Added disableFlyoutBlockFields() method and integrated it into flyoutChangeListener() on BLOCK_CREATE events.
+Fields disabled via setEnabled(false); workspace blocks created from flyout retain editable fields by default.
