@@ -1,0 +1,5 @@
+COMPLETED: Added mute button to header.
+- maze.ts: Added soundEnabled property with setSoundEnabled/isSoundEnabled methods; sounds check flag before playing
+- index.html: Added mute button with speaker icons and keyboard hint for M
+- maze.css: Added mute button styling with muted state visual feedback
+- index.ts: Added sound state management with localStorage persistence and M keyboard shortcut

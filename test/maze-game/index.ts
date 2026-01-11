@@ -470,6 +470,51 @@ MazeGame.setPracticeModeEnabled(currentExecutionMode === 'practice');
 
 const mazeGame = new MazeGame('mazeCanvas', initialLevel, savedSkin);
 
+// ========== SOUND MUTE STATE ==========
+
+// Load saved sound preference from localStorage (default: enabled)
+const savedSoundEnabled = localStorage.getItem('mazeSoundEnabled');
+let soundEnabled = savedSoundEnabled !== 'false'; // Default to true if not set
+
+// Apply saved sound state to maze game
+mazeGame.setSoundEnabled(soundEnabled);
+
+// Initialize mute button UI state
+const muteButton = document.getElementById('muteButton');
+
+/**
+ * Update the mute button UI to reflect current sound state.
+ */
+function updateMuteButtonUI(): void {
+  if (!muteButton) return;
+
+  if (soundEnabled) {
+    muteButton.classList.remove('muted');
+    muteButton.setAttribute('aria-pressed', 'false');
+    muteButton.setAttribute('aria-label', msg('MAZE_UNMUTE') || 'Mute sound');
+  } else {
+    muteButton.classList.add('muted');
+    muteButton.setAttribute('aria-pressed', 'true');
+    muteButton.setAttribute('aria-label', msg('MAZE_MUTE') || 'Unmute sound');
+  }
+}
+
+/**
+ * Toggle sound on/off and persist the setting.
+ */
+function toggleSound(): void {
+  soundEnabled = !soundEnabled;
+  mazeGame.setSoundEnabled(soundEnabled);
+  localStorage.setItem('mazeSoundEnabled', String(soundEnabled));
+  updateMuteButtonUI();
+}
+
+// Initialize mute button UI
+updateMuteButtonUI();
+
+// Wire up mute button click handler
+muteButton?.addEventListener('click', toggleSound);
+
 // ========== URL STATE MANAGEMENT ==========
 
 /**
@@ -1972,6 +2017,16 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       cycleLanguage();
+      return;
+    }
+  }
+
+  // M: Toggle mute (no modifiers)
+  if (e.key === 'm' || e.key === 'M') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleSound();
       return;
     }
   }

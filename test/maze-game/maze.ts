@@ -420,6 +420,7 @@ export class MazeGame {
   private skin: Skin;
   private winAudio: HTMLAudioElement | null = null;
   private crashAudio: HTMLAudioElement | null = null;
+  private soundEnabled: boolean = true;
   private animationFrame: number = 0; // Current animation frame (0-15 for direction, 16-18 for victory)
   private readonly PEGMAN_WIDTH = 49;
   private readonly PEGMAN_HEIGHT = 51;
@@ -622,6 +623,22 @@ export class MazeGame {
 
   public getSkin(): number {
     return this.skinId;
+  }
+
+  /**
+   * Enable or disable sound effects.
+   * @param enabled True to enable sounds, false to mute.
+   */
+  public setSoundEnabled(enabled: boolean): void {
+    this.soundEnabled = enabled;
+  }
+
+  /**
+   * Check if sound is currently enabled.
+   * @returns True if sound is enabled, false if muted.
+   */
+  public isSoundEnabled(): boolean {
+    return this.soundEnabled;
   }
 
   public getMarkerPath(): string {
@@ -1294,7 +1311,7 @@ export class MazeGame {
    * - FLAIL: Flips upside down with legs flailing (Rudolph)
    */
   private async animateCrash(deltaX: number, deltaY: number): Promise<void> {
-    if (this.crashAudio) {
+    if (this.crashAudio && this.soundEnabled) {
       this.crashAudio.currentTime = 0;
       this.crashAudio.play().catch(() => {}); // Ignore audio errors
     }
@@ -1402,7 +1419,7 @@ export class MazeGame {
    * Animate victory dance.
    */
   private async animateVictory(): Promise<void> {
-    if (this.winAudio) {
+    if (this.winAudio && this.soundEnabled) {
       this.winAudio.currentTime = 0;
       this.winAudio.play().catch(() => {}); // Ignore audio errors
     }

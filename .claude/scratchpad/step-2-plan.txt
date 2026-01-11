@@ -1,0 +1,123 @@
+# Step 2: Add Sound Mute Button to Header
+
+## Overview
+Add a mute button in the header that allows users to toggle sound effects on/off. This should work in both grid mode and normal mode. The setting should be persisted to localStorage and reflected in the UI.
+
+## Current Sound Architecture
+- Sounds are managed in `maze.ts` in the `MazeGame` class
+- Win sound: loaded at `loadAudio()` (line 578-589)
+- Crash sound: loaded at `loadAudio()` (line 578-589)
+- Sounds are played via:
+  - Win: `animateVictory()` (line 1405-1407)
+  - Crash: `animateCrash()` (line 1297-1299)
+- Audio elements stored as `private winAudio` and `private crashAudio`
+
+## Current Header Structure
+- Located in `index.html` (lines 9-28)
+- Contains:
+  - Title (h1)
+  - Center section with mode label
+  - Right section with mode toggle, character selector, language select
+- Uses flexbox layout with `header-selectors` div
+
+## UI Pattern to Follow
+- Existing buttons in header:
+  - `modeToggle`: toggles practice/coding mode
+  - `pegmanButton`: opens character selector
+  - Language selector: dropdown
+- All styled consistently with hover/active states
+
+## Implementation Plan
+
+### 1. Add MuteButton UI Element
+**File**: `test/maze-game/index.html`
+**Location**: In `header-selectors` div, before language selector
+**Element**: 
+- Button with id `muteButton`
+- Class `mute-button` for styling
+- Icon/label to indicate mute status (on/off)
+- aria-label for accessibility
+- Will toggle between speaker icon and muted icon
+
+### 2. Add Sound Control to MazeGame Class
+**File**: `test/maze-game/maze.ts`
+**Changes**:
+- Add private property: `soundEnabled: boolean = true`
+- Add public method: `setSoundEnabled(enabled: boolean)` to toggle sound globally
+- Modify `animateVictory()` (line 1405): Check `soundEnabled` before playing win sound
+- Modify `animateCrash()` (line 1297): Check `soundEnabled` before playing crash sound
+- Add public getter: `isSoundEnabled(): boolean` to query current state
+
+### 3. Add State Management in index.ts
+**File**: `test/maze-game/index.ts`
+**Changes**:
+- Load saved sound preference from localStorage on page load
+  - Key: `mazeSoundEnabled` (defaults to true)
+  - Call `mazeGame.setSoundEnabled(savedState)` after maze creation
+- Create UI event handlers:
+  - `toggleMuteButton()`: Function to toggle mute state
+  - Button click listener that calls `toggleMuteButton()`
+- State tracking:
+  - Variable `soundEnabled = localStorage.getItem('mazeSoundEnabled')`
+  - Update localStorage when toggled
+  - Update UI button appearance when toggled
+
+### 4. Add Button Styling
+**File**: `test/maze-game/maze.css`
+**Changes**:
+- Style `.mute-button` to match existing header buttons
+- States:
+  - Normal (sound on): Show speaker icon
+  - Muted (sound off): Show muted speaker icon
+  - Hover state
+  - Active/pressed state
+- Use pseudo-classes or data-attributes for icon states
+
+### 5. Add Accessibility Features
+- aria-label: "Mute sound" / "Unmute sound" (updates with state)
+- aria-pressed: true/false (for toggle button semantics)
+- Keyboard accessible (already handled by button element)
+
+### 6. Keyboard Shortcut (Optional Enhancement)
+**File**: `test/maze-game/index.ts`
+**Location**: In global keyboard shortcuts section (around line 1836)
+**Addition**:
+- Key: 'M' (no modifiers)
+- Action: Toggle mute
+- Document in shortcut hints and keyboard event handler
+
+### 7. Grid Mode Considerations
+**File**: `test/maze-game/index.ts`
+**Status**: Should work automatically
+- Mute button is in header, visible in grid mode
+- localStorage persistence works across modes
+- No special grid mode logic needed for sound muting
+
+## Edge Cases to Handle
+1. Audio loading errors: Already handled with .catch(() => {}) in existing code
+2. Double-clicking mute button: Button is disabled during execution, so not an issue
+3. Switching levels: Sound state persists across levels (desired behavior)
+4. Mode switching (practice/coding): Sound state persists across modes (desired behavior)
+
+## Testing Checklist
+1. Click mute button - sound toggles off
+2. Click again - sound toggles back on
+3. Reload page - sound state persists
+4. Play game with sound off - no sounds play
+5. Play game with sound on - sounds play correctly
+6. Test in both normal and grid modes
+7. Test keyboard shortcut (if implemented)
+8. Test with different characters - all should respect mute state
+
+## Files to Modify
+1. `/test/maze-game/index.html` - Add button HTML
+2. `/test/maze-game/index.ts` - Add state management and event handlers
+3. `/test/maze-game/maze.ts` - Add sound control logic
+4. `/test/maze-game/maze.css` - Add button styling
+
+## Implementation Order
+1. Modify maze.ts (add sound control methods)
+2. Update index.html (add button HTML)
+3. Update maze.css (add button styles)
+4. Update index.ts (add state management and handlers)
+5. Test thoroughly in both modes
