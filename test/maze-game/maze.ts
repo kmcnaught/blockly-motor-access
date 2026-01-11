@@ -1643,6 +1643,33 @@ export class MazeGame {
     this.executing = false;
   }
 
+  // ============================================================
+  // State Management Methods (for Grid Coding Mode undo)
+  // ============================================================
+
+  /**
+   * Get the current maze state (position and direction).
+   * Used for saving state before a move for undo functionality.
+   */
+  public getState(): {x: number; y: number; direction: number} {
+    return {
+      x: this.playerPos.x,
+      y: this.playerPos.y,
+      direction: this.playerDir,
+    };
+  }
+
+  /**
+   * Set the maze state (position and direction).
+   * Used for restoring state during undo.
+   */
+  public setState(state: {x: number; y: number; direction: number}): void {
+    this.playerPos = {x: state.x, y: state.y};
+    this.playerDir = state.direction as Direction;
+    this.animationFrame = this.playerDir * 4;
+    this.draw();
+  }
+
   /**
    * Initialize the JS-Interpreter with the maze API.
    * This creates a sandboxed environment where user code can only call

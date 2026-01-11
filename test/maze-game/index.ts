@@ -18,6 +18,7 @@ import {registerMazeBlocks, setCurrentSkin} from './blocks';
 import {MazeGame, MAX_BLOCKS, type ResultType} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
+import {GridCodingModeController} from './grid-coding-mode';
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -71,6 +72,10 @@ let currentExecutionMode: ExecutionMode = getInitialExecutionMode();
 // Grid mode flag (active when grid=1 URL param AND mode=practice)
 // Used inside Grid 3 AAC software where all interaction comes via keyboard from a gridset
 const isGridMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'practice';
+
+// Grid coding mode flag (active when grid=1 URL param AND mode=coding)
+// Keyboard commands insert blocks AND execute immediately
+const isGridCodingMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'coding';
 
 // Initialize locale (URL param > localStorage > browser detection)
 const urlLang = getStringParamFromUrl('lang', '');
@@ -550,6 +555,20 @@ const immediateModeController = new ImmediateModeController(
   mazeGame
 );
 
+// Initialize Grid coding mode controller (only created if in Grid coding mode)
+let gridCodingModeController: GridCodingModeController | null = null;
+if (isGridCodingMode) {
+  gridCodingModeController = new GridCodingModeController(workspace, mazeGame);
+
+  // Register block count callback for Grid coding mode
+  gridCodingModeController.onBlockCountChange((count) => {
+    const blockCountEl = document.getElementById('gridCodingBlockCount');
+    if (blockCountEl) {
+      blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', count);
+    }
+  });
+}
+
 // Register instruction count callback for Grid mode
 if (isGridMode) {
   immediateModeController.onInstructionCountChange((count) => {
@@ -586,6 +605,32 @@ immediateModeController.onLevelComplete((success) => {
     }
   }
 });
+
+// Register completion callback for Grid coding mode
+if (gridCodingModeController) {
+  gridCodingModeController.onLevelComplete((success) => {
+    if (success) {
+      const currentLevel = mazeGame.getLevel();
+      // Grid coding mode only supports levels 1-2 (simple statements)
+      const maxGridCodingLevel = 2;
+
+      // Launch confetti first
+      launchConfetti();
+
+      if (currentLevel >= maxGridCodingLevel) {
+        // Show Grid coding graduation message
+        setTimeout(() => {
+          showGridCodingGraduation(gridCodingModeController!.getBlockCount());
+        }, 1500);
+      } else {
+        // Show success and advance to next level
+        setTimeout(() => {
+          showGridCodingSuccess(gridCodingModeController!.getBlockCount());
+        }, 1500);
+      }
+    }
+  });
+}
 
 /**
  * Get the current execution mode.
@@ -657,24 +702,43 @@ function updateModeToggleButton(): void {
  * Update the UI based on current execution mode.
  * Practice mode: Shows command buttons, hides Blockly workspace
  * Coding mode: Shows Blockly workspace, hides command buttons
+ * Grid coding mode: Shows Blockly workspace (for blocks), hides normal controls
  */
 function updateModeUI(): void {
   const blocklyDiv = document.getElementById('blocklyDiv');
   const runButton = document.getElementById('runButton');
   const capacityBubble = document.getElementById('capacityBubble');
+  const gridCodingControls = document.getElementById('gridCodingControls');
 
   if (currentExecutionMode === 'practice') {
     // Practice mode: Hide Blockly, show command buttons
     blocklyDiv?.classList.add('hidden');
     runButton?.classList.add('hidden');
     capacityBubble?.classList.add('hidden');
+    gridCodingControls?.classList.add('hidden');
     immediateModeController.setMazeGame(mazeGame);
     immediateModeController.enable();
+    gridCodingModeController?.disable();
+  } else if (isGridCodingMode) {
+    // Grid coding mode: Show Blockly workspace, hide other controls
+    blocklyDiv?.classList.remove('hidden');
+    runButton?.classList.add('hidden'); // Use keyboard R instead
+    capacityBubble?.classList.add('hidden'); // No block limits in Grid coding
+    gridCodingControls?.classList.remove('hidden');
+    immediateModeController.disable();
+    if (gridCodingModeController) {
+      gridCodingModeController.setMazeGame(mazeGame);
+      gridCodingModeController.enable();
+    }
+    // Resize Blockly to fill available space
+    Blockly.svgResize(workspace);
   } else {
-    // Coding mode: Show Blockly, hide command buttons
+    // Normal coding mode: Show Blockly, hide command buttons
     blocklyDiv?.classList.remove('hidden');
     runButton?.classList.remove('hidden');
+    gridCodingControls?.classList.add('hidden');
     immediateModeController.disable();
+    gridCodingModeController?.disable();
     // Resize Blockly to fill available space
     Blockly.svgResize(workspace);
     // Update capacity bubble
@@ -1676,6 +1740,152 @@ function hideGridModeGraduation(): void {
   okProgress.style.animation = '';
 }
 
+// ========== GRID CODING MODE SUCCESS ==========
+
+let gridCodingCountdownInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Show success message for Grid coding mode with block count and auto-advance.
+ */
+function showGridCodingSuccess(blockCount: number): void {
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set text
+  resultModalTitle.textContent = msg('MAZE_GRID_CODING_SUCCESS_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE', blockCount);
+  okText.textContent = msg('MAZE_GRID_CODING_RUN_AGAIN');
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button
+  resultModalCancel.hidden = true;
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+
+  // Start countdown with progress bar
+  const countdownDuration = 5000;
+  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
+  resultModalOk.classList.add('countdown');
+
+  gridCodingCountdownInterval = setTimeout(() => {
+    hideGridCodingSuccess(true);
+  }, countdownDuration);
+
+  const handleOk = () => {
+    hideGridCodingSuccess(true);
+    resultModalOk.removeEventListener('click', handleOk);
+  };
+  resultModalOk.addEventListener('click', handleOk);
+}
+
+/**
+ * Hide the Grid coding mode success modal.
+ */
+function hideGridCodingSuccess(advance: boolean): void {
+  if (gridCodingCountdownInterval) {
+    clearTimeout(gridCodingCountdownInterval);
+    gridCodingCountdownInterval = null;
+  }
+
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+
+  resultModal.hidden = true;
+  resultModalOk.classList.remove('countdown');
+  okProgress.style.animation = '';
+
+  if (advance) {
+    // Clear workspace and advance to next level
+    gridCodingModeController?.clear();
+    goToNextLevel();
+
+    // Update grid coding level display
+    const gridCodingLevel = document.getElementById('gridCodingLevel');
+    if (gridCodingLevel) {
+      gridCodingLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+    }
+  }
+}
+
+// ========== GRID CODING MODE GRADUATION ==========
+
+let gridCodingGraduationTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Show completion message for Grid coding mode after finishing all simple levels.
+ */
+function showGridCodingGraduation(blockCount: number): void {
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set text
+  resultModalTitle.textContent = msg('MAZE_GRID_CODING_GRADUATION_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_CODING_GRADUATION_MESSAGE', blockCount);
+  okText.textContent = 'OK';
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button
+  resultModalCancel.hidden = true;
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+
+  // Start countdown
+  const countdownDuration = 5000;
+  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
+  resultModalOk.classList.add('countdown');
+
+  gridCodingGraduationTimer = setTimeout(() => {
+    hideGridCodingGraduation();
+  }, countdownDuration);
+
+  const handleOk = () => {
+    hideGridCodingGraduation();
+    resultModalOk.removeEventListener('click', handleOk);
+  };
+  resultModalOk.addEventListener('click', handleOk);
+}
+
+/**
+ * Hide the Grid coding mode graduation modal.
+ */
+function hideGridCodingGraduation(): void {
+  if (gridCodingGraduationTimer) {
+    clearTimeout(gridCodingGraduationTimer);
+    gridCodingGraduationTimer = null;
+  }
+
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+
+  resultModal.hidden = true;
+  resultModalOk.classList.remove('countdown');
+  okProgress.style.animation = '';
+}
+
 /**
  * Initialize Grid mode UI if active.
  */
@@ -1708,6 +1918,68 @@ function initializeGridMode(): void {
 
 // Initialize Grid mode if active
 initializeGridMode();
+
+/**
+ * Initialize Grid coding mode UI if active.
+ */
+function initializeGridCodingMode(): void {
+  if (!isGridCodingMode) return;
+
+  // Add grid-coding-mode class to body for CSS targeting
+  document.body.classList.add('grid-coding-mode');
+
+  // Show grid coding level label
+  const gridCodingLevel = document.getElementById('gridCodingLevel');
+  if (gridCodingLevel) {
+    gridCodingLevel.classList.remove('hidden');
+    gridCodingLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+  }
+
+  // Show block count
+  const blockCountEl = document.getElementById('gridCodingBlockCount');
+  if (blockCountEl) {
+    blockCountEl.classList.remove('hidden');
+    blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', 0);
+  }
+
+  // Show grid coding controls
+  const gridCodingControls = document.getElementById('gridCodingControls');
+  if (gridCodingControls) {
+    gridCodingControls.classList.remove('hidden');
+  }
+
+  // Update instruction bar text for grid coding mode
+  const levelInstruction = document.getElementById('levelInstruction');
+  if (levelInstruction) {
+    levelInstruction.textContent = msg('MAZE_GRID_CODING_INSTRUCTION');
+  }
+
+  // Enable the controller
+  if (gridCodingModeController) {
+    gridCodingModeController.enable();
+  }
+
+  // Hide the toolbox/flyout by setting an empty toolbox
+  // Grid3 provides the block selection UI externally
+  workspace.updateToolbox({kind: 'flyoutToolbox', contents: []});
+
+  // Also try to hide the flyout directly
+  const flyout = workspace.getFlyout();
+  if (flyout) {
+    flyout.hide();
+  }
+
+  // Resize Blockly workspace to fit new layout after a short delay
+  // (allows CSS to be applied first)
+  setTimeout(() => {
+    Blockly.svgResize(workspace);
+    // Scroll workspace to origin where blocks will be placed
+    workspace.scroll(0, 0);
+  }, 100);
+}
+
+// Initialize Grid coding mode if active
+initializeGridCodingMode();
 
 // Hide level label when viewport is too small (works regardless of zoom level)
 function checkGridModeLevelVisibility(): void {

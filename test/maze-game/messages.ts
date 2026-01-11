@@ -126,6 +126,15 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_GRADUATION_TITLE: 'Well done!',
     MAZE_GRID_GRADUATION_MESSAGE: 'You finished all the mazes! In Coding mode, you can write a program to guide the character for you.',
 
+    // Grid coding mode (immediate execution + block building)
+    MAZE_GRID_CODING_INSTRUCTION: 'Use arrow keys to build your program. Watch the blocks appear!',
+    MAZE_GRID_BLOCKS: 'Blocks: %1',
+    MAZE_GRID_CODING_SUCCESS_TITLE: 'Great job!',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE: 'You wrote a program with %1 blocks! Press RUN to see it again.',
+    MAZE_GRID_CODING_RUN_AGAIN: 'Run Again',
+    MAZE_GRID_CODING_GRADUATION_TITLE: 'Amazing!',
+    MAZE_GRID_CODING_GRADUATION_MESSAGE: 'You completed all the coding levels with %1 blocks!',
+
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
 
@@ -249,6 +258,15 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_SUCCESS_MESSAGE: 'Vous avez atteint l\'objectif avec %1 instructions !',
     MAZE_GRID_GRADUATION_TITLE: 'Bravo !',
     MAZE_GRID_GRADUATION_MESSAGE: 'Vous avez terminé tous les labyrinthes ! En mode Programmation, vous pouvez écrire un programme pour guider le personnage.',
+
+    // Grid coding mode (immediate execution + block building)
+    MAZE_GRID_CODING_INSTRUCTION: 'Utilisez les touches fléchées pour construire votre programme. Regardez les blocs apparaître !',
+    MAZE_GRID_BLOCKS: 'Blocs : %1',
+    MAZE_GRID_CODING_SUCCESS_TITLE: 'Excellent !',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE: 'Vous avez écrit un programme de %1 blocs ! Appuyez sur EXÉCUTER pour le revoir.',
+    MAZE_GRID_CODING_RUN_AGAIN: 'Relancer',
+    MAZE_GRID_CODING_GRADUATION_TITLE: 'Incroyable !',
+    MAZE_GRID_CODING_GRADUATION_MESSAGE: 'Vous avez terminé tous les niveaux de programmation avec %1 blocs !',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',

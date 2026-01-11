@@ -1562,3 +1562,151 @@ body.grid-mode #mazeCanvas {
   max-width: calc(100vw - 32px);
   max-height: 100%;
 }
+
+/* ============================================================
+   Grid Coding Mode Styles
+   Used when grid=1 URL parameter is active with coding mode
+   Keyboard commands insert blocks AND execute immediately.
+   ============================================================ */
+
+/* Hide UI elements in grid coding mode */
+body.grid-coding-mode .mode-label,
+body.grid-coding-mode .mode-toggle,
+body.grid-coding-mode .sidebar-toggle,
+body.grid-coding-mode .level-selector,
+body.grid-coding-mode #runButton,
+body.grid-coding-mode #resetButton,
+body.grid-coding-mode .shortcut-hints,
+body.grid-coding-mode #capacityBubble,
+body.grid-coding-mode #immediateModePanel {
+  display: none !important;
+}
+
+/* Hide the Blockly toolbox and flyout in grid coding mode (Grid3 provides the toolbox) */
+body.grid-coding-mode .blocklyToolboxDiv {
+  display: none !important;
+  width: 0 !important;
+}
+
+body.grid-coding-mode .blocklyFlyout {
+  display: none !important;
+}
+
+/* Grid coding mode body - fit viewport */
+body.grid-coding-mode {
+  height: 100vh;
+  overflow: hidden;
+  background: white;
+}
+
+/* Container layout for grid coding mode - side by side */
+body.grid-coding-mode .container {
+  flex-direction: row;
+  justify-content: stretch;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 16px;
+  height: 100vh;
+  gap: 16px;
+}
+
+/* Blockly container in grid coding mode - left side */
+body.grid-coding-mode .blockly-container {
+  order: 1;
+  flex: 1;
+  min-width: 300px;
+  height: 100%;
+  border: 2px solid #e1bee7;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+body.grid-coding-mode #blocklyDiv {
+  height: 100%;
+  width: 100%;
+}
+
+/* Game container in grid coding mode - right side */
+body.grid-coding-mode .game-container {
+  order: 2;
+  flex: 0 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  gap: 8px;
+}
+
+/* Level label for Grid coding mode */
+.grid-coding-level {
+  font-size: 18px;
+  font-weight: 600;
+  color: #7b1fa2;
+  text-align: center;
+  padding: 8px 16px;
+  background: #f3e5f5;
+  border-radius: 6px;
+}
+
+.grid-coding-level.hidden {
+  display: none;
+}
+
+/* Block count display for Grid coding mode */
+.grid-coding-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.grid-coding-controls.hidden {
+  display: none;
+}
+
+.grid-coding-block-count {
+  font-size: 18px;
+  font-weight: 500;
+  color: #7b1fa2;
+  text-align: center;
+  padding: 12px 32px;
+  background: #f3e5f5;
+  border-radius: 8px;
+}
+
+/* Canvas wrapper in grid coding mode */
+body.grid-coding-mode .canvas-wrapper {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: auto;
+  overflow: hidden;
+}
+
+/* Hide regular game controls in grid coding mode */
+body.grid-coding-mode .game-controls {
+  display: none;
+}
+
+/* Override sidebar-collapsed styles in grid coding mode */
+body.grid-coding-mode .container.sidebar-collapsed .game-container {
+  width: 100%;
+  min-width: auto;
+  padding: 0;
+  overflow: visible;
+  opacity: 1;
+}
+
+body.grid-coding-mode .container.sidebar-collapsed .blockly-container {
+  display: flex !important;
+  opacity: 1;
+}
+
+/* Maze canvas sizing in grid coding mode - fit in right column */
+body.grid-coding-mode #mazeCanvas {
+  max-width: 50vw;
+  max-height: calc(100vh - 150px);
+}
