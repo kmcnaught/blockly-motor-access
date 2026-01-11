@@ -237,11 +237,11 @@ export class GridCodingModeController {
         }
 
         if (result === 'fell') {
-          // Character fell off - show overlay, wait, then auto-reset
+          // Character fell off - show overlay, wait, then restore to position before fail
           this.showFallOverlay();
-          await this.delay(2000);
+          await this.delay(1500);
           this.hideFallOverlay();
-          this.clear();
+          this.restoreMazeState(stateBefore);
         }
         // 'wall' - just let them try again
       }
