@@ -36,13 +36,7 @@
         <span id="levelInstruction"></span>
         <span id="contextualHint"></span>
       </div>
-      <div class="shortcut-hints">
-        <span><kbd>R</kbd> run</span>
-        <span><kbd>[</kbd><kbd>]</kbd> levels</span>
-        <span><kbd>F</kbd> fullscreen</span>
-        <span><kbd>G</kbd> panel</span>
-        <span><kbd>M</kbd> mute</span>
-      </div>
+      <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts">?</button>
     </div>
 
     <div class="container">
@@ -153,6 +147,26 @@
         <div class="result-modal-buttons graduation-buttons">
           <button id="graduationTryCoding" class="result-modal-ok graduation-primary"></button>
           <button id="graduationStay" class="result-modal-ok graduation-secondary"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shortcuts Info Modal -->
+    <div id="shortcutsModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle" hidden>
+      <div class="result-modal shortcuts-modal">
+        <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
+        <div class="shortcuts-list">
+          <div class="shortcut-item"><kbd>R</kbd> Run program</div>
+          <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
+          <div class="shortcut-item"><kbd>F</kbd> Fullscreen maze</div>
+          <div class="shortcut-item"><kbd>G</kbd> Toggle panel</div>
+          <div class="shortcut-item"><kbd>M</kbd> Mute/unmute</div>
+        </div>
+        <div class="result-modal-buttons">
+          <button id="shortcutsModalClose" class="result-modal-ok">
+            <span class="ok-text">Close</span>
+            <span class="ok-hint">[Esc]</span>
+          </button>
         </div>
       </div>
     </div>

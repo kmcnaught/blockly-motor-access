@@ -721,23 +721,64 @@ header.christmas h1::after {
   display: none;
 }
 
-#instructionBar .shortcut-hints {
+/* Info button in instruction bar */
+#instructionBar .info-btn {
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
   display: flex;
-  gap: 8px;
-  font-size: 11px;
-  color: #5c6bc0;
-  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
 }
 
-#instructionBar .shortcut-hints kbd {
+#instructionBar .info-btn:hover {
+  background: #1565c0;
+}
+
+#instructionBar .info-btn:focus {
+  outline: 2px solid #90caf9;
+  outline-offset: 2px;
+}
+
+/* Shortcuts modal content */
+.shortcuts-modal .shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.shortcuts-modal .shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1em;
+  color: #333;
+}
+
+.shortcuts-modal .shortcut-item kbd {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 4px 8px;
   font-family: monospace;
-  font-size: 11px;
-  background: white;
-  border: 1px solid #90caf9;
-  border-radius: 3px;
-  box-shadow: 0 1px 0 #90caf9;
+  font-size: 0.9em;
+  background: #f5f5f5;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 #999;
+  min-width: 24px;
+  text-align: center;
 }
 
 /* Fullscreen overlay */
@@ -1466,7 +1507,7 @@ body.grid-mode .sidebar-toggle,
 body.grid-mode .level-selector,
 body.grid-mode #runButton,
 body.grid-mode #resetButton,
-body.grid-mode .shortcut-hints {
+body.grid-mode .info-btn {
   display: none !important;
 }
 
@@ -1576,7 +1617,7 @@ body.grid-coding-mode .sidebar-toggle,
 body.grid-coding-mode .level-selector,
 body.grid-coding-mode #runButton,
 body.grid-coding-mode #resetButton,
-body.grid-coding-mode .shortcut-hints,
+body.grid-coding-mode .info-btn,
 body.grid-coding-mode #capacityBubble,
 body.grid-coding-mode #immediateModePanel {
   display: none !important;

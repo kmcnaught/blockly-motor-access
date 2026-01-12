@@ -1591,6 +1591,48 @@ graduationModal.addEventListener('keydown', (e: KeyboardEvent) => {
   }
 });
 
+// ========== SHORTCUTS INFO MODAL ==========
+
+const shortcutsModal = document.getElementById('shortcutsModal')!;
+const shortcutsModalClose = document.getElementById('shortcutsModalClose')!;
+const infoBtn = document.getElementById('infoBtn')!;
+
+/**
+ * Show the shortcuts info modal.
+ */
+function showShortcutsModal(): void {
+  shortcutsModal.hidden = false;
+  shortcutsModalClose.focus();
+}
+
+/**
+ * Hide the shortcuts info modal.
+ */
+function hideShortcutsModal(): void {
+  shortcutsModal.hidden = true;
+}
+
+// Info button click handler
+infoBtn.addEventListener('click', showShortcutsModal);
+
+// Close button handler
+shortcutsModalClose.addEventListener('click', hideShortcutsModal);
+
+// Keyboard and click-outside handlers
+shortcutsModal.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape' || e.key === 'Enter') {
+    e.preventDefault();
+    hideShortcutsModal();
+  }
+});
+
+shortcutsModal.addEventListener('click', (e: MouseEvent) => {
+  // Close when clicking outside the modal card
+  if (e.target === shortcutsModal) {
+    hideShortcutsModal();
+  }
+});
+
 // ========== GRID MODE SUCCESS ==========
 
 let gridModeCountdownInterval: ReturnType<typeof setInterval> | null = null;
