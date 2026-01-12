@@ -131,6 +131,8 @@ export class GridCodingModeController {
 
   /**
    * Handle keyboard input.
+   * All shortcuts require Shift modifier to avoid conflicts with Blockly's
+   * built-in keyboard navigation when the workspace has focus.
    */
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.enabled) return;
@@ -145,6 +147,10 @@ export class GridCodingModeController {
     ) {
       return;
     }
+
+    // All grid coding shortcuts require Shift modifier
+    // This avoids conflicts with Blockly's keyboard navigation
+    if (!e.shiftKey) return;
 
     switch (e.key) {
       case 'ArrowUp':
@@ -184,7 +190,7 @@ export class GridCodingModeController {
         break;
       case 'r':
       case 'R':
-        // Only run if not just reset (R without Ctrl/Cmd)
+        // Only run if not Ctrl/Cmd+R (browser refresh)
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           e.stopPropagation();
@@ -224,6 +230,8 @@ export class GridCodingModeController {
           this.history.push({block: block!, stateBefore});
           this.highlightBlock(block!);
           this.notifyBlockCountChange();
+          // Move focus to the new block
+          this.focusBlock(blockSvg);
         }
 
         if (result === 'success') {
@@ -281,6 +289,8 @@ export class GridCodingModeController {
         this.history.push({block: block!, stateBefore});
         this.highlightBlock(block!);
         this.notifyBlockCountChange();
+        // Move focus to the new block
+        this.focusBlock(blockSvg);
       }
     } finally {
       this.executing = false;
@@ -294,9 +304,24 @@ export class GridCodingModeController {
     blockType: string,
     fields?: Record<string, string>,
   ): Blockly.Block | null {
-    // Use Blockly events group for proper undo/redo tracking
-    const eventGroup = Blockly.utils.idGenerator.genUid();
-    Blockly.Events.setGroup(eventGroup);
+    // Find the connection point BEFORE creating the new block
+    const topBlocks = this.workspace.getTopBlocks(true);
+    let connectionTarget: Blockly.Connection | null = null;
+
+    if (topBlocks.length > 0) {
+      // Find the last block in the chain
+      let lastBlock = topBlocks[0];
+      while (lastBlock.nextConnection?.targetBlock()) {
+        lastBlock = lastBlock.nextConnection.targetBlock()!;
+      }
+      connectionTarget = lastBlock.nextConnection;
+    }
+
+    // Use Blockly events group
+    const existingGroup = Blockly.Events.getGroup();
+    if (!existingGroup) {
+      Blockly.Events.setGroup(true);
+    }
 
     try {
       // Create the block
@@ -309,46 +334,29 @@ export class GridCodingModeController {
         }
       }
 
-      // Initialize the block (renders it)
+      // Initialize SVG
       block.initSvg();
 
-      // Connect to the last block in the chain
-      this.connectToLast(block);
+      // Position the block first (before connecting, so it's a valid top block)
+      const blockSvg = block as Blockly.BlockSvg;
+      if (!connectionTarget) {
+        // First block - position it nicely
+        blockSvg.moveBy(50, 50);
+      }
 
       // Render the block
       block.render();
 
-      // Fire a create event so Blockly properly tracks this block
-      Blockly.Events.fire(new Blockly.Events.BlockCreate(block));
+      // Connect to the last block if there is one
+      if (connectionTarget && block.previousConnection) {
+        connectionTarget.connect(block.previousConnection);
+      }
 
       return block;
     } finally {
-      Blockly.Events.setGroup(false);
-    }
-  }
-
-  /**
-   * Connect a new block to the end of the existing chain.
-   */
-  private connectToLast(newBlock: Blockly.Block): void {
-    const topBlocks = this.workspace.getTopBlocks(true);
-
-    if (topBlocks.length === 0) {
-      // First block - position it nicely
-      const blockSvg = newBlock as Blockly.BlockSvg;
-      blockSvg.moveBy(50, 50);
-      return;
-    }
-
-    // Find the last block in the chain (the one with no next connection or unconnected next)
-    let lastBlock = topBlocks[0];
-    while (lastBlock.nextConnection?.targetBlock()) {
-      lastBlock = lastBlock.nextConnection.targetBlock()!;
-    }
-
-    // Connect the new block to the last block's next connection
-    if (lastBlock.nextConnection && newBlock.previousConnection) {
-      lastBlock.nextConnection.connect(newBlock.previousConnection);
+      if (!existingGroup) {
+        Blockly.Events.setGroup(false);
+      }
     }
   }
 
@@ -372,6 +380,15 @@ export class GridCodingModeController {
   }
 
   /**
+   * Move keyboard focus to a block.
+   */
+  private focusBlock(block: Blockly.BlockSvg): void {
+    Blockly.renderManagement.finishQueuedRenders().then(() => {
+      Blockly.getFocusManager().focusNode(block);
+    });
+  }
+
+  /**
    * Undo the last action - removes block and restores maze state.
    */
   public undo(): void {
@@ -380,7 +397,10 @@ export class GridCodingModeController {
 
     const entry = this.history.pop()!;
 
-    // Remove the block
+    // Unplug first - this disconnects and makes it a top block
+    entry.block.unplug(false);
+
+    // Now dispose - block should be a top block after unplugging
     entry.block.dispose();
 
     // Restore maze state
