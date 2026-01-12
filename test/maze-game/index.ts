@@ -1633,6 +1633,25 @@ shortcutsModal.addEventListener('click', (e: MouseEvent) => {
   }
 });
 
+// Delete user data button
+const deleteUserDataBtn = document.getElementById('deleteUserDataBtn')!;
+deleteUserDataBtn.addEventListener('click', () => {
+  if (confirm('Delete all saved programs and settings? This cannot be undone.')) {
+    // Clear all maze-related localStorage keys
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('maze')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    // Reload the page to reset state
+    window.location.reload();
+  }
+});
+
 // ========== GRID MODE SUCCESS ==========
 
 let gridModeCountdownInterval: ReturnType<typeof setInterval> | null = null;

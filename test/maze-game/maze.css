@@ -781,6 +781,26 @@ header.christmas h1::after {
   text-align: center;
 }
 
+.shortcuts-modal .delete-data-btn {
+  margin-top: 20px;
+  padding: 8px 16px;
+  font-size: 0.85em;
+  color: #c62828;
+  background: transparent;
+  border: 1px solid #c62828;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shortcuts-modal .delete-data-btn:hover {
+  background: #ffebee;
+}
+
+.shortcuts-modal .delete-data-btn:active {
+  background: #ffcdd2;
+}
+
 /* Fullscreen overlay */
 #fullscreenOverlay {
   display: none;
