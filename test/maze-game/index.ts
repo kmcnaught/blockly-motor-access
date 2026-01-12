@@ -322,8 +322,8 @@ function updateWorkspaceForLevel(level: number) {
   // Clear workspace when changing levels
   workspace.clear();
 
-  // Load saved program for this level (coding mode only)
-  if (!MazeGame.isPracticeModeEnabled()) {
+  // Load saved program for this level (coding mode only, not grid coding mode)
+  if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
     const savedXml = loadProgram(level);
     if (savedXml) {
       restoreProgram(savedXml, workspace);
@@ -1098,6 +1098,10 @@ document.getElementById('resetButton')?.addEventListener('click', resetProgram);
 // Clear workspace button handler
 document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {
   workspace.clear();
+  // Save empty program in coding mode (but not grid coding mode)
+  if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
+    saveProgram(mazeGame.getLevel(), workspace);
+  }
 });
 
 // Initial level display update
@@ -1523,8 +1527,8 @@ resultModal.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // Listen for maze game result events to show the modal
 mazeGame.onResult((result: ResultType) => {
-  // Save program on successful completion in coding mode
-  if (result === 'success' && !MazeGame.isPracticeModeEnabled()) {
+  // Save program on successful completion in coding mode (but not grid coding mode)
+  if (result === 'success' && !MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
     saveProgram(mazeGame.getLevel(), workspace);
   }
   showResultModal(result);
@@ -2042,6 +2046,12 @@ let isTransitioning = false;
 function performLevelTransition(newLevel: number, showBanner: boolean = true) {
   if (isTransitioning) return;
   isTransitioning = true;
+
+  // Save current level's program before transitioning (coding mode only, not grid coding mode)
+  // This ensures empty programs are saved when user clears all blocks
+  if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
+    saveProgram(mazeGame.getLevel(), workspace);
+  }
 
   const canvasWrapper = document.querySelector('.canvas-wrapper') as HTMLElement;
   const levelBanner = document.getElementById('levelBanner');
