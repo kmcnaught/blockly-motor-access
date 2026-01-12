@@ -376,7 +376,8 @@ export class GridCodingModeController {
    */
   private scrollToBlock(block: Blockly.Block): void {
     const blockSvg = block as Blockly.BlockSvg;
-    this.workspace.centerOnBlock(blockSvg.id);
+    const bounds = blockSvg.getBoundingRectangle();
+    this.workspace.scrollBoundsIntoView(bounds);
   }
 
   /**
@@ -415,8 +416,9 @@ export class GridCodingModeController {
   public clear(): void {
     if (this.executing) return;
 
-    // Clear workspace
+    // Clear workspace and reset scroll to origin
     this.workspace.clear();
+    this.workspace.scroll(0, 0);
 
     // Clear history
     this.history = [];
