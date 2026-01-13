@@ -1315,6 +1315,20 @@ export class StickyModeController {
       return false;
     }
 
+    // Check if click is on zoom controls - exclude these from bin detection
+    const zoomElement = document.querySelector('.blocklyZoom');
+    if (zoomElement) {
+      const zoomRect = zoomElement.getBoundingClientRect();
+      if (
+        clientX >= zoomRect.left &&
+        clientX <= zoomRect.right &&
+        clientY >= zoomRect.top &&
+        clientY <= zoomRect.bottom
+      ) {
+        return false; // Click is on zoom controls, not the bin
+      }
+    }
+
     const rect = trashcanElement.getBoundingClientRect();
 
     return (
