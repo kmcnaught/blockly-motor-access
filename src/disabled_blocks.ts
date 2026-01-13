@@ -104,19 +104,30 @@ export function reenableBlocksOnDelete(event: Blockly.Events.Abstract) {
   const workspace = Blockly.common.getWorkspaceById(
     event.workspaceId,
   ) as Blockly.WorkspaceSvg;
-  if (!workspace || workspace.remainingCapacity() <= 0) return;
+  if (!workspace) return;
+
+  const maxBlocks = workspace.options.maxBlocks;
+  if (!maxBlocks || maxBlocks === Infinity) return;
 
   const oldUndo = Blockly.Events.getRecordUndo();
   Blockly.Events.setRecordUndo(false);
 
   try {
-    for (const block of workspace.getAllBlocks(false)) {
-      if (block.hasDisabledReason(WORKSPACE_AT_BLOCK_CAPACITY_DISABLED_REASON)) {
-        block.setDisabledReason(
-          false,
-          WORKSPACE_AT_BLOCK_CAPACITY_DISABLED_REASON,
-        );
-      }
+    const allBlocks = workspace.getAllBlocks(false);
+    const capacityDisabledBlocks = allBlocks.filter((b) =>
+      b.hasDisabledReason(WORKSPACE_AT_BLOCK_CAPACITY_DISABLED_REASON),
+    );
+    // Count blocks that are NOT disabled for capacity reasons
+    const enabledCount = allBlocks.length - capacityDisabledBlocks.length;
+    let slotsAvailable = maxBlocks - enabledCount;
+
+    for (const block of capacityDisabledBlocks) {
+      if (slotsAvailable <= 0) break;
+      block.setDisabledReason(
+        false,
+        WORKSPACE_AT_BLOCK_CAPACITY_DISABLED_REASON,
+      );
+      slotsAvailable--;
     }
   } finally {
     Blockly.Events.setRecordUndo(oldUndo);
