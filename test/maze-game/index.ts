@@ -237,7 +237,7 @@ function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinit
         contents.push({kind: 'block', type: 'maze_turn', fields: {DIR: 'turnRight'}});
         break;
       case 'maze_repeatTimes':
-        contents.push({kind: 'block', type: 'maze_repeatTimes', fields: {TIMES: 5}});
+        contents.push({kind: 'block', type: 'maze_repeatTimes', fields: {TIMES: 3}});
         break;
       case 'maze_forever':
         contents.push({kind: 'block', type: 'maze_forever'});
