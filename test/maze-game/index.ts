@@ -142,6 +142,7 @@ function restoreProgram(savedXml: string, workspaceRef: Blockly.WorkspaceSvg): v
   try {
     const dom = Blockly.utils.xml.textToDom(savedXml);
     Blockly.Xml.domToWorkspace(dom, workspaceRef);
+    workspaceRef.scroll(0, 0);
     workspaceRef.clearUndo();
   } catch (e) {
     // If XML is corrupt, just start fresh (workspace already cleared)
@@ -349,6 +350,27 @@ workspace.addChangeListener((event) => {
   }
 });
 
+// Reset scroll when workspace becomes empty or first block is added
+// This ensures blocks appear at a predictable location for assistive tech users
+workspace.addChangeListener((event) => {
+  if (event.type !== Blockly.Events.BLOCK_CREATE &&
+      event.type !== Blockly.Events.BLOCK_DELETE) {
+    return;
+  }
+
+  const topBlocks = workspace.getTopBlocks(false);
+
+  // If workspace just became empty, reset scroll
+  if (topBlocks.length === 0) {
+    workspace.scroll(0, 0);
+  }
+
+  // If first block was just added, reset scroll so it appears at predictable location
+  if (event.type === Blockly.Events.BLOCK_CREATE && topBlocks.length === 1) {
+    workspace.scroll(0, 0);
+  }
+});
+
 /**
  * Update workspace configuration for a new level.
  * This updates both the toolbox and the maxBlocks limit.
@@ -366,6 +388,7 @@ function updateWorkspaceForLevel(level: number) {
 
   // Clear workspace when changing levels
   workspace.clear();
+  workspace.scroll(0, 0);
 
   // Load saved program for this level (coding mode only, not grid coding mode)
   if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
@@ -1243,6 +1266,7 @@ document.getElementById('resetButton')?.addEventListener('click', resetProgram);
 // Clear workspace button handler
 document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {
   workspace.clear();
+  workspace.scroll(0, 0);
   // Save empty program in coding mode (but not grid coding mode)
   if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
     saveProgram(mazeGame.getLevel(), workspace);
