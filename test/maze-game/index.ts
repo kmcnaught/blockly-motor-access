@@ -15,7 +15,7 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
-import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, STAGES, CODING_LEVELS, type ResultType} from './maze';
+import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, STAGES, CODING_LEVELS, type ResultType} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
@@ -270,7 +270,11 @@ function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinit
 }
 
 // Initialize level from URL param or default to 1
-const initialLevel = getIntegerParamFromUrl('level', 1, MazeGame.getMaxLevel());
+// In grid coding mode, restrict to Stage 1 (Sequencing) levels only
+const maxLevelForMode = isGridCodingMode
+  ? getLevelsForStage(1, false).length  // Stage 1 has 5 levels (A1-A5)
+  : MazeGame.getMaxLevel();
+const initialLevel = getIntegerParamFromUrl('level', 1, maxLevelForMode);
 const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecutionMode === 'practice');
 
 // Initialize Blockly workspace with level-specific configuration
@@ -950,14 +954,9 @@ document.getElementById('stageDropdown')?.addEventListener('change', (e) => {
     // Convert to 1-based level number
     const newLevel = firstLevelIndex + 1;
 
-    // Reset hint state
-    resetHintState();
-
-    // Change to the new level
-    mazeGame.setLevel(newLevel);
-    updateWorkspaceForLevel(newLevel);
-    updateLevelDisplay();
-    updateCapacityBubble();
+    // Use performLevelTransition with showStageIntro=true
+    // This will show the stage intro dialog if stage changes
+    performLevelTransition(newLevel, true, true);
   }
 });
 
@@ -1742,6 +1741,8 @@ graduationTryCoding.addEventListener('click', () => {
   hideGraduationModal();
   // Switch to coding mode (this will reset to level 1 and use coding mazes)
   setExecutionMode('coding');
+  // Show Stage 1 intro since user is starting coding mode
+  showStageIntroModal(1);
 });
 
 graduationStay.addEventListener('click', () => {
@@ -1760,6 +1761,54 @@ graduationModal.addEventListener('keydown', (e: KeyboardEvent) => {
     e.preventDefault();
     // Same as clicking "Try Coding Mode"
     graduationTryCoding.click();
+  }
+});
+
+// ========== STAGE INTRO MODAL ==========
+
+const stageIntroModal = document.getElementById('stageIntroModal')!;
+const stageIntroName = document.getElementById('stageIntroName')!;
+const stageIntroConcept = document.getElementById('stageIntroConcept')!;
+const stageIntroOk = document.getElementById('stageIntroOk')!;
+
+/**
+ * Show the stage intro modal for a given stage.
+ * @param stageId The stage ID (1-6)
+ */
+function showStageIntroModal(stageId: number): void {
+  const stageConfig = STAGES.find(s => s.id === stageId);
+  if (!stageConfig) return;
+
+  // Set localized text - just stage name as heading, no "New Stage!" title
+  stageIntroName.textContent = msg('MAZE_STAGE') + ' ' + stageId + ': ' + msg(stageConfig.name);
+  stageIntroConcept.textContent = msg(stageConfig.concept);
+
+  // Show modal and focus button
+  stageIntroModal.hidden = false;
+  stageIntroOk.focus();
+}
+
+/**
+ * Hide the stage intro modal.
+ */
+function hideStageIntroModal(): void {
+  stageIntroModal.hidden = true;
+}
+
+// Stage intro modal event handlers
+stageIntroOk.addEventListener('click', hideStageIntroModal);
+
+stageIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape' || e.key === 'Enter') {
+    e.preventDefault();
+    hideStageIntroModal();
+  }
+});
+
+stageIntroModal.addEventListener('click', (e: MouseEvent) => {
+  // Close when clicking outside the modal card
+  if (e.target === stageIntroModal) {
+    hideStageIntroModal();
   }
 });
 
@@ -1966,6 +2015,75 @@ function hideGridModeGraduation(): void {
   if (gridModeGraduationTimer) {
     clearTimeout(gridModeGraduationTimer);
     gridModeGraduationTimer = null;
+  }
+
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+
+  resultModal.hidden = true;
+  resultModalOk.classList.remove('countdown');
+  okProgress.style.animation = '';
+}
+
+// ========== GRID CODING MODE STAGE GRADUATION ==========
+
+let gridCodingStageGraduationTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Show completion message for Grid coding mode after finishing Stage 1 (Sequencing).
+ * Informational only - user needs a different gridset to continue to other stages.
+ */
+function showGridCodingModeStageGraduation(): void {
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set localized text
+  resultModalTitle.textContent = msg('MAZE_GRID_CODING_STAGE_COMPLETE_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE');
+  okText.textContent = 'OK';
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button
+  resultModalCancel.hidden = true;
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+
+  // Start 5 second countdown with progress bar
+  const countdownDuration = 5000;
+  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
+  resultModalOk.classList.add('countdown');
+
+  gridCodingStageGraduationTimer = setTimeout(() => {
+    hideGridCodingModeStageGraduation();
+  }, countdownDuration);
+
+  // Handle OK button click (dismiss immediately)
+  const handleOk = () => {
+    hideGridCodingModeStageGraduation();
+    resultModalOk.removeEventListener('click', handleOk);
+  };
+  resultModalOk.addEventListener('click', handleOk);
+}
+
+/**
+ * Hide the Grid coding mode stage graduation modal.
+ */
+function hideGridCodingModeStageGraduation(): void {
+  if (gridCodingStageGraduationTimer) {
+    clearTimeout(gridCodingStageGraduationTimer);
+    gridCodingStageGraduationTimer = null;
   }
 
   const resultModal = document.getElementById('resultModal')!;
@@ -2267,6 +2385,16 @@ function resetHintState() {
 updateInstructionBar();
 setTimeout(levelHelp, 3000);
 
+// Show Stage 1 intro on initial page load if no level specified in URL
+// This introduces users to the first stage concept when starting fresh
+const hasLevelInUrl = window.location.search.includes('level=');
+if (!hasLevelInUrl && currentExecutionMode === 'coding' && !isGridMode && !isGridCodingMode) {
+  // Show after a short delay to let UI fully initialize
+  setTimeout(() => {
+    showStageIntroModal(1);
+  }, 500);
+}
+
 // ========== LEVEL TRANSITION ==========
 
 let isTransitioning = false;
@@ -2275,15 +2403,29 @@ let isTransitioning = false;
  * Perform a level transition with fade effect and level banner.
  * @param newLevel The level to transition to
  * @param showBanner Whether to show the level banner (true for next, false for previous)
+ * @param showStageIntro Whether to show stage intro dialog if stage changes (true for next/dropdown, false for previous)
  */
-function performLevelTransition(newLevel: number, showBanner: boolean = true) {
+function performLevelTransition(newLevel: number, showBanner: boolean = true, showStageIntro: boolean = true) {
   if (isTransitioning) return;
   isTransitioning = true;
 
+  const isPractice = MazeGame.isPracticeModeEnabled();
+  const currentLevel = mazeGame.getLevel();
+
+  // Determine if we should show stage intro after transition
+  let stageToIntroduce: number | null = null;
+  if (showStageIntro && !isPractice && !isGridMode && !isGridCodingMode) {
+    const currentStage = getStageForLevel(currentLevel - 1, isPractice);
+    const newStage = getStageForLevel(newLevel - 1, isPractice);
+    if (currentStage !== newStage) {
+      stageToIntroduce = newStage;
+    }
+  }
+
   // Save current level's program before transitioning (coding mode only, not grid coding mode)
   // This ensures empty programs are saved when user clears all blocks
-  if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
-    saveProgram(mazeGame.getLevel(), workspace);
+  if (!isPractice && !isGridCodingMode) {
+    saveProgram(currentLevel, workspace);
   }
 
   const canvasWrapper = document.querySelector('.canvas-wrapper') as HTMLElement;
@@ -2292,7 +2434,7 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
 
   // Update the level banner text
   if (levelNumber) {
-    levelNumber.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
+    levelNumber.textContent = formatLevelLabel(newLevel, isPractice);
   }
 
   // Step 1: Fade out the canvas
@@ -2343,6 +2485,11 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
     setTimeout(() => {
       canvasWrapper?.classList.remove('fade-in');
       isTransitioning = false;
+
+      // Step 5: Show stage intro modal AFTER level has loaded (so new blocks visible)
+      if (stageToIntroduce !== null) {
+        showStageIntroModal(stageToIntroduce);
+      }
     }, 300);
   }, 300); // Fade out duration
 }
@@ -2351,24 +2498,37 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
 
 /**
  * Go to previous level (shared by button and keyboard shortcut).
+ * Does not show stage intro dialog when going backwards.
  */
 function goToPreviousLevel() {
   if (isTransitioning) return;
   const currentLevel = mazeGame.getLevel();
   if (currentLevel > 1) {
     const newLevel = currentLevel - 1;
-    performLevelTransition(newLevel, true);
+    performLevelTransition(newLevel, true, false);  // showStageIntro = false for previous
   }
 }
 
 /**
  * Go to next level (shared by button and keyboard shortcut).
  * Shows graduation modal if at last practice level.
+ * In grid coding mode, shows stage completion dialog at end of Stage 1.
  */
 function goToNextLevel() {
   if (isTransitioning) return;
   const currentLevel = mazeGame.getLevel();
   const maxLevel = MazeGame.getMaxLevel();
+
+  // In grid coding mode, restrict to Stage 1 levels only
+  if (isGridCodingMode) {
+    const stage1MaxLevel = getLevelsForStage(1, false).length;
+    if (currentLevel >= stage1MaxLevel) {
+      // At last Stage 1 level - show informational dialog
+      showGridCodingModeStageGraduation();
+      return;
+    }
+  }
+
   if (currentLevel < maxLevel) {
     const newLevel = currentLevel + 1;
     performLevelTransition(newLevel, true);

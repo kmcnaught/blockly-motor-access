@@ -1421,6 +1421,22 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
   color: #616161;
 }
 
+/* Stage intro variant - blue accent for new concepts */
+.result-modal.stage-intro {
+  border-top: 4px solid #1976d2;
+}
+
+.result-modal.stage-intro .result-modal-title {
+  color: #1565c0;
+}
+
+.stage-intro-name {
+  margin: 0 0 12px;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #1976d2;
+}
+
 /* Modal content */
 .result-modal-title {
   margin: 0 0 12px;

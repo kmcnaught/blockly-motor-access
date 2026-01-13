@@ -134,6 +134,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_RUN_AGAIN: 'Run Again',
     MAZE_GRID_CODING_GRADUATION_TITLE: 'Amazing!',
     MAZE_GRID_CODING_GRADUATION_MESSAGE: 'You completed all the coding levels with %1 blocks!',
+    MAZE_GRID_CODING_STAGE_COMPLETE_TITLE: 'Well Done!',
+    MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE: 'You have finished all the introductory levels! You will need a different gridset to explore more advanced coding.',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
@@ -152,19 +154,18 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
 
     // Stage names and concepts (for stage progression UI)
     MAZE_STAGE_1_NAME: 'Sequencing',
-    MAZE_STAGE_1_CONCEPT: 'Learn to move forward and turn.',
+    MAZE_STAGE_1_CONCEPT: 'Computers follow your instructions one at a time. Write a program to tell the character what to do, then run it to test.',
     MAZE_STAGE_2_NAME: 'Repeat',
-    MAZE_STAGE_2_CONCEPT: 'Use loops to repeat actions a set number of times.',
+    MAZE_STAGE_2_CONCEPT: "Loops let us tell the computer to repeat some instructions a set number of times. Use the 'repeat' block to solve these challenges.",
     MAZE_STAGE_3_NAME: 'Repeat Until',
-    MAZE_STAGE_3_CONCEPT: 'Use loops that repeat until you reach the goal.',
-    MAZE_STAGE_4_NAME: 'Colored Conditionals',
-    MAZE_STAGE_4_CONCEPT: 'Make decisions based on tile colors.',
+    MAZE_STAGE_3_CONCEPT: 'We can also tell the computer to repeat instructions until it reaches the goal.',
+    MAZE_STAGE_4_NAME: 'Conditionals',
+    MAZE_STAGE_4_CONCEPT: "An 'if' block tells the computer to only follow an instruction if a certain condition is true. The next levels let you give different instructions depending on the colour of a square.",
     MAZE_STAGE_5_NAME: 'If-Else',
-    MAZE_STAGE_5_CONCEPT: 'Use if-else to choose between two actions.',
+    MAZE_STAGE_5_CONCEPT: "An 'if-else' block lets you choose between two actions. These levels let you choose instructions based on colour, or detect where there is a path to follow.",
     MAZE_STAGE_6_NAME: 'Challenge',
-    MAZE_STAGE_6_CONCEPT: 'Combine everything you have learned to solve complex mazes.',
+    MAZE_STAGE_6_CONCEPT: 'Put everything together to solve these challenging mazes!',
     MAZE_STAGE: 'Stage',
-    MAZE_STAGE_INTRO_TITLE: 'New Stage!',
     MAZE_STAGE_SELECT: 'Select Stage',
 
     // New block messages for repeat times and colored conditionals
@@ -315,6 +316,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_RUN_AGAIN: 'Relancer',
     MAZE_GRID_CODING_GRADUATION_TITLE: 'Incroyable !',
     MAZE_GRID_CODING_GRADUATION_MESSAGE: 'Vous avez terminé tous les niveaux de programmation avec %1 blocs !',
+    MAZE_GRID_CODING_STAGE_COMPLETE_TITLE: 'Bravo !',
+    MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE: 'Vous avez terminé tous les niveaux d\'introduction ! Vous aurez besoin d\'un autre gridset pour explorer la programmation avancée.',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
@@ -333,19 +336,18 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
 
     // Stage names and concepts (for stage progression UI)
     MAZE_STAGE_1_NAME: 'Séquençage',
-    MAZE_STAGE_1_CONCEPT: 'Apprenez à avancer et tourner.',
+    MAZE_STAGE_1_CONCEPT: "Les ordinateurs suivent vos instructions une par une. Écrivez un programme pour dire au personnage quoi faire, puis exécutez-le pour tester.",
     MAZE_STAGE_2_NAME: 'Répéter',
-    MAZE_STAGE_2_CONCEPT: 'Utilisez des boucles pour répéter des actions un nombre défini de fois.',
+    MAZE_STAGE_2_CONCEPT: "Les boucles permettent de répéter des instructions un nombre défini de fois. Utilisez le bloc « répéter » pour résoudre ces défis.",
     MAZE_STAGE_3_NAME: 'Répéter jusqu\'à',
-    MAZE_STAGE_3_CONCEPT: 'Utilisez des boucles qui répètent jusqu\'à atteindre l\'objectif.',
-    MAZE_STAGE_4_NAME: 'Conditionnels colorés',
-    MAZE_STAGE_4_CONCEPT: 'Prenez des décisions basées sur les couleurs des cases.',
+    MAZE_STAGE_3_CONCEPT: "On peut aussi dire à l'ordinateur de répéter des instructions jusqu'à atteindre l'objectif.",
+    MAZE_STAGE_4_NAME: 'Conditionnels',
+    MAZE_STAGE_4_CONCEPT: "Un bloc « si » dit à l'ordinateur de suivre une instruction seulement si une condition est vraie. Les prochains niveaux vous permettent de donner différentes instructions selon la couleur d'une case.",
     MAZE_STAGE_5_NAME: 'Si-Sinon',
-    MAZE_STAGE_5_CONCEPT: 'Utilisez si-sinon pour choisir entre deux actions.',
+    MAZE_STAGE_5_CONCEPT: "Un bloc « si-sinon » vous permet de choisir entre deux actions. Ces niveaux vous permettent de choisir des instructions basées sur la couleur, ou de détecter où il y a un chemin à suivre.",
     MAZE_STAGE_6_NAME: 'Défi',
-    MAZE_STAGE_6_CONCEPT: 'Combinez tout ce que vous avez appris pour résoudre des labyrinthes complexes.',
+    MAZE_STAGE_6_CONCEPT: 'Combinez tout pour résoudre ces labyrinthes difficiles !',
     MAZE_STAGE: 'Étape',
-    MAZE_STAGE_INTRO_TITLE: 'Nouvelle étape !',
     MAZE_STAGE_SELECT: 'Sélectionner l\'étape',
 
     // New block messages for repeat times and colored conditionals
