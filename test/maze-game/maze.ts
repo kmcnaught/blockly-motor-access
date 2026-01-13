@@ -17,34 +17,89 @@ enum Direction {
   WEST = 3,
 }
 
-enum SquareType {
+export enum SquareType {
   WALL = 0,
   OPEN = 1,
   START = 2,
   FINISH = 3,
+  RED = 4,    // Colored walkable square for conditional lessons
+  BLUE = 5,   // Colored walkable square for conditional lessons
 }
+
+/**
+ * Stage configuration for level progression.
+ * Each stage introduces a new programming concept.
+ */
+export interface StageConfig {
+  id: number;
+  name: string;           // Message key for stage name
+  concept: string;        // Message key for concept description
+  blocks: string[];       // Block types available in this stage
+}
+
+/**
+ * A maze level with metadata.
+ */
+export interface MazeLevel {
+  maze: number[][];
+  stage: number;          // 1-7, which stage this level belongs to
+  maxBlocks: number;      // Block limit (Infinity for unlimited)
+  blocks?: string[];      // Optional: override stage's default toolbox blocks
+}
+
+/**
+ * Stage definitions - concepts taught in order.
+ * Stage 1: Sequencing (forward, turn)
+ * Stage 2: Repeat X Times (bounded loops)
+ * Stage 3: Repeat Until (unbounded loops)
+ * Stage 4: Colored Conditionals (if on RED/BLUE - single branch)
+ * Stage 5: If-Else (color and path-based, both branches execute)
+ * Stage 6: Advanced Conditionals
+ */
+export const STAGES: StageConfig[] = [
+  {
+    id: 1,
+    name: 'MAZE_STAGE_1_NAME',
+    concept: 'MAZE_STAGE_1_CONCEPT',
+    blocks: ['maze_moveForward', 'maze_turn'],
+  },
+  {
+    id: 2,
+    name: 'MAZE_STAGE_2_NAME',
+    concept: 'MAZE_STAGE_2_CONCEPT',
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes'],
+  },
+  {
+    id: 3,
+    name: 'MAZE_STAGE_3_NAME',
+    concept: 'MAZE_STAGE_3_CONCEPT',
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever'],
+  },
+  {
+    id: 4,
+    name: 'MAZE_STAGE_4_NAME',
+    concept: 'MAZE_STAGE_4_CONCEPT',
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever', 'maze_ifColor'],
+  },
+  {
+    id: 5,
+    name: 'MAZE_STAGE_5_NAME',
+    concept: 'MAZE_STAGE_5_CONCEPT',
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever', 'maze_ifColorElse', 'maze_ifElse'],
+  },
+  {
+    id: 6,
+    name: 'MAZE_STAGE_6_NAME',
+    concept: 'MAZE_STAGE_6_CONCEPT',
+    // Default blocks for challenge - individual levels override with custom toolbox
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever', 'maze_ifColor'],
+  },
+];
 
 /**
  * Result type for maze execution.
  */
 export type ResultType = 'success' | 'failure' | 'timeout' | 'error';
-
-/**
- * Maximum number of blocks allowed per level.
- * Infinity means no limit (levels 1-2 for learning).
- */
-export const MAX_BLOCKS = [
-  Infinity, // Level 1: No limit (learning sequencing)
-  Infinity, // Level 2: No limit (learning turns)
-  2,        // Level 3: Forces use of loop
-  5,        // Level 4: Loop with multiple blocks
-  5,        // Level 5: Vertical maze
-  5,        // Level 6: Introduces conditionals
-  5,        // Level 7: If with dropdown
-  10,       // Level 8: Complex navigation
-  7,        // Level 9: Restrictive despite complexity
-  10,       // Level 10: Final challenge
-];
 
 // Crash type constants
 enum CrashType {
@@ -169,216 +224,629 @@ const TILE_SHAPES: Record<string, [number, number]> = {
 };
 
 /**
- * Maze layouts by level - matches original blockly-games/maze.
- * SquareType: 0=WALL, 1=OPEN, 2=START, 3=FINISH
+ * Unified levels array with stage metadata.
+ *
+ * Stage 1 (Sequencing): 5 levels - move forward and turn
+ * Stage 2 (Repeat X Times): 5 levels - bounded loops
+ * Stage 3 (Repeat Until): 3 levels - unbounded loops
+ * Stage 4 (Colored Conditionals): 4 levels - if on RED/BLUE
+ * Stage 5 (Path Conditionals): 4 levels - if path ahead/left/right
+ * Stage 6 (If-Else): 4 levels - full decision making
+ *
+ * Total: 24 coding levels
+ *
+ * SquareType: 0=WALL, 1=OPEN, 2=START, 3=FINISH, 4=RED, 5=BLUE
  */
-const MAZES = [
-  // Level 1: Simple straight path (2 moves)
-  [
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 2, 1, 3, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 2: L-shape (one turn)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 3, 0, 0, 0],
-    [0, 0, 2, 1, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 3: Straight path (introduces loop - block limit 2)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 2, 1, 1, 1, 1, 3, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 4: Diagonal staircase (path continues past start/goal)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 1],
-    [0, 0, 0, 0, 0, 0, 1, 1],
-    [0, 0, 0, 0, 0, 3, 1, 0],
-    [0, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 0, 1, 1, 0, 0, 0],
-    [0, 0, 1, 1, 0, 0, 0, 0],
-    [0, 2, 1, 0, 0, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 5: Vertical corridor with turns
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 3, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 2, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 6: Box maze (introduces if block)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 1, 0, 0, 0, 1, 0, 0],
-    [0, 1, 1, 3, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 2, 1, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 7: Complex branching (if with dropdown)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 1, 1, 0],
-    [0, 2, 1, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 1, 1, 0],
-    [0, 1, 1, 3, 0, 1, 0, 0],
-    [0, 1, 0, 1, 0, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 8: Intricate maze
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 1, 1, 0, 0, 0],
-    [0, 1, 0, 0, 1, 1, 0, 0],
-    [0, 1, 1, 1, 0, 1, 0, 0],
-    [0, 0, 0, 1, 0, 1, 0, 0],
-    [0, 2, 1, 1, 0, 3, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 9: Complex winding path (introduces ifElse)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 0, 1, 0, 0, 0, 0, 0],
-    [3, 1, 1, 1, 1, 1, 1, 0],
-    [0, 1, 0, 1, 0, 1, 1, 0],
-    [1, 1, 1, 1, 1, 0, 1, 0],
-    [0, 1, 0, 1, 0, 2, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-  // Level 10: Wall-following challenge (final level)
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 0, 3, 0, 1, 0],
-    [0, 1, 1, 0, 1, 1, 1, 0],
-    [0, 1, 0, 1, 0, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 1, 0],
-    [0, 0, 0, 1, 0, 0, 1, 0],
-    [0, 2, 1, 1, 1, 0, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+export const CODING_LEVELS: MazeLevel[] = [
+  // ============================================================
+  // STAGE 1: Sequencing (5 levels)
+  // Blocks: maze_moveForward, maze_turn
+  // ============================================================
+
+  // A1: Simple straight path (2 moves)
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 2, 1, 3, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // A2: L-shape (one turn)
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 3, 0, 0, 0],
+      [0, 0, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // A3: S-curve with two turns
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 3, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // A4: Staircase pattern (shorter)
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 3, 0, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 1, 1, 0, 0, 0, 0],
+      [0, 2, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // A5: Zigzag (multiple turns)
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 1, 1, 0, 0, 0],
+      [0, 0, 1, 0, 1, 0, 0, 0],
+      [0, 0, 1, 0, 3, 0, 0, 0],
+      [0, 0, 2, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // ============================================================
+  // STAGE 2: Repeat X Times (5 levels)
+  // Blocks: + maze_repeatTimes
+  // ============================================================
+
+  // B1: Long straight path (forces repeat 5)
+  {
+    stage: 2,
+    maxBlocks: 2,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 2, 1, 1, 1, 1, 3, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // B2: Larger square (repeat 4: forward, forward, left)
+  {
+    stage: 2,
+    maxBlocks: 4,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 3, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // B3: Repeating staircase pattern
+  {
+    stage: 2,
+    maxBlocks: 5,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 1],
+      [0, 0, 0, 0, 0, 0, 1, 1],
+      [0, 0, 0, 0, 0, 3, 1, 0],
+      [0, 0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 1, 1, 0, 0, 0, 0],
+      [0, 2, 1, 0, 0, 0, 0, 0],
+      [1, 1, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // B4: Vertical corridor with turns
+  {
+    stage: 2,
+    maxBlocks: 5,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 3, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 2, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // B5: Square path (repeat turn pattern)
+  {
+    stage: 2,
+    maxBlocks: 6,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 2, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 3, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // ============================================================
+  // STAGE 3: Repeat Until (3 levels)
+  // Blocks: + maze_forever
+  // ============================================================
+
+  // C1: Variable length path
+  {
+    stage: 3,
+    maxBlocks: 2,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 2, 1, 1, 1, 1, 1, 3],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // C2: Turn first, then repeat forward (turn left, repeat forward until goal)
+  {
+    stage: 3,
+    maxBlocks: 4,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 3, 0, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
+      [0, 0, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // C3: Zigzag staircase (repeat: forward, left, forward, right)
+  {
+    stage: 3,
+    maxBlocks: 5,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 3, 0],
+      [0, 0, 0, 0, 0, 1, 1, 0],
+      [0, 0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // ============================================================
+  // STAGE 4: Colored Conditionals (4 levels)
+  // Blocks: + maze_ifColor
+  // Uses RED (4) and BLUE (5) colored squares
+  // ============================================================
+
+  // D1: Simple color decision - turn on red
+  {
+    stage: 4,
+    maxBlocks: 5,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 3, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 2, 1, 4, 0, 0, 0],  // 4 = RED square
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // D2: Red then blue (red=left, blue=right) - L-shape path
+  {
+    stage: 4,
+    maxBlocks: 6,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 5, 1, 3, 0, 0, 0],  // BLUE turn right, then goal
+      [0, 0, 1, 0, 0, 0, 0, 0],
+      [0, 0, 1, 0, 0, 0, 0, 0],
+      [0, 2, 4, 0, 0, 0, 0, 0],  // start, RED turn left
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },  
+  // D3: Spiral, colors at turns
+  {// * SquareType: 0=WALL, 1=OPEN, 2=START, 3=FINISH, 4=RED, 5=BLUE
+
+    stage: 4,
+    maxBlocks: 5,
+    maze: [ // spiral with coloured corners
+      [0, 4, 1, 1, 1, 1, 1, 4],
+      [0, 1, 0, 0, 0, 0, 0, 1],
+      [0, 1, 0, 4, 1, 4, 0, 1],  // corners, RED straights
+      [0, 1, 0, 3, 0, 1, 0, 1],  // RED sides
+      [0, 1, 0, 0, 0, 1, 0, 1],  // corner, goal, RED
+      [0, 4, 1, 1, 1, 4, 0, 1],  // start, RED straights, corner
+      [0, 0, 0, 0, 0, 0, 0, 1],
+      [2, 1, 1, 1, 1, 1, 1, 4],
+    ],
+  },
+
+
+  // ============================================================
+  // STAGE 5: If-Else (5 levels)
+  // Blocks: maze_ifColorElse, maze_ifElse
+  // Both branches execute meaningful actions
+  // ============================================================
+
+
+  // E1: Color if-else intro - if red forward, else turn left + forward
+  {
+    stage: 5,
+    maxBlocks: 6,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColor'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 4, 4, 4, 1, 0],
+      [0, 0, 4, 0, 0, 0, 4, 0],
+      [0, 0, 4, 0, 3, 0, 4, 0],
+      [0, 0, 1, 4, 1, 0, 4, 0],
+      [0, 0, 0, 0, 0, 0, 4, 0],
+      [0, 2, 4, 4, 4, 4, 1, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // E2: Turn right variant - if red forward, else turn right + forward
+  {
+    stage: 5,
+    maxBlocks: 6,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColorElse'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 3, 0],
+      [0, 0, 0, 0, 0, 5, 1, 0],
+      [0, 0, 0, 0, 5, 1, 0, 0],
+      [0, 0, 0, 5, 1, 0, 0, 0],
+      [0, 0, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // E3: Path-based if intro
+  {
+    stage: 5,
+    maxBlocks: 5,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 2, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 0, 3, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // E4: Path-based - winding path with multiple turns
+  {
+    stage: 5,
+    maxBlocks: 6,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 0],
+      [0, 2, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 0],
+      [0, 1, 1, 3, 0, 1, 0, 0],
+      [0, 1, 0, 1, 0, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 1, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // E5: Challenge - spiral (hug right wall to reach center)
+  {
+    stage: 5,
+    maxBlocks: 7,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1, 1, 1, 1, 1, 0],
+      [0, 1, 0, 0, 0, 0, 1, 0],
+      [0, 1, 0, 3, 1, 0, 1, 0],
+      [0, 1, 0, 0, 1, 0, 1, 0],
+      [0, 1, 0, 1, 1, 0, 1, 0],
+      [0, 1, 0, 1, 0, 0, 1, 0],
+      [0, 2, 1, 1, 1, 1, 1, 0],
+    ],
+  },
+
+  // ============================================================
+  // STAGE 6: Challenge
+  // Blocks: Blocks with default arguments only
+  // Combines concepts from all previous stages and/or are
+  // particularly complex / esoteric
+  // ============================================================
+
+  // F1: Color if-else challenge
+  {
+    // if red: left,fwd,right,fwd
+    // else: forward, forward
+    stage: 6,
+    maxBlocks: 8,
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColorElse'],
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 1, 0],
+      [0, 0, 0, 1, 0, 0, 1, 3],
+      [0, 0, 0, 1, 1, 1, 4, 0],
+      [0, 0, 1, 4, 0, 0, 1, 0],
+      [2, 1, 4, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+
+  // F2: Color and path combined - navigate with colors and path detection
+  {
+    stage: 6,
+    maxBlocks: 8,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 3, 0, 0, 0, 0],  // goal
+      [0, 0, 4, 1, 0, 0, 0, 0],  // red = turn left
+      [0, 0, 1, 0, 0, 0, 0, 0],
+      [0, 0, 1, 1, 1, 0, 0, 0],  // junction - if path right
+      [0, 0, 0, 0, 5, 0, 0, 0],  // blue = turn right
+      [0, 0, 2, 1, 1, 0, 0, 0],  // start
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // F3: Mixed loops and conditionals
+  {
+    stage: 6,
+    maxBlocks: 10,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 3, 1, 1, 1, 0, 0, 0],  // goal at top-left
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 4, 1, 5, 1, 0, 0, 0],  // red and blue markers
+      [0, 1, 0, 1, 0, 0, 0, 0],
+      [0, 1, 1, 1, 0, 0, 0, 0],
+      [0, 0, 0, 2, 0, 0, 0, 0],  // start
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
+  // F4: Ultimate challenge - complex navigation
+  {
+    stage: 6,
+    maxBlocks: 12,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1, 4, 1, 3, 0, 0],  // red marker, goal
+      [0, 1, 0, 1, 0, 1, 0, 0],
+      [0, 5, 1, 1, 0, 1, 0, 0],  // blue marker
+      [0, 0, 0, 1, 1, 1, 0, 0],
+      [0, 0, 0, 4, 0, 0, 0, 0],  // red marker
+      [0, 0, 2, 1, 0, 0, 0, 0],  // start
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
 ];
 
 /**
  * Practice mode mazes - designed for learning controls before coding.
+ * All practice mazes are Stage 1 (sequencing only).
  * P1-P3: Wide paths (2-3 cells) for exploration
  * P4-P8: Standard 1-wide corridors matching coding mode
  */
-export const PRACTICE_MAZES = [
+export const PRACTICE_LEVELS: MazeLevel[] = [
   // P1: First Forward (WIDE) - press forward once, lots of room
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 1, 2, 1, 3, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 1, 2, 1, 3, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P2: First Turn (WIDE) - introduce turning with room to explore
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0],
-    [0, 0, 0, 1, 3, 1, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 1, 2, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 1, 0, 0],
+      [0, 0, 0, 1, 3, 1, 0, 0],
+      [0, 0, 0, 1, 1, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 1, 2, 1, 1, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P3: Narrowing Path - triangular shape, wide at start, narrow at goal
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 3, 0, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0],
-    [0, 0, 2, 1, 1, 1, 0, 0],
-    [0, 1, 1, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 3, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 0],
+      [0, 0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 1, 0, 0],
+      [0, 0, 2, 1, 1, 1, 0, 0],
+      [0, 1, 1, 1, 1, 1, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P4: Simple L-Shape (1-WIDE) - first 1-wide corridor
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 3, 0, 0, 0],
-    [0, 0, 0, 1, 0, 0, 0, 0],
-    [0, 0, 2, 1, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 3, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
+      [0, 0, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P5: Both Turn Directions (1-WIDE) - practice left AND right turns
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 3, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 2, 1, 1, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 3, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P6: Staircase (1-WIDE) - alternating turns
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 3, 0, 0],
-    [0, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 0, 1, 1, 0, 0, 0],
-    [0, 0, 1, 1, 0, 0, 0, 0],
-    [0, 2, 1, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 3, 0, 0],
+      [0, 0, 0, 0, 1, 1, 0, 0],
+      [0, 0, 0, 1, 1, 0, 0, 0],
+      [0, 0, 1, 1, 0, 0, 0, 0],
+      [0, 2, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P7: Around the Block (1-WIDE) - go around an obstacle
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 1, 1, 0, 0, 0],
-    [0, 0, 1, 0, 1, 0, 0, 0],
-    [0, 0, 1, 0, 3, 0, 0, 0],
-    [0, 0, 2, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 1, 1, 0, 0, 0],
+      [0, 0, 1, 0, 1, 0, 0, 0],
+      [0, 0, 1, 0, 3, 0, 0, 0],
+      [0, 0, 2, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
   // P8: Mini Maze (1-WIDE) - confidence builder before coding
-  [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 1, 3, 0, 0, 0],
-    [0, 0, 1, 0, 1, 0, 0, 0],
-    [0, 0, 1, 1, 1, 0, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 0, 2, 1, 1, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-  ],
+  {
+    stage: 1,
+    maxBlocks: Infinity,
+    maze: [
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 1, 3, 0, 0, 0],
+      [0, 0, 1, 0, 1, 0, 0, 0],
+      [0, 0, 1, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 0, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0],
+    ],
+  },
 ];
+
+/**
+ * Legacy export for backwards compatibility.
+ * Returns plain maze arrays for practice mode.
+ */
+export const PRACTICE_MAZES = PRACTICE_LEVELS.map(level => level.maze);
+
+/**
+ * Get the max blocks limit for a specific level.
+ * @param levelIndex 0-based level index
+ * @param usePractice Whether to use practice levels
+ */
+export function getMaxBlocksForLevel(levelIndex: number, usePractice: boolean): number {
+  const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
+  if (levelIndex < 0 || levelIndex >= levels.length) {
+    return Infinity;
+  }
+  return levels[levelIndex].maxBlocks;
+}
+
+/**
+ * Get the stage number for a specific level.
+ * @param levelIndex 0-based level index
+ * @param usePractice Whether to use practice levels
+ */
+export function getStageForLevel(levelIndex: number, usePractice: boolean): number {
+  const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
+  if (levelIndex < 0 || levelIndex >= levels.length) {
+    return 1;
+  }
+  return levels[levelIndex].stage;
+}
+
+/**
+ * Get levels for a specific stage.
+ * @param stageId Stage number (1-6)
+ * @param usePractice Whether to use practice levels
+ */
+export function getLevelsForStage(stageId: number, usePractice: boolean): MazeLevel[] {
+  const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
+  return levels.filter(level => level.stage === stageId);
+}
+
+/**
+ * Get the first level index for a specific stage.
+ * @param stageId Stage number (1-6)
+ * @param usePractice Whether to use practice levels
+ */
+export function getFirstLevelIndexForStage(stageId: number, usePractice: boolean): number {
+  const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
+  return levels.findIndex(level => level.stage === stageId);
+}
 
 export class MazeGame {
   private canvas: HTMLCanvasElement;
@@ -435,9 +903,11 @@ export class MazeGame {
 
   /**
    * Get the current maze array based on practice mode setting.
+   * Returns plain maze arrays extracted from level metadata.
    */
   private static getMazes(): number[][][] {
-    return MazeGame.usePracticeMazes ? PRACTICE_MAZES : MAZES;
+    const levels = MazeGame.usePracticeMazes ? PRACTICE_LEVELS : CODING_LEVELS;
+    return levels.map(level => level.maze);
   }
 
   constructor(canvasId: string, level: number, skinId: number = 0) {
@@ -483,6 +953,14 @@ export class MazeGame {
   }
 
   /**
+   * Check if a square type is walkable (not a wall).
+   * WALL=0 is not walkable, all others (OPEN, START, FINISH, RED, BLUE) are walkable.
+   */
+  private static isWalkableSquare(squareType: number): boolean {
+    return squareType !== SquareType.WALL;
+  }
+
+  /**
    * Pre-compute tile shapes for the maze so they don't change on each draw.
    */
   private computeTileShapes(): void {
@@ -490,7 +968,7 @@ export class MazeGame {
       if (nx < 0 || nx >= this.maze[0].length || ny < 0 || ny >= this.maze.length) {
         return '0';
       }
-      return this.maze[ny][nx] === SquareType.WALL ? '0' : '1';
+      return MazeGame.isWalkableSquare(this.maze[ny][nx]) ? '1' : '0';
     };
 
     this.tileShapeCache = [];
@@ -813,6 +1291,10 @@ export class MazeGame {
           // Fallback: Draw different colors for walls vs paths
           if (square === SquareType.WALL) {
             this.ctx.fillStyle = '#CCC';
+          } else if (square === SquareType.RED) {
+            this.ctx.fillStyle = '#FFCDD2'; // Light red for path
+          } else if (square === SquareType.BLUE) {
+            this.ctx.fillStyle = '#BBDEFB'; // Light blue for path
           } else {
             this.ctx.fillStyle = '#FFE500';
           }
@@ -822,6 +1304,33 @@ export class MazeGame {
           this.ctx.strokeStyle = '#AAA';
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(px, py, this.squareSize, this.squareSize);
+        }
+
+        // Draw colored overlay for RED/BLUE squares
+        if (square === SquareType.RED || square === SquareType.BLUE) {
+          this.ctx.save();
+          this.ctx.globalAlpha = 0.4;
+          this.ctx.fillStyle = square === SquareType.RED ? '#E53935' : '#1E88E5';
+          // Draw a rounded rectangle for the colored overlay
+          const padding = 4;
+          const radius = 6;
+          const rx = px + padding;
+          const ry = py + padding;
+          const rw = this.squareSize - padding * 2;
+          const rh = this.squareSize - padding * 2;
+          this.ctx.beginPath();
+          this.ctx.moveTo(rx + radius, ry);
+          this.ctx.lineTo(rx + rw - radius, ry);
+          this.ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+          this.ctx.lineTo(rx + rw, ry + rh - radius);
+          this.ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+          this.ctx.lineTo(rx + radius, ry + rh);
+          this.ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+          this.ctx.lineTo(rx, ry + radius);
+          this.ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.restore();
         }
 
         // Draw finish marker and start position (only for non-wall tiles)
@@ -1183,6 +1692,28 @@ export class MazeGame {
 
   private isPathLeft(blockId?: string): boolean {
     return this.isPath(3, blockId);
+  }
+
+  /**
+   * Check if pegman is currently standing on a red square.
+   * @param blockId Block ID for highlighting
+   */
+  private isOnRed(blockId?: string): boolean {
+    if (blockId) {
+      this.log.push(['look_red', blockId]);
+    }
+    return this.maze[this.pegmanY][this.pegmanX] === SquareType.RED;
+  }
+
+  /**
+   * Check if pegman is currently standing on a blue square.
+   * @param blockId Block ID for highlighting
+   */
+  private isOnBlue(blockId?: string): boolean {
+    if (blockId) {
+      this.log.push(['look_blue', blockId]);
+    }
+    return this.maze[this.pegmanY][this.pegmanX] === SquareType.BLUE;
   }
 
   private isValidPosition(x: number, y: number): boolean {
@@ -1761,6 +2292,24 @@ export class MazeGame {
       'notDone',
       wrapFunction(() => {
         return this.notDone();
+      })
+    );
+
+    // Register isOnRed (for colored conditional blocks)
+    interpreter.setProperty(
+      globalObject,
+      'isOnRed',
+      wrapFunction((blockId?: string) => {
+        return this.isOnRed(blockId);
+      })
+    );
+
+    // Register isOnBlue (for colored conditional blocks)
+    interpreter.setProperty(
+      globalObject,
+      'isOnBlue',
+      wrapFunction((blockId?: string) => {
+        return this.isOnBlue(blockId);
       })
     );
   }

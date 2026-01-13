@@ -699,6 +699,48 @@ header.christmas h1::after {
   flex: 1;
 }
 
+/* Stage selector in instruction bar */
+#instructionBar .stage-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#instructionBar .stage-selector label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1565c0;
+}
+
+#instructionBar .stage-selector select {
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 2px solid #1976d2;
+  border-radius: 6px;
+  background: white;
+  color: #1565c0;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+#instructionBar .stage-selector select:hover {
+  border-color: #1565c0;
+  background: #e3f2fd;
+}
+
+#instructionBar .stage-selector select:focus {
+  outline: none;
+  border-color: #0d47a1;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+}
+
+/* Hide stage selector in practice/grid modes */
+#instructionBar .stage-selector.hidden {
+  display: none;
+}
+
 #instructionBar #levelInstruction {
   font-size: 15px;
   font-weight: 500;

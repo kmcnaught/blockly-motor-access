@@ -15,7 +15,7 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
-import {MazeGame, MAX_BLOCKS, type ResultType} from './maze';
+import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, STAGES, CODING_LEVELS, type ResultType} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
@@ -173,6 +173,24 @@ function updateUIText() {
   if (clearWorkspaceBtn) {
     clearWorkspaceBtn.textContent = msg('MAZE_CLEAR_WORKSPACE');
   }
+
+  // Update stage dropdown label and options
+  const stageLabel = document.getElementById('stageLabel');
+  if (stageLabel) {
+    stageLabel.textContent = msg('MAZE_STAGE') + ':';
+  }
+
+  const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+  if (stageDropdown) {
+    // Clear existing options and repopulate with localized text
+    stageDropdown.innerHTML = '';
+    STAGES.forEach((stageConfig) => {
+      const option = document.createElement('option');
+      option.value = String(stageConfig.id);
+      option.textContent = `${stageConfig.id} - ${msg(stageConfig.name)}`;
+      stageDropdown.appendChild(option);
+    });
+  }
 }
 
 // Update UI text on load
@@ -185,39 +203,66 @@ registerNavigationDeferringToolbox();
 
 /**
  * Get the toolbox configuration for a specific level.
- * Blocks are progressively unlocked as levels advance.
+ * Blocks are progressively unlocked based on the stage configuration.
  *
- * Level 1-2: moveForward, turn (basic sequencing)
- * Level 3-5: + forever loop (introduces loops)
- * Level 6: + if (preset to isPathLeft)
- * Level 7-8: + if (with dropdown)
- * Level 9-10: + ifElse
+ * Stage 1: moveForward, turn (basic sequencing)
+ * Stage 2: + repeatTimes (bounded loops)
+ * Stage 3: + forever (unbounded loops)
+ * Stage 4: + ifColor (colored conditionals - single branch)
+ * Stage 5: + ifColorElse, ifElse (if-else with both branches)
+ * Stage 6: + advanced combinations
  */
 function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinition {
+  const isPractice = MazeGame.isPracticeModeEnabled();
+  const stage = getStageForLevel(level - 1, isPractice);
+  const stageConfig = STAGES.find(s => s.id === stage) || STAGES[0];
+  const levelConfig = isPractice ? null : CODING_LEVELS[level - 1];
+
+  // Use level-specific blocks if defined, otherwise fall back to stage default
+  const blocks = levelConfig?.blocks || stageConfig.blocks;
+
   const contents: Blockly.utils.toolbox.ToolboxItemInfo[] = [
-    {kind: 'label', text: 'Available blocks:'},
-    {kind: 'block', type: 'maze_moveForward'},
-    {kind: 'block', type: 'maze_turn', fields: {DIR: 'turnLeft'}},
-    {kind: 'block', type: 'maze_turn', fields: {DIR: 'turnRight'}},
+    {kind: 'label', text: msg('MAZE_STAGE') + ' ' + stage + ': ' + msg(stageConfig.name)},
   ];
 
-  // Level 3+: Add forever loop
-  if (level > 2) {
-    contents.push({kind: 'block', type: 'maze_forever'});
-  }
-
-  // Level 6: Add if block (preset to isPathLeft)
-  if (level === 6) {
-    contents.push({kind: 'block', type: 'maze_if', fields: {DIR: 'isPathLeft'}});
-  }
-  // Level 7+: Add if block with dropdown
-  else if (level > 6) {
-    contents.push({kind: 'block', type: 'maze_if'});
-  }
-
-  // Level 9+: Add ifElse block
-  if (level > 8) {
-    contents.push({kind: 'block', type: 'maze_ifElse'});
+  // Add blocks based on level or stage configuration
+  for (const blockType of blocks) {
+    switch (blockType) {
+      case 'maze_moveForward':
+        contents.push({kind: 'block', type: 'maze_moveForward'});
+        break;
+      case 'maze_turn':
+        contents.push({kind: 'block', type: 'maze_turn', fields: {DIR: 'turnLeft'}});
+        contents.push({kind: 'block', type: 'maze_turn', fields: {DIR: 'turnRight'}});
+        break;
+      case 'maze_repeatTimes':
+        contents.push({kind: 'block', type: 'maze_repeatTimes', fields: {TIMES: 5}});
+        break;
+      case 'maze_forever':
+        contents.push({kind: 'block', type: 'maze_forever'});
+        break;
+      case 'maze_ifColor':
+        contents.push({kind: 'block', type: 'maze_ifColor', fields: {COLOR: 'red'}});
+        // Only add blue variant for non-challenge stages
+        if (stage < 6) {
+          contents.push({kind: 'block', type: 'maze_ifColor', fields: {COLOR: 'blue'}});
+        }
+        break;
+      case 'maze_ifColorElse':
+        contents.push({kind: 'block', type: 'maze_ifColorElse', fields: {COLOR: 'red'}});
+        break;
+      case 'maze_if':
+        // For first levels of Stage 5, preset to isPathLeft for easier learning
+        if (level <= 19) { // First level of Stage 5
+          contents.push({kind: 'block', type: 'maze_if', fields: {DIR: 'isPathLeft'}});
+        } else {
+          contents.push({kind: 'block', type: 'maze_if'});
+        }
+        break;
+      case 'maze_ifElse':
+        contents.push({kind: 'block', type: 'maze_ifElse'});
+        break;
+    }
   }
 
   return {kind: 'flyoutToolbox', contents};
@@ -225,7 +270,7 @@ function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinit
 
 // Initialize level from URL param or default to 1
 const initialLevel = getIntegerParamFromUrl('level', 1, MazeGame.getMaxLevel());
-const initialMaxBlocks = MAX_BLOCKS[initialLevel - 1];
+const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecutionMode === 'practice');
 
 // Initialize Blockly workspace with level-specific configuration
 const workspace = Blockly.inject('blocklyDiv', {
@@ -270,7 +315,7 @@ function updateCapacityBubble() {
   }
 
   const currentLevel = mazeGame.getLevel();
-  const maxBlocks = MAX_BLOCKS[currentLevel - 1];
+  const maxBlocks = getMaxBlocksForLevel(currentLevel - 1, MazeGame.isPracticeModeEnabled());
 
   // Hide bubble if no limit
   if (maxBlocks === Infinity) {
@@ -309,7 +354,7 @@ workspace.addChangeListener((event) => {
  * This updates both the toolbox and the maxBlocks limit.
  */
 function updateWorkspaceForLevel(level: number) {
-  const maxBlocks = MAX_BLOCKS[level - 1];
+  const maxBlocks = getMaxBlocksForLevel(level - 1, MazeGame.isPracticeModeEnabled());
 
   // Update toolbox with level-appropriate blocks
   workspace.updateToolbox(getToolboxForLevel(level));
@@ -764,17 +809,72 @@ mazeGame.onExecutionStateChange((isExecuting) => {
   }
 });
 
+/**
+ * Format a level number as "Level" + stage letter + level within stage (e.g., Level A1, Level B2).
+ * @param level The 1-based level number
+ * @param isPractice Whether we're in practice mode
+ * @returns Formatted level string like "Level A1", "Level B2", etc.
+ */
+function formatLevelLabel(level: number, isPractice: boolean): string {
+  const stage = getStageForLevel(level - 1, isPractice);
+  const stageLetter = String.fromCharCode(64 + stage); // 65 is 'A'
+  const firstLevelIndex = getFirstLevelIndexForStage(stage, isPractice);
+  const levelInStage = level - firstLevelIndex;
+  return `${msg('MAZE_LEVEL')} ${stageLetter}${levelInStage}`;
+}
+
+/**
+ * Populate the stage dropdown with letter-based options (A, B, C, etc.).
+ */
+function populateStageDropdown(): void {
+  const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+  if (!stageDropdown) return;
+
+  // Clear existing options
+  stageDropdown.innerHTML = '';
+
+  // Add options for each stage
+  STAGES.forEach((stage, index) => {
+    const option = document.createElement('option');
+    option.value = String(stage.id);
+    const stageLetter = String.fromCharCode(65 + index); // A, B, C, etc.
+    const stageName = msg(stage.name);
+    option.textContent = `${stageLetter} - ${stageName}`;
+    stageDropdown.appendChild(option);
+  });
+}
+
 // Update level display
 function updateLevelDisplay() {
   const currentLevel = mazeGame.getLevel();
   const maxLevel = MazeGame.getMaxLevel();
+  const isPractice = MazeGame.isPracticeModeEnabled();
+  const stage = getStageForLevel(currentLevel - 1, isPractice);
 
   const levelDisplay = document.getElementById('levelDisplay');
   const prevButton = document.getElementById('prevLevel') as HTMLButtonElement;
   const nextButton = document.getElementById('nextLevel') as HTMLButtonElement;
+  const stageSelector = document.getElementById('stageSelector');
+  const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
 
+  // Show level display as A1, A2, B1, etc.
   if (levelDisplay) {
-    levelDisplay.textContent = `${msg('MAZE_LEVEL')} ${currentLevel}`;
+    levelDisplay.textContent = formatLevelLabel(currentLevel, isPractice);
+  }
+
+  // Update stage dropdown
+  if (stageSelector) {
+    // Hide stage selector in practice mode
+    if (isPractice) {
+      stageSelector.classList.add('hidden');
+    } else {
+      stageSelector.classList.remove('hidden');
+    }
+  }
+
+  // Sync stage dropdown with current level
+  if (stageDropdown && !isPractice) {
+    stageDropdown.value = String(stage);
   }
 
   if (prevButton) {
@@ -785,6 +885,27 @@ function updateLevelDisplay() {
     // In practice mode, keep enabled on last level to show graduation modal
     nextButton.disabled = currentLevel >= maxLevel && !MazeGame.isPracticeModeEnabled();
   }
+
+  // Update level instruction based on current level
+  updateLevelInstruction(currentLevel);
+}
+
+/**
+ * Update the level instruction text based on the current level.
+ */
+function updateLevelInstruction(level: number) {
+  const instructionEl = document.getElementById('levelInstruction');
+  if (instructionEl) {
+    const instructionKey = `MAZE_INSTRUCTION_${level}`;
+    const instruction = msg(instructionKey);
+    // Only show if we have a valid instruction (not just the key back)
+    if (instruction !== instructionKey) {
+      instructionEl.textContent = instruction;
+    } else {
+      // Fallback to a generic instruction
+      instructionEl.textContent = msg('MAZE_INSTRUCTION_1');
+    }
+  }
 }
 
 // Previous level button handler (uses shared function, resetHintState called there)
@@ -792,6 +913,30 @@ document.getElementById('prevLevel')?.addEventListener('click', goToPreviousLeve
 
 // Next level button handler (uses shared function, resetHintState called there)
 document.getElementById('nextLevel')?.addEventListener('click', goToNextLevel);
+
+// Stage dropdown handler - navigate to first level of selected stage
+document.getElementById('stageDropdown')?.addEventListener('change', (e) => {
+  const select = e.target as HTMLSelectElement;
+  const stageId = parseInt(select.value, 10);
+  const isPractice = MazeGame.isPracticeModeEnabled();
+
+  // Get the first level index for this stage (0-based)
+  const firstLevelIndex = getFirstLevelIndexForStage(stageId, isPractice);
+
+  if (firstLevelIndex >= 0) {
+    // Convert to 1-based level number
+    const newLevel = firstLevelIndex + 1;
+
+    // Reset hint state
+    resetHintState();
+
+    // Change to the new level
+    mazeGame.setLevel(newLevel);
+    updateWorkspaceForLevel(newLevel);
+    updateLevelDisplay();
+    updateCapacityBubble();
+  }
+});
 
 // Setup the Pegman button and menu
 const pegmanButton = document.getElementById('pegmanButton');
@@ -1104,6 +1249,9 @@ document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {
   }
 });
 
+// Populate stage dropdown with letter-based options
+populateStageDropdown();
+
 // Initial level display update
 updateLevelDisplay();
 
@@ -1259,7 +1407,7 @@ function levelHelp() {
   const level = mazeGame.getLevel();
   const blocks = workspace.getAllBlocks(false);
   const topBlocks = workspace.getTopBlocks(false);
-  const maxBlocks = MAX_BLOCKS[level - 1];
+  const maxBlocks = getMaxBlocksForLevel(level - 1, MazeGame.isPracticeModeEnabled());
   const remaining = workspace.remainingCapacity();
 
   // Helper to check if a block type exists
@@ -1729,7 +1877,7 @@ function hideGridModeSuccess(advance: boolean): void {
     // Update grid mode level display
     const gridModeLevel = document.getElementById('gridModeLevel');
     if (gridModeLevel) {
-      gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+      gridModeLevel.textContent = formatLevelLabel(mazeGame.getLevel(), MazeGame.isPracticeModeEnabled());
     }
   }
 }
@@ -1879,7 +2027,7 @@ function hideGridCodingSuccess(advance: boolean): void {
     // Update grid coding level display
     const gridCodingLevel = document.getElementById('gridCodingLevel');
     if (gridCodingLevel) {
-      gridCodingLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+      gridCodingLevel.textContent = formatLevelLabel(mazeGame.getLevel(), MazeGame.isPracticeModeEnabled());
     }
   }
 }
@@ -1964,7 +2112,7 @@ function initializeGridMode(): void {
   const gridModeLevel = document.getElementById('gridModeLevel');
   if (gridModeLevel) {
     gridModeLevel.classList.remove('hidden');
-    gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+    gridModeLevel.textContent = formatLevelLabel(mazeGame.getLevel(), MazeGame.isPracticeModeEnabled());
   }
 
   // Show instruction count
@@ -1997,7 +2145,7 @@ function initializeGridCodingMode(): void {
   const gridCodingLevel = document.getElementById('gridCodingLevel');
   if (gridCodingLevel) {
     gridCodingLevel.classList.remove('hidden');
-    gridCodingLevel.textContent = `${msg('MAZE_LEVEL')} ${mazeGame.getLevel()}`;
+    gridCodingLevel.textContent = formatLevelLabel(mazeGame.getLevel(), MazeGame.isPracticeModeEnabled());
   }
 
   // Show block count
@@ -2120,7 +2268,7 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
 
   // Update the level banner text
   if (levelNumber) {
-    levelNumber.textContent = `${msg('MAZE_LEVEL')} ${newLevel}`;
+    levelNumber.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
   }
 
   // Step 1: Fade out the canvas
@@ -2139,9 +2287,18 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true) {
     if (isGridMode) {
       const gridModeLevel = document.getElementById('gridModeLevel');
       if (gridModeLevel) {
-        gridModeLevel.textContent = `${msg('MAZE_LEVEL')} ${newLevel}`;
+        gridModeLevel.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
       }
       immediateModeController.resetInstructionCount();
+    }
+
+    // Reset Grid coding mode controller when changing levels
+    if (isGridCodingMode) {
+      const gridCodingLevel = document.getElementById('gridCodingLevel');
+      if (gridCodingLevel) {
+        gridCodingLevel.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
+      }
+      gridCodingModeController?.clear();
     }
 
     // Step 3: Fade in the canvas

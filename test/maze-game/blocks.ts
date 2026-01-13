@@ -99,6 +99,18 @@ export function registerMazeBlocks() {
     ['%{BKY_MAZE_PATH_RIGHT}', 'isPathRight'],
   ];
 
+  const COLOR_OPTIONS: Blockly.MenuOption[] = [
+    ['%{BKY_MAZE_COLOR_RED}', 'red'],
+    ['%{BKY_MAZE_COLOR_BLUE}', 'blue'],
+  ];
+
+  const REPEAT_COUNT_OPTIONS: Blockly.MenuOption[] = [
+    ['2', '2'],
+    ['3', '3'],
+    ['4', '4'],
+    ['5', '5'],
+  ];
+
   // Extension to initialize forward block icon based on current skin
   Blockly.Extensions.register(
     'maze_forward_icon_init',
@@ -224,6 +236,82 @@ export function registerMazeBlocks() {
       colour: LOOPS_HUE,
       tooltip: '%{BKY_MAZE_WHILE_TOOLTIP}',
     },
+
+    // Block for repeat N times loop (Stage 2).
+    {
+      type: 'maze_repeatTimes',
+      message0: '%{BKY_MAZE_REPEAT} %1 %{BKY_MAZE_TIMES}%2%{BKY_MAZE_DO} %3',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'TIMES',
+          options: REPEAT_COUNT_OPTIONS,
+        },
+        {
+          type: 'input_dummy',
+        },
+        {
+          type: 'input_statement',
+          name: 'DO',
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: LOOPS_HUE,
+      tooltip: '%{BKY_MAZE_REPEAT_TIMES_TOOLTIP}',
+    },
+
+    // Block for color conditional (Stage 4).
+    {
+      type: 'maze_ifColor',
+      message0: '%{BKY_MAZE_IF_ON} %1%2%{BKY_MAZE_DO} %3',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'COLOR',
+          options: COLOR_OPTIONS,
+        },
+        {
+          type: 'input_dummy',
+        },
+        {
+          type: 'input_statement',
+          name: 'DO',
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: LOGIC_HUE,
+      tooltip: '%{BKY_MAZE_IF_COLOR_TOOLTIP}',
+    },
+
+    // Block for color conditional with else (Stage 6).
+    {
+      type: 'maze_ifColorElse',
+      message0: '%{BKY_MAZE_IF_ON} %1%2%{BKY_MAZE_DO} %3%{BKY_MAZE_ELSE} %4',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'COLOR',
+          options: COLOR_OPTIONS,
+        },
+        {
+          type: 'input_dummy',
+        },
+        {
+          type: 'input_statement',
+          name: 'DO',
+        },
+        {
+          type: 'input_statement',
+          name: 'ELSE',
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: LOGIC_HUE,
+      tooltip: '%{BKY_MAZE_IF_COLOR_ELSE_TOOLTIP}',
+    },
   ]);
 
   // JavaScript code generators
@@ -262,5 +350,26 @@ export function registerMazeBlocks() {
     } else {
       return 'while (notDone()) {}\n';
     }
+  };
+
+  javascriptGenerator.forBlock['maze_repeatTimes'] = function (block) {
+    const times = block.getFieldValue('TIMES');
+    const branch = javascriptGenerator.statementToCode(block, 'DO');
+    return `for (var count = 0; count < ${times}; count++) {\n${branch}}\n`;
+  };
+
+  javascriptGenerator.forBlock['maze_ifColor'] = function (block) {
+    const color = block.getFieldValue('COLOR');
+    const branch = javascriptGenerator.statementToCode(block, 'DO');
+    const functionName = color === 'red' ? 'isOnRed' : 'isOnBlue';
+    return `if (${functionName}('block_id_${block.id}')) {\n${branch}}\n`;
+  };
+
+  javascriptGenerator.forBlock['maze_ifColorElse'] = function (block) {
+    const color = block.getFieldValue('COLOR');
+    const branch0 = javascriptGenerator.statementToCode(block, 'DO');
+    const branch1 = javascriptGenerator.statementToCode(block, 'ELSE');
+    const functionName = color === 'red' ? 'isOnRed' : 'isOnBlue';
+    return `if (${functionName}('block_id_${block.id}')) {\n${branch0}} else {\n${branch1}}\n`;
   };
 }
