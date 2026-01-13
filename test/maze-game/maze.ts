@@ -73,7 +73,7 @@ export const STAGES: StageConfig[] = [
     id: 3,
     name: 'MAZE_STAGE_3_NAME',
     concept: 'MAZE_STAGE_3_CONCEPT',
-    blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever'],
+    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever'],
   },
   {
     id: 4,
