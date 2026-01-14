@@ -242,6 +242,14 @@ export class ImmediateModeController {
       markerEl.src = this.mazeGame.getMarkerPath();
     }
 
+    // Update forward button icon to match current skin (wheel for wheelchair, feet for others)
+    const forwardIcon = this.forwardBtn?.querySelector('.cmd-icon') as HTMLImageElement;
+    if (forwardIcon) {
+      forwardIcon.src = this.mazeGame.isWheelchairSkin()
+        ? 'assets/wheel_forward.svg'
+        : 'assets/steps.svg';
+    }
+
     // Update button labels
     const forwardLabel = this.forwardBtn?.querySelector('.cmd-label');
     if (forwardLabel) {

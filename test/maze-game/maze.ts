@@ -1150,6 +1150,13 @@ export class MazeGame {
   }
 
   /**
+   * Check if the current skin is the wheelchair character.
+   */
+  public isWheelchairSkin(): boolean {
+    return this.skinId === 1;
+  }
+
+  /**
    * Enable or disable sound effects.
    * @param enabled True to enable sounds, false to mute.
    */

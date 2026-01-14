@@ -59,18 +59,34 @@ let currentSkinId = 0;
 export function setCurrentSkin(skinId: number, workspace?: Blockly.Workspace) {
   currentSkinId = skinId;
   if (workspace) {
+    const newSrc =
+      skinId === WHEELCHAIR_SKIN_ID
+        ? 'assets/wheel_forward.svg'
+        : 'assets/steps.svg';
+
     // Update all moveForward blocks on the workspace
     const blocks = workspace.getBlocksByType('maze_moveForward', false);
     blocks.forEach((block) => {
       const imageField = block.getField('ICON') as Blockly.FieldImage;
       if (imageField) {
-        const newSrc =
-          skinId === WHEELCHAIR_SKIN_ID
-            ? 'assets/wheel_forward.svg'
-            : 'assets/steps.svg';
         imageField.setValue(newSrc);
       }
     });
+
+    // Also update blocks in the toolbox flyout
+    const svgWorkspace = workspace as Blockly.WorkspaceSvg;
+    // Try both: simple flyout (getFlyout on workspace) and category flyout (via toolbox)
+    const flyout = svgWorkspace.getFlyout() || svgWorkspace.getToolbox()?.getFlyout();
+    if (flyout) {
+      const flyoutWorkspace = flyout.getWorkspace();
+      const flyoutBlocks = flyoutWorkspace.getBlocksByType('maze_moveForward', false);
+      flyoutBlocks.forEach((block) => {
+        const imageField = block.getField('ICON') as Blockly.FieldImage;
+        if (imageField) {
+          imageField.setValue(newSrc);
+        }
+      });
+    }
   }
 }
 

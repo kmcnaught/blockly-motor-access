@@ -601,7 +601,7 @@ keyboardNavigation.setOnMoveFinishedCallback(() => {
 // Initialize maze game (URL param > localStorage > default)
 const urlSkin = getIntegerParamFromUrl('skin', -1, 3);
 const savedSkin = urlSkin >= 0 ? urlSkin : parseInt(localStorage.getItem('mazeGameSkin') || '0', 10);
-setCurrentSkin(savedSkin); // Set initial skin for block icons
+setCurrentSkin(savedSkin, workspace); // Set initial skin for block icons
 
 // Set up practice mazes if starting in practice mode
 // This must be done BEFORE creating MazeGame so it uses the correct maze set
@@ -1282,6 +1282,9 @@ function changePegman(skinId: number) {
 
   // Update block icons based on character
   setCurrentSkin(skinId, workspace);
+
+  // Update immediate mode button icons
+  immediateModeController.updateLabels();
 
   // Toggle Christmas theme based on skin
   setChristmasTheme(skinId === RUDOLPH_SKIN_ID);
