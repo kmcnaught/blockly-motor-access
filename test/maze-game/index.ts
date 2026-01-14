@@ -15,7 +15,7 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
-import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
+import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
@@ -1484,41 +1484,38 @@ function updateInstructionBar() {
   if (currentExecutionMode === 'practice') {
     levelInstruction.textContent = msg('MAZE_PRACTICE_INSTRUCTION');
   } else {
-    // Coding mode - use level-specific MAZE_INSTRUCTION_N messages
-    levelInstruction.textContent = msg(`MAZE_INSTRUCTION_${level}`);
+    // Coding mode - use instruction from level config if available, fall back to MAZE_INSTRUCTION_N
+    const levelConfig = getLevelConfig(level - 1, false);
+    if (levelConfig?.instruction) {
+      levelInstruction.textContent = msg(levelConfig.instruction);
+    } else {
+      levelInstruction.textContent = msg(`MAZE_INSTRUCTION_${level}`);
+    }
   }
 
-  // Handle hints visibility
+  // Clear hints when instruction bar updates
   if (contextualHint) {
-    if (displayMode === 'instructions') {
-      // Hide hints in instructions-only mode
-      contextualHint.textContent = '';
-    }
-    // In 'both' mode, hints are updated by updateContextualHint()
+    contextualHint.textContent = '';
   }
 }
 
 /**
- * Update just the contextual hint portion of the instruction bar.
+ * Update the contextual hint appended to the instruction.
  */
 function updateContextualHint(hintKey: string | null) {
-  const levelInstruction = document.getElementById('levelInstruction');
   const contextualHint = document.getElementById('contextualHint');
-  if (!contextualHint || !levelInstruction) return;
+  if (!contextualHint) return;
 
   // Don't show hints if display mode is not 'both'
   if (displayMode !== 'both') {
     contextualHint.textContent = '';
-    levelInstruction.style.display = '';
     return;
   }
 
-  // Hint replaces instruction when present
+  // Append hint to instruction
   if (hintKey) {
-    levelInstruction.style.display = 'none';
-    contextualHint.textContent = msg(hintKey);
+    contextualHint.textContent = ' ' + msg(hintKey);
   } else {
-    levelInstruction.style.display = '';
     contextualHint.textContent = '';
   }
 }
@@ -1549,22 +1546,15 @@ function hideHint() {
 }
 
 /**
- * Determine which hint to show based on current level and workspace state.
- * This implements the original blockly-games hint logic.
+ * Check if a specific hint should be shown based on workspace state.
+ * This maps hint keys to their display conditions.
  */
-function levelHelp() {
-  // Don't show hints in practice mode - only show the single practice instruction
-  if (currentExecutionMode === 'practice') return;
-
-  // Don't show hints while executing
-  if (mazeGame.isExecuting()) return;
-
-  const level = mazeGame.getLevel();
-  const blocks = workspace.getAllBlocks(false);
-  const topBlocks = workspace.getTopBlocks(false);
-  const maxBlocks = getMaxBlocksForLevel(level - 1, MazeGame.isPracticeModeEnabled());
-  const remaining = workspace.remainingCapacity();
-
+function shouldShowHint(
+  hintKey: string,
+  blocks: Blockly.Block[],
+  topBlocks: Blockly.Block[],
+  remaining: number,
+): boolean {
   // Helper to check if a block type exists
   const hasBlockType = (type: string) => blocks.some(b => b.type === type);
 
@@ -1579,97 +1569,92 @@ function levelHelp() {
     return count;
   };
 
+  switch (hintKey) {
+    case 'MAZE_HINT_STACK':
+      return blocks.length < 2;
+
+    case 'MAZE_HINT_ONE_TOP_BLOCK':
+      return topBlocks.length > 1;
+
+    case 'MAZE_HINT_RUN':
+      return !hasRun;
+
+    case 'MAZE_HINT_RESET':
+      return hasRun && lastResult === 'failure';
+
+    case 'MAZE_HINT_REPEAT':
+      return !hasBlockType('maze_forever') && remaining > 0;
+
+    case 'MAZE_HINT_CAPACITY':
+      return remaining === 0;
+
+    case 'MAZE_HINT_REPEAT_MANY': {
+      const foreverBlock = blocks.find(b => b.type === 'maze_forever');
+      return foreverBlock ? getNestedBlockCount(foreverBlock) < 2 : false;
+    }
+
+    case 'MAZE_HINT_IF':
+      return !hasBlockType('maze_if');
+
+    case 'MAZE_HINT_MENU': {
+      const ifBlock = blocks.find(b => b.type === 'maze_if');
+      if (ifBlock) {
+        const fieldValue = ifBlock.getFieldValue('DIR');
+        return fieldValue === 'isPathForward';
+      }
+      return false;
+    }
+
+    case 'MAZE_HINT_IF_ELSE':
+      return !hasBlockType('maze_ifElse');
+
+    case 'MAZE_HINT_WALL_FOLLOW':
+      return !localStorage.getItem('maze_level10_hint_shown');
+
+    default:
+      return false;
+  }
+}
+
+/**
+ * Determine which hint to show based on current level and workspace state.
+ * Uses level-defined hints when available, falls back to legacy logic.
+ */
+function levelHelp() {
+  // Don't show hints in practice mode - only show the single practice instruction
+  if (currentExecutionMode === 'practice') return;
+
+  // Don't show hints while executing
+  if (mazeGame.isExecuting()) return;
+
+  // Don't show hints in grid modes
+  if (isGridMode || isGridCodingMode) return;
+
+  const level = mazeGame.getLevel();
+  const levelConfig = getLevelConfig(level - 1, false);
+
   hideHint(); // Clear any existing hint
 
   // Schedule hint with delay to avoid showing too quickly
   hintTimeout = setTimeout(() => {
-    let hintKey: string | null = null;
+    const blocks = workspace.getAllBlocks(false);
+    const topBlocks = workspace.getTopBlocks(false);
+    const remaining = workspace.remainingCapacity();
 
-    switch (level) {
-      case 1:
-        // Level 1 hints
-        if (blocks.length < 2) {
-          hintKey = 'MAZE_HINT_STACK';
-        } else if (topBlocks.length > 1) {
-          hintKey = 'MAZE_HINT_ONE_TOP_BLOCK';
-        } else if (!hasRun) {
-          hintKey = 'MAZE_HINT_RUN';
-        }
-        break;
-
-      case 2:
-        // Level 2: Hint about resetting after failure
-        if (hasRun && lastResult === 'failure') {
-          hintKey = 'MAZE_HINT_RESET';
-        }
-        break;
-
-      case 3:
-        // Level 3: Introduces loops (block limit 2)
-        if (remaining === 0 && !hasBlockType('maze_forever')) {
-          hintKey = 'MAZE_HINT_CAPACITY';
-        } else if (!hasBlockType('maze_forever') && remaining > 0) {
-          hintKey = 'MAZE_HINT_REPEAT';
-        }
-        break;
-
-      case 4:
-        // Level 4: Multiple blocks in loop
-        if (remaining === 0 && (!hasBlockType('maze_forever') || topBlocks.length > 1)) {
-          hintKey = 'MAZE_HINT_CAPACITY';
-        } else if (hasBlockType('maze_forever')) {
-          const foreverBlock = blocks.find(b => b.type === 'maze_forever');
-          if (foreverBlock && getNestedBlockCount(foreverBlock) < 2) {
-            hintKey = 'MAZE_HINT_REPEAT_MANY';
+    // If level has hints defined, use them
+    if (levelConfig?.hints && levelConfig.hints.length > 0) {
+      for (const hintKey of levelConfig.hints) {
+        if (shouldShowHint(hintKey, blocks, topBlocks, remaining)) {
+          // Special handling for one-time hints
+          if (hintKey === 'MAZE_HINT_WALL_FOLLOW') {
+            localStorage.setItem('maze_level10_hint_shown', 'true');
           }
+          showHint(hintKey);
+          return;
         }
-        break;
-
-      case 5:
-        // Level 5: No specific hint (optional skin hint in original)
-        break;
-
-      case 6:
-        // Level 6: Introduces if block
-        if (!hasBlockType('maze_if')) {
-          hintKey = 'MAZE_HINT_IF';
-        }
-        break;
-
-      case 7:
-      case 8:
-        // Level 7-8: If block with dropdown
-        if (hasBlockType('maze_if')) {
-          // Check if any if block still has default isPathForward
-          const ifBlock = blocks.find(b => b.type === 'maze_if');
-          if (ifBlock) {
-            const fieldValue = ifBlock.getFieldValue('DIR');
-            if (fieldValue === 'isPathForward') {
-              hintKey = 'MAZE_HINT_MENU';
-            }
-          }
-        }
-        break;
-
-      case 9:
-        // Level 9: Introduces ifElse
-        if (!hasBlockType('maze_ifElse')) {
-          hintKey = 'MAZE_HINT_IF_ELSE';
-        }
-        break;
-
-      case 10:
-        // Level 10: Wall following hint (show once)
-        if (!localStorage.getItem('maze_level10_hint_shown')) {
-          hintKey = 'MAZE_HINT_WALL_FOLLOW';
-          localStorage.setItem('maze_level10_hint_shown', 'true');
-        }
-        break;
+      }
     }
-
-    if (hintKey) {
-      showHint(hintKey);
-    }
+    // No hints defined for this level or none match - that's fine
   }, 2000); // 2 second delay before showing hints
 }
 

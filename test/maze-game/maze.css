@@ -693,9 +693,6 @@ header.christmas h1::after {
 }
 
 #instructionBar .instruction-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   flex: 1;
 }
 
