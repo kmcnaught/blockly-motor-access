@@ -470,8 +470,11 @@ export class GridCodingModeController {
     if (this.executing) return;
 
     // Clear workspace and reset scroll to origin
+    // Use negative flyout width to compensate for hidden flyout space
     this.workspace.clear();
-    this.workspace.scroll(0, 0);
+    const flyout = this.workspace.getFlyout();
+    const scrollX = flyout ? -flyout.getWidth() : 0;
+    this.workspace.scroll(scrollX, 0);
 
     // Clear history
     this.history = [];

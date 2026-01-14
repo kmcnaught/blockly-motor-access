@@ -354,6 +354,21 @@ if (currentExecutionMode !== 'practice') {
 }
 
 /**
+ * Get the scroll X position to use in grid coding mode.
+ * Returns a negative offset to compensate for the hidden flyout space,
+ * which still reserves width even when hidden via CSS/JS.
+ */
+function getGridCodingModeScrollX(): number {
+  if (!isGridCodingMode) return 0;
+
+  const flyout = workspace.getFlyout();
+  if (flyout) {
+    return -flyout.getWidth();
+  }
+  return 0;
+}
+
+/**
  * Update the capacity bubble display based on remaining block capacity.
  */
 function updateCapacityBubble() {
@@ -413,12 +428,12 @@ workspace.addChangeListener((event) => {
 
   // If workspace just became empty, reset scroll
   if (topBlocks.length === 0) {
-    workspace.scroll(0, 0);
+    workspace.scroll(getGridCodingModeScrollX(), 0);
   }
 
   // If first block was just added, reset scroll so it appears at predictable location
   if (event.type === Blockly.Events.BLOCK_CREATE && topBlocks.length === 1) {
-    workspace.scroll(0, 0);
+    workspace.scroll(getGridCodingModeScrollX(), 0);
   }
 });
 
@@ -439,7 +454,7 @@ function updateWorkspaceForLevel(level: number) {
 
   // Clear workspace when changing levels
   workspace.clear();
-  workspace.scroll(0, 0);
+  workspace.scroll(getGridCodingModeScrollX(), 0);
 
   // Load saved program for this level (coding mode only, not grid coding mode)
   if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
@@ -1378,7 +1393,7 @@ document.getElementById('resetButton')?.addEventListener('click', resetProgram);
 // Clear workspace button handler
 document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {
   workspace.clear();
-  workspace.scroll(0, 0);
+  workspace.scroll(getGridCodingModeScrollX(), 0);
   mazeGame.reset();
   // Save empty program in coding mode (but not grid coding mode)
   if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
@@ -2564,7 +2579,8 @@ function initializeGridCodingMode(): void {
   setTimeout(() => {
     Blockly.svgResize(workspace);
     // Scroll workspace to origin where blocks will be placed
-    workspace.scroll(0, 0);
+    // Use negative offset to compensate for hidden flyout space
+    workspace.scroll(getGridCodingModeScrollX(), 0);
   }, 100);
 }
 
@@ -2710,8 +2726,9 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true, sh
       }
 
       // Resize workspace and reset scroll
+      // Use negative offset to compensate for hidden flyout space
       Blockly.svgResize(workspace);
-      workspace.scroll(0, 0);
+      workspace.scroll(getGridCodingModeScrollX(), 0);
     }
 
     // Step 3: Fade in the canvas
