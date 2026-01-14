@@ -887,7 +887,7 @@ export class MazeGame {
   private backgroundImage: HTMLImageElement | null = null;
   private markerImage: HTMLImageElement | null = null;
   private imagesLoaded = false;
-  private skinId: number = 0;
+  private skinId: number = 1;
   private skin: Skin;
   private winAudio: HTMLAudioElement | null = null;
   private crashAudio: HTMLAudioElement | null = null;
@@ -910,7 +910,7 @@ export class MazeGame {
     return levels.map(level => level.maze);
   }
 
-  constructor(canvasId: string, level: number, skinId: number = 0) {
+  constructor(canvasId: string, level: number, skinId: number = 1) {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
       throw new Error(`Canvas element ${canvasId} not found`);
