@@ -432,9 +432,12 @@ export class GridCodingModeController {
   /**
    * Run the program from the beginning (replay).
    */
-  public runProgram(): void {
+  public async runProgram(): Promise<void> {
     if (this.executing) return;
     if (this.history.length === 0) return;
+
+    // Wait for any pending renders to complete before generating code
+    await Blockly.renderManagement.finishQueuedRenders();
 
     // Reset maze to start
     this.mazeGame.reset();
