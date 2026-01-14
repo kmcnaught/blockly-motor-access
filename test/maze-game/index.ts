@@ -2979,6 +2979,8 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
+      hideGridCodingIntroModal();
+      hideGridPracticeIntroModal();
       cycleCharacterPrevious();
       return;
     }
@@ -2989,6 +2991,8 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
+      hideGridCodingIntroModal();
+      hideGridPracticeIntroModal();
       cycleCharacterNext();
       return;
     }
