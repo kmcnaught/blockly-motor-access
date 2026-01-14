@@ -100,8 +100,8 @@ export function registerMazeBlocks() {
   ];
 
   const COLOR_OPTIONS: Blockly.MenuOption[] = [
-    ['%{BKY_MAZE_COLOR_RED}', 'red'],
-    ['%{BKY_MAZE_COLOR_BLUE}', 'blue'],
+    [{src: 'assets/red_circle.svg', width: 24, height: 24, alt: 'red circle'}, 'red'],
+    [{src: 'assets/blue_square.svg', width: 24, height: 24, alt: 'blue square'}, 'blue'],
   ];
 
   const REPEAT_COUNT_OPTIONS: Blockly.MenuOption[] = [

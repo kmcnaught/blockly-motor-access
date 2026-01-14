@@ -1306,30 +1306,30 @@ export class MazeGame {
           this.ctx.strokeRect(px, py, this.squareSize, this.squareSize);
         }
 
-        // Draw colored overlay for RED/BLUE squares
+        // Draw colored shape for RED/BLUE squares
         if (square === SquareType.RED || square === SquareType.BLUE) {
+          const centerX = px + this.squareSize / 2;
+          const centerY = py + this.squareSize / 2;
+          const shapeSize = this.squareSize * 0.28;
+
           this.ctx.save();
-          this.ctx.globalAlpha = 0.4;
           this.ctx.fillStyle = square === SquareType.RED ? '#E53935' : '#1E88E5';
-          // Draw a rounded rectangle for the colored overlay
-          const padding = 4;
-          const radius = 6;
-          const rx = px + padding;
-          const ry = py + padding;
-          const rw = this.squareSize - padding * 2;
-          const rh = this.squareSize - padding * 2;
-          this.ctx.beginPath();
-          this.ctx.moveTo(rx + radius, ry);
-          this.ctx.lineTo(rx + rw - radius, ry);
-          this.ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
-          this.ctx.lineTo(rx + rw, ry + rh - radius);
-          this.ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
-          this.ctx.lineTo(rx + radius, ry + rh);
-          this.ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
-          this.ctx.lineTo(rx, ry + radius);
-          this.ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
-          this.ctx.closePath();
-          this.ctx.fill();
+          this.ctx.globalAlpha = 0.7;
+          this.ctx.strokeStyle = 'white';
+          this.ctx.lineWidth = 2;
+
+          if (square === SquareType.RED) {
+            // Red circle
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, shapeSize, 0, 2 * Math.PI);
+            this.ctx.fill();
+            this.ctx.stroke();
+          } else {
+            // Blue square
+            const halfSize = shapeSize;
+            this.ctx.fillRect(centerX - halfSize, centerY - halfSize, halfSize * 2, halfSize * 2);
+            this.ctx.strokeRect(centerX - halfSize, centerY - halfSize, halfSize * 2, halfSize * 2);
+          }
           this.ctx.restore();
         }
 
