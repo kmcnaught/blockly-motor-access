@@ -1972,6 +1972,45 @@ gridCodingIntroModal.addEventListener('click', () => {
   hideGridCodingIntroModal();
 });
 
+// ========== GRID PRACTICE INTRO MODAL ==========
+
+const gridPracticeIntroModal = document.getElementById('gridPracticeIntroModal')!;
+const gridPracticeIntroTitle = document.getElementById('gridPracticeIntroTitle')!;
+const gridPracticeIntroLine1 = document.getElementById('gridPracticeIntroLine1')!;
+const gridPracticeIntroLine2 = document.getElementById('gridPracticeIntroLine2')!;
+const gridPracticeIntroLine3 = document.getElementById('gridPracticeIntroLine3')!;
+
+/**
+ * Show the grid practice intro modal.
+ * Dismisses on any key press or click.
+ */
+function showGridPracticeIntroModal(): void {
+  gridPracticeIntroTitle.textContent = msg('MAZE_GRID_PRACTICE_INTRO_TITLE');
+  gridPracticeIntroLine1.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE1');
+  gridPracticeIntroLine2.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE2');
+  gridPracticeIntroLine3.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE3');
+
+  gridPracticeIntroModal.hidden = false;
+  gridPracticeIntroModal.focus();
+}
+
+/**
+ * Hide the grid practice intro modal.
+ */
+function hideGridPracticeIntroModal(): void {
+  gridPracticeIntroModal.hidden = true;
+}
+
+// Grid practice intro modal event handlers - any key or click dismisses
+gridPracticeIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
+  e.preventDefault();
+  hideGridPracticeIntroModal();
+});
+
+gridPracticeIntroModal.addEventListener('click', () => {
+  hideGridPracticeIntroModal();
+});
+
 // ========== SHORTCUTS INFO MODAL ==========
 
 const shortcutsModal = document.getElementById('shortcutsModal')!;
@@ -2459,6 +2498,9 @@ function initializeGridMode(): void {
   if (levelInstruction) {
     levelInstruction.textContent = msg('MAZE_GRID_INSTRUCTION');
   }
+
+  // Show practice mode intro
+  showGridPracticeIntroModal();
 }
 
 // Initialize Grid mode if active

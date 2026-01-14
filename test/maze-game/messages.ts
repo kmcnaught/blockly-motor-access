@@ -143,6 +143,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_INTRO_LINE1: 'Coding lets us write a list of instructions for the computer to follow.',
     MAZE_GRID_CODING_INTRO_LINE2: 'Use your instructions to move the character to the goal.',
     MAZE_GRID_CODING_INTRO_LINE3: 'When you\'re done, run the code again to see the replay.',
+    MAZE_GRID_PRACTICE_INTRO_TITLE: 'Welcome to Practice Mode!',
+    MAZE_GRID_PRACTICE_INTRO_LINE1: 'Practice mode lets you control the character directly.',
+    MAZE_GRID_PRACTICE_INTRO_LINE2: 'Use the buttons to move forward and turn.',
+    MAZE_GRID_PRACTICE_INTRO_LINE3: 'Master the controls before trying coding mode!',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
@@ -338,6 +342,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_INTRO_LINE1: 'Le code nous permet d\'écrire une liste d\'instructions que l\'ordinateur va suivre.',
     MAZE_GRID_CODING_INTRO_LINE2: 'Utilisez vos instructions pour déplacer le personnage vers l\'objectif.',
     MAZE_GRID_CODING_INTRO_LINE3: 'Quand vous avez terminé, relancez le code pour revoir la solution.',
+    MAZE_GRID_PRACTICE_INTRO_TITLE: 'Bienvenue en mode pratique !',
+    MAZE_GRID_PRACTICE_INTRO_LINE1: 'Le mode pratique vous permet de contrôler le personnage directement.',
+    MAZE_GRID_PRACTICE_INTRO_LINE2: 'Utilisez les boutons pour avancer et tourner.',
+    MAZE_GRID_PRACTICE_INTRO_LINE3: 'Maîtrisez les contrôles avant d\'essayer le mode programmation !',
 
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
