@@ -151,17 +151,42 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
 
-    // Level instructions (what the user should accomplish)
-    MAZE_INSTRUCTION_1: 'Get to the goal using move and turn blocks.',
-    MAZE_INSTRUCTION_2: 'Navigate the turns to reach the goal.',
-    MAZE_INSTRUCTION_3: 'Use a repeat loop to reach the goal with fewer blocks.',
-    MAZE_INSTRUCTION_4: 'Put multiple blocks inside the repeat loop.',
-    MAZE_INSTRUCTION_5: 'Solve the maze using loops.',
-    MAZE_INSTRUCTION_6: 'Use the "if" block to turn when there\'s a path.',
-    MAZE_INSTRUCTION_7: 'Change the "if" condition to check different directions.',
-    MAZE_INSTRUCTION_8: 'Combine loops and conditions to solve the maze.',
-    MAZE_INSTRUCTION_9: 'Use "if-else" to handle both paths.',
-    MAZE_INSTRUCTION_10: 'Solve this challenging maze using all your skills.',
+    // ===========================================
+    // Reusable Level Instructions
+    // Named semantically for reuse across levels
+    // ===========================================
+
+    // Stage A: Sequencing
+    MAZE_INSTRUCTION_MOVE_FORWARD: 'Write a program to move forward and reach the goal.',
+    MAZE_INSTRUCTION_NAVIGATE_TURNS: 'Navigate the turns to reach the goal.',
+    MAZE_INSTRUCTION_USE_MOVE_AND_TURN: 'Use move and turn blocks to reach the goal.',
+
+    // Stage B: Repeat X Times
+    MAZE_INSTRUCTION_REPEAT_LONG_PATH: 'Use a repeat block to travel the long path.',
+    MAZE_INSTRUCTION_MULTIPLE_IN_REPEAT: 'Put multiple moves in a repeat block to reach the goal.',
+    MAZE_INSTRUCTION_CODE_BEFORE_REPEAT: 'Use some code before the repeat block to reach the goal.',
+    MAZE_INSTRUCTION_WRITE_PROGRAM: 'Write a program to reach the goal.',
+
+    // Stage C: Repeat Until
+    MAZE_INSTRUCTION_KEEP_GOING: 'Keep going to the goal.',
+    MAZE_INSTRUCTION_KEEP_ZIGZAGGING: 'Keep zigzagging all the way to the goal.',
+
+    // Stage D: Colored Conditionals
+    MAZE_INSTRUCTION_USE_COLORS: 'Use colored shapes to decide which way to turn.',
+
+    // Stage E: If-Else
+    MAZE_INSTRUCTION_IF_ELSE_TWO_ACTIONS: 'Use if-else to choose between two actions.',
+    MAZE_INSTRUCTION_IF_ELSE_PATH: 'Use if-else to choose depending on where the path is.',
+
+    // Stage F: Challenge
+    MAZE_INSTRUCTION_USE_EVERYTHING: 'Use everything you\'ve learned to solve this challenge.',
+
+    // Legacy level instructions (kept for reference)
+    // MAZE_INSTRUCTION_6: 'Use the "if" block to turn when there\'s a path.',
+    // MAZE_INSTRUCTION_7: 'Change the "if" condition to check different directions.',
+    // MAZE_INSTRUCTION_8: 'Combine loops and conditions to solve the maze.',
+    // MAZE_INSTRUCTION_9: 'Use "if-else" to handle both paths.',
+    // MAZE_INSTRUCTION_10: 'Solve this challenging maze using all your skills.',
 
     // Stage names and concepts (for stage progression UI)
     MAZE_STAGE_1_NAME: 'Sequencing',
@@ -350,17 +375,42 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     // Workspace controls
     MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
 
-    // Level instructions (what the user should accomplish)
-    MAZE_INSTRUCTION_1: 'Atteignez l\'objectif en utilisant les blocs avancer et tourner.',
-    MAZE_INSTRUCTION_2: 'Naviguez dans les virages pour atteindre l\'objectif.',
-    MAZE_INSTRUCTION_3: 'Utilisez une boucle pour atteindre l\'objectif avec moins de blocs.',
-    MAZE_INSTRUCTION_4: 'Mettez plusieurs blocs dans la boucle.',
-    MAZE_INSTRUCTION_5: 'Résolvez le labyrinthe en utilisant des boucles.',
-    MAZE_INSTRUCTION_6: 'Utilisez le bloc « si » pour tourner quand il y a un chemin.',
-    MAZE_INSTRUCTION_7: 'Changez la condition « si » pour vérifier différentes directions.',
-    MAZE_INSTRUCTION_8: 'Combinez boucles et conditions pour résoudre le labyrinthe.',
-    MAZE_INSTRUCTION_9: 'Utilisez « si-sinon » pour gérer les deux chemins.',
-    MAZE_INSTRUCTION_10: 'Résolvez ce labyrinthe difficile en utilisant toutes vos compétences.',
+    // ===========================================
+    // Reusable Level Instructions
+    // Named semantically for reuse across levels
+    // ===========================================
+
+    // Stage A: Sequencing
+    MAZE_INSTRUCTION_MOVE_FORWARD: 'Écrivez un programme pour avancer et atteindre l\'objectif.',
+    MAZE_INSTRUCTION_NAVIGATE_TURNS: 'Naviguez dans les virages pour atteindre l\'objectif.',
+    MAZE_INSTRUCTION_USE_MOVE_AND_TURN: 'Utilisez les blocs avancer et tourner pour atteindre l\'objectif.',
+
+    // Stage B: Repeat X Times
+    MAZE_INSTRUCTION_REPEAT_LONG_PATH: 'Utilisez un bloc répéter pour parcourir le long chemin.',
+    MAZE_INSTRUCTION_MULTIPLE_IN_REPEAT: 'Mettez plusieurs mouvements dans un bloc répéter pour atteindre l\'objectif.',
+    MAZE_INSTRUCTION_CODE_BEFORE_REPEAT: 'Utilisez du code avant le bloc répéter pour atteindre l\'objectif.',
+    MAZE_INSTRUCTION_WRITE_PROGRAM: 'Écrivez un programme pour atteindre l\'objectif.',
+
+    // Stage C: Repeat Until
+    MAZE_INSTRUCTION_KEEP_GOING: 'Continuez jusqu\'à l\'objectif.',
+    MAZE_INSTRUCTION_KEEP_ZIGZAGGING: 'Continuez en zigzag jusqu\'à l\'objectif.',
+
+    // Stage D: Colored Conditionals
+    MAZE_INSTRUCTION_USE_COLORS: 'Utilisez les formes colorées pour décider dans quelle direction tourner.',
+
+    // Stage E: If-Else
+    MAZE_INSTRUCTION_IF_ELSE_TWO_ACTIONS: 'Utilisez si-sinon pour choisir entre deux actions.',
+    MAZE_INSTRUCTION_IF_ELSE_PATH: 'Utilisez si-sinon pour choisir selon l\'emplacement du chemin.',
+
+    // Stage F: Challenge
+    MAZE_INSTRUCTION_USE_EVERYTHING: 'Utilisez tout ce que vous avez appris pour résoudre ce défi.',
+
+    // Legacy level instructions (kept for reference)
+    // MAZE_INSTRUCTION_6: 'Utilisez le bloc « si » pour tourner quand il y a un chemin.',
+    // MAZE_INSTRUCTION_7: 'Changez la condition « si » pour vérifier différentes directions.',
+    // MAZE_INSTRUCTION_8: 'Combinez boucles et conditions pour résoudre le labyrinthe.',
+    // MAZE_INSTRUCTION_9: 'Utilisez « si-sinon » pour gérer les deux chemins.',
+    // MAZE_INSTRUCTION_10: 'Résolvez ce labyrinthe difficile en utilisant toutes vos compétences.',
 
     // Stage names and concepts (for stage progression UI)
     MAZE_STAGE_1_NAME: 'Séquençage',

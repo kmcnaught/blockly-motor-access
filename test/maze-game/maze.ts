@@ -58,6 +58,8 @@ export interface MazeLevel {
   stage: number;          // 1-7, which stage this level belongs to
   maxBlocks: number;      // Block limit (Infinity for unlimited)
   blocks?: string[];      // Optional: override stage's default toolbox blocks
+  instruction?: string;   // Message key for level instruction (e.g., 'MAZE_INSTRUCTION_STAGE_A')
+  hints?: string[];       // Message keys for contextual hints available on this level
 }
 
 /**
@@ -290,6 +292,8 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 1,
     maxBlocks: Infinity,
+    instruction: 'MAZE_INSTRUCTION_MOVE_FORWARD',
+    hints: ['MAZE_HINT_STACK', 'MAZE_HINT_ONE_TOP_BLOCK', 'MAZE_HINT_RUN'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0],
@@ -304,6 +308,8 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 1,
     maxBlocks: Infinity,
+    instruction: 'MAZE_INSTRUCTION_NAVIGATE_TURNS',
+    hints: ['MAZE_HINT_RESET'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -319,6 +325,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 1,
     maxBlocks: Infinity,
+    instruction: 'MAZE_INSTRUCTION_USE_MOVE_AND_TURN',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 3, 0, 0, 0],
@@ -334,6 +341,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 1,
     maxBlocks: Infinity,
+    instruction: 'MAZE_INSTRUCTION_USE_MOVE_AND_TURN',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -349,6 +357,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 1,
     maxBlocks: Infinity,
+    instruction: 'MAZE_INSTRUCTION_USE_MOVE_AND_TURN',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -370,6 +379,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 2,
     maxBlocks: 2,
+    instruction: 'MAZE_INSTRUCTION_REPEAT_LONG_PATH',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -385,6 +395,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 2,
     maxBlocks: 4,
+    instruction: 'MAZE_INSTRUCTION_MULTIPLE_IN_REPEAT',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -400,6 +411,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 2,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_MULTIPLE_IN_REPEAT',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 1],
       [0, 0, 0, 0, 0, 0, 1, 1],
@@ -415,6 +427,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 2,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_CODE_BEFORE_REPEAT',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 3, 0, 0],
@@ -430,6 +443,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 2,
     maxBlocks: 6,
+    instruction: 'MAZE_INSTRUCTION_WRITE_PROGRAM',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -451,6 +465,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 3,
     maxBlocks: 2,
+    instruction: 'MAZE_INSTRUCTION_KEEP_GOING',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -466,6 +481,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 3,
     maxBlocks: 4,
+    instruction: 'MAZE_INSTRUCTION_CODE_BEFORE_REPEAT',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 3, 0, 0, 0, 0],
@@ -481,6 +497,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 3,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_KEEP_ZIGZAGGING',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 3, 0],
@@ -503,12 +520,13 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 4,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_USE_COLORS',
     maze: [
-      [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 3, 0, 0, 0],
       [0, 0, 0, 0, 1, 0, 0, 0],
-      [0, 0, 2, 1, 4, 0, 0, 0],  // 4 = RED square
+      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 2, 1, 1, 4, 0, 0, 0],  // 4 = RED square
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -518,6 +536,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 4,
     maxBlocks: 6,
+    instruction: 'MAZE_INSTRUCTION_USE_COLORS',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -534,6 +553,7 @@ export const CODING_LEVELS: MazeLevel[] = [
 
     stage: 4,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_USE_COLORS',
     maze: [ // spiral with coloured corners
       [0, 4, 1, 1, 1, 1, 1, 4],
       [0, 1, 0, 0, 0, 0, 0, 1],
@@ -558,6 +578,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 5,
     maxBlocks: 6,
+    instruction: 'MAZE_INSTRUCTION_IF_ELSE_TWO_ACTIONS',
     blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColor'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -575,6 +596,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 5,
     maxBlocks: 6,
+    instruction: 'MAZE_INSTRUCTION_IF_ELSE_TWO_ACTIONS',
     blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColorElse'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -592,6 +614,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 5,
     maxBlocks: 5,
+    instruction: 'MAZE_INSTRUCTION_IF_ELSE_PATH',
     blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -608,6 +631,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 5,
     maxBlocks: 6,
+    instruction: 'MAZE_INSTRUCTION_IF_ELSE_PATH',
     blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -618,22 +642,6 @@ export const CODING_LEVELS: MazeLevel[] = [
       [0, 1, 0, 1, 0, 1, 0, 0],
       [0, 1, 1, 1, 1, 1, 1, 0],
       [0, 0, 0, 0, 0, 0, 0, 0],
-    ],
-  },
-  // E5: Challenge - spiral (hug right wall to reach center)
-  {
-    stage: 5,
-    maxBlocks: 7,
-    blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_if'],
-    maze: [
-      [0, 0, 0, 0, 0, 0, 0, 0],
-      [0, 1, 1, 1, 1, 1, 1, 0],
-      [0, 1, 0, 0, 0, 0, 1, 0],
-      [0, 1, 0, 3, 1, 0, 1, 0],
-      [0, 1, 0, 0, 1, 0, 1, 0],
-      [0, 1, 0, 1, 1, 0, 1, 0],
-      [0, 1, 0, 1, 0, 0, 1, 0],
-      [0, 2, 1, 1, 1, 1, 1, 0],
     ],
   },
 
@@ -650,6 +658,7 @@ export const CODING_LEVELS: MazeLevel[] = [
     // else: forward, forward
     stage: 6,
     maxBlocks: 8,
+    instruction: 'MAZE_INSTRUCTION_USE_EVERYTHING',
     blocks: ['maze_moveForward', 'maze_turn', 'maze_forever', 'maze_ifColorElse'],
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
@@ -667,6 +676,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 6,
     maxBlocks: 8,
+    instruction: 'MAZE_INSTRUCTION_USE_EVERYTHING',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 0, 0, 3, 0, 0, 0, 0],  // goal
@@ -682,6 +692,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 6,
     maxBlocks: 10,
+    instruction: 'MAZE_INSTRUCTION_USE_EVERYTHING',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 3, 1, 1, 1, 0, 0, 0],  // goal at top-left
@@ -697,6 +708,7 @@ export const CODING_LEVELS: MazeLevel[] = [
   {
     stage: 6,
     maxBlocks: 12,
+    instruction: 'MAZE_INSTRUCTION_USE_EVERYTHING',
     maze: [
       [0, 0, 0, 0, 0, 0, 0, 0],
       [0, 1, 1, 4, 1, 3, 0, 0],  // red marker, goal
@@ -889,6 +901,16 @@ export function getLevelsForStage(stageId: number, usePractice: boolean): MazeLe
 export function getFirstLevelIndexForStage(stageId: number, usePractice: boolean): number {
   const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
   return levels.findIndex(level => level.stage === stageId);
+}
+
+/**
+ * Get the full level configuration for a specific level.
+ * @param levelIndex 0-based level index
+ * @param usePractice Whether to use practice levels
+ */
+export function getLevelConfig(levelIndex: number, usePractice: boolean): MazeLevel | null {
+  const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
+  return levels[levelIndex] ?? null;
 }
 
 export class MazeGame {
