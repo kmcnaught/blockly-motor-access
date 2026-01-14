@@ -643,21 +643,25 @@ muteButton?.addEventListener('click', toggleSound);
 
 /**
  * Build a URL with current game state parameters.
+ * Preserves any URL parameters we don't explicitly manage (like grid, stage, etc.)
  */
-function buildGameUrl(overrides: {level?: number, skin?: number, lang?: string, mode?: string, grid?: boolean} = {}): string {
-  const params = new URLSearchParams();
+function buildGameUrl(overrides: {level?: number, skin?: number, lang?: string, mode?: string} = {}): string {
+  // Start with current URL params to preserve any we don't explicitly manage
+  const params = new URLSearchParams(window.location.search);
+
+  // Update managed parameters
   params.set('lang', overrides.lang ?? currentLocale);
   params.set('level', String(overrides.level ?? mazeGame.getLevel()));
   params.set('skin', String(overrides.skin ?? mazeGame.getSkin()));
+
+  // Handle mode parameter
   const mode = overrides.mode ?? currentExecutionMode;
-  if (mode !== 'coding') {
-    params.set('mode', mode); // Always writes 'practice' (never 'practise')
+  if (mode === 'coding') {
+    params.delete('mode'); // coding is the default, don't need it in URL
+  } else {
+    params.set('mode', mode);
   }
-  // Preserve grid mode in URL
-  const gridParam = overrides.grid !== undefined ? overrides.grid : isGridMode;
-  if (gridParam) {
-    params.set('grid', '1');
-  }
+
   return location.pathname + '?' + params.toString();
 }
 
@@ -2655,6 +2659,9 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true, sh
         gridCodingLevel.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
       }
       gridCodingModeController?.clear();
+      // Resize workspace and reset scroll (must resize first for correct scroll positioning)
+      Blockly.svgResize(workspace);
+      workspace.scroll(0, 0);
     }
 
     // Step 3: Fade in the canvas
