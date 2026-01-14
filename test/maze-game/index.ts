@@ -2659,7 +2659,15 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true, sh
         gridCodingLevel.textContent = formatLevelLabel(newLevel, MazeGame.isPracticeModeEnabled());
       }
       gridCodingModeController?.clear();
-      // Resize workspace and reset scroll (must resize first for correct scroll positioning)
+
+      // Re-hide the flyout (updateWorkspaceForLevel restored it)
+      workspace.updateToolbox({kind: 'flyoutToolbox', contents: []});
+      const flyout = workspace.getFlyout();
+      if (flyout) {
+        flyout.hide();
+      }
+
+      // Resize workspace and reset scroll
       Blockly.svgResize(workspace);
       workspace.scroll(0, 0);
     }
