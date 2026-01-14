@@ -127,10 +127,11 @@
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>
 
     <!-- Result Modal (replaces alert boxes) -->
-    <div id="resultModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" hidden>
+    <div id="resultModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" tabindex="-1" hidden>
       <div class="result-modal">
         <h2 id="resultModalTitle" class="result-modal-title"></h2>
         <p id="resultModalMessage" class="result-modal-message"></p>
+        <p id="resultModalMessage2" class="result-modal-message"></p>
         <div class="result-modal-buttons">
           <button id="resultModalCancel" class="result-modal-cancel" hidden>
             <span class="cancel-text">Cancel</span>
@@ -168,6 +169,16 @@
             <span class="ok-hint">[Enter]</span>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Grid Coding Intro Modal -->
+    <div id="gridCodingIntroModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gridCodingIntroTitle" tabindex="-1" hidden>
+      <div class="result-modal stage-intro">
+        <h2 id="gridCodingIntroTitle" class="result-modal-title stage-intro-name"></h2>
+        <p id="gridCodingIntroLine1" class="result-modal-message"></p>
+        <p id="gridCodingIntroLine2" class="result-modal-message"></p>
+        <p id="gridCodingIntroLine3" class="result-modal-message"></p>
       </div>
     </div>
 

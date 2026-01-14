@@ -77,6 +77,9 @@ const isGridMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecu
 // Keyboard commands insert blocks AND execute immediately
 const isGridCodingMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'coding';
 
+// Level transition lock - declared early to avoid temporal dead zone issues
+let isTransitioning = false;
+
 // Initialize locale (URL param > localStorage > browser detection)
 const urlLang = getStringParamFromUrl('lang', '');
 let currentLocale: SupportedLocale =
@@ -679,12 +682,21 @@ immediateModeController.onLevelComplete((success) => {
 });
 
 // Register completion callback for Grid coding mode
+// Track if we're replaying (to skip showing success dialog again)
+let isGridCodingReplay = false;
+
 if (gridCodingModeController) {
   gridCodingModeController.onLevelComplete((success) => {
     if (success) {
+      // Skip dialog on replay - just reset the flag
+      if (isGridCodingReplay) {
+        isGridCodingReplay = false;
+        return;
+      }
+
       const currentLevel = mazeGame.getLevel();
-      // Grid coding mode only supports levels 1-2 (simple statements)
-      const maxGridCodingLevel = 2;
+      // Grid coding mode supports Stage 1 levels (A1-A5)
+      const maxGridCodingLevel = getLevelsForStage(1, false).length;
 
       // Launch confetti first
       launchConfetti();
@@ -1698,8 +1710,12 @@ resultModal.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // Listen for maze game result events to show the modal
 mazeGame.onResult((result: ResultType) => {
-  // Save program on successful completion in coding mode (but not grid coding mode)
-  if (result === 'success' && !MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
+  // Grid coding mode has its own success handler
+  if (isGridCodingMode) {
+    return;
+  }
+  // Save program on successful completion in coding mode
+  if (result === 'success' && !MazeGame.isPracticeModeEnabled()) {
     saveProgram(mazeGame.getLevel(), workspace);
   }
   showResultModal(result);
@@ -1810,6 +1826,45 @@ stageIntroModal.addEventListener('click', (e: MouseEvent) => {
   if (e.target === stageIntroModal) {
     hideStageIntroModal();
   }
+});
+
+// ========== GRID CODING INTRO MODAL ==========
+
+const gridCodingIntroModal = document.getElementById('gridCodingIntroModal')!;
+const gridCodingIntroTitle = document.getElementById('gridCodingIntroTitle')!;
+const gridCodingIntroLine1 = document.getElementById('gridCodingIntroLine1')!;
+const gridCodingIntroLine2 = document.getElementById('gridCodingIntroLine2')!;
+const gridCodingIntroLine3 = document.getElementById('gridCodingIntroLine3')!;
+
+/**
+ * Show the grid coding intro modal.
+ * Dismisses on any key press or click.
+ */
+function showGridCodingIntroModal(): void {
+  gridCodingIntroTitle.textContent = msg('MAZE_GRID_CODING_INTRO_TITLE');
+  gridCodingIntroLine1.textContent = msg('MAZE_GRID_CODING_INTRO_LINE1');
+  gridCodingIntroLine2.textContent = msg('MAZE_GRID_CODING_INTRO_LINE2');
+  gridCodingIntroLine3.textContent = msg('MAZE_GRID_CODING_INTRO_LINE3');
+
+  gridCodingIntroModal.hidden = false;
+  gridCodingIntroModal.focus();
+}
+
+/**
+ * Hide the grid coding intro modal.
+ */
+function hideGridCodingIntroModal(): void {
+  gridCodingIntroModal.hidden = true;
+}
+
+// Grid coding intro modal event handlers - any key or click dismisses
+gridCodingIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
+  e.preventDefault();
+  hideGridCodingIntroModal();
+});
+
+gridCodingIntroModal.addEventListener('click', () => {
+  hideGridCodingIntroModal();
 });
 
 // ========== SHORTCUTS INFO MODAL ==========
@@ -2097,69 +2152,95 @@ function hideGridCodingModeStageGraduation(): void {
 
 // ========== GRID CODING MODE SUCCESS ==========
 
-let gridCodingCountdownInterval: ReturnType<typeof setInterval> | null = null;
-
 /**
- * Show success message for Grid coding mode with block count and auto-advance.
+ * Show success message for Grid coding mode with block count.
+ * User can press OK to dismiss, or 'r'/Run Again to replay.
  */
 function showGridCodingSuccess(blockCount: number): void {
   const resultModal = document.getElementById('resultModal')!;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const okHint = resultModalOk.querySelector('.ok-hint') as HTMLElement;
+  const cancelText = resultModalCancel.querySelector('.cancel-text') as HTMLElement;
+  const cancelHint = resultModalCancel.querySelector('.cancel-hint') as HTMLElement;
   const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_SUCCESS_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE', blockCount);
+  resultModalMessage2.textContent = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE2');
   okText.textContent = msg('MAZE_GRID_CODING_RUN_AGAIN');
+  okHint.textContent = '[R]';
+
+  // Show OK button (repurposed Cancel button) to just dismiss
+  cancelText.textContent = 'OK';
+  cancelHint.textContent = '[Enter]';
+  resultModalCancel.hidden = false;
 
   // Add success styling
   modalCard.classList.add('success');
   modalCard.classList.remove('failure');
 
-  // Hide cancel button
-  resultModalCancel.hidden = true;
-
-  // Show modal
+  // Show modal and focus it for keyboard events
   resultModal.hidden = false;
-  resultModalOk.focus();
+  resultModal.focus();
 
-  // Start countdown with progress bar
-  const countdownDuration = 5000;
-  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
-  resultModalOk.classList.add('countdown');
+  // OK button just dismisses the dialog
+  const handleCancel = () => {
+    hideGridCodingSuccess(false);
+    cleanup();
+  };
+  resultModalCancel.addEventListener('click', handleCancel);
 
-  gridCodingCountdownInterval = setTimeout(() => {
-    hideGridCodingSuccess(true);
-  }, countdownDuration);
-
+  // Run Again button replays the program
   const handleOk = () => {
-    hideGridCodingSuccess(true);
-    resultModalOk.removeEventListener('click', handleOk);
+    hideGridCodingSuccess(false);
+    cleanup();
+    isGridCodingReplay = true;
+    runProgram();
   };
   resultModalOk.addEventListener('click', handleOk);
+
+  // Keyboard handler: 'r' for run again (replay), Enter/Escape for OK (dismiss)
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      hideGridCodingSuccess(false);
+      cleanup();
+      // Replay the program
+      isGridCodingReplay = true;
+      runProgram();
+    } else if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      hideGridCodingSuccess(false);
+      cleanup();
+    }
+  };
+  resultModal.addEventListener('keydown', handleKeydown);
+
+  function cleanup() {
+    resultModalCancel.removeEventListener('click', handleCancel);
+    resultModalOk.removeEventListener('click', handleOk);
+    resultModal.removeEventListener('keydown', handleKeydown);
+  }
 }
 
 /**
  * Hide the Grid coding mode success modal.
+ * @param advance If true, clears workspace and advances to next level.
  */
 function hideGridCodingSuccess(advance: boolean): void {
-  if (gridCodingCountdownInterval) {
-    clearTimeout(gridCodingCountdownInterval);
-    gridCodingCountdownInterval = null;
-  }
-
   const resultModal = document.getElementById('resultModal')!;
-  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
 
   resultModal.hidden = true;
-  resultModalOk.classList.remove('countdown');
-  okProgress.style.animation = '';
+  resultModalCancel.hidden = true;
+  resultModalMessage2.textContent = '';
 
   if (advance) {
     // Clear workspace and advance to next level
@@ -2176,8 +2257,6 @@ function hideGridCodingSuccess(advance: boolean): void {
 
 // ========== GRID CODING MODE GRADUATION ==========
 
-let gridCodingGraduationTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
  * Show completion message for Grid coding mode after finishing all simple levels.
  */
@@ -2185,16 +2264,19 @@ function showGridCodingGraduation(blockCount: number): void {
   const resultModal = document.getElementById('resultModal')!;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
+  const okHint = resultModalOk.querySelector('.ok-hint') as HTMLElement;
   const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_GRADUATION_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_CODING_GRADUATION_MESSAGE', blockCount);
+  resultModalMessage2.textContent = '';
   okText.textContent = 'OK';
+  okHint.textContent = '[Enter]';
 
   // Add success styling
   modalCard.classList.add('success');
@@ -2203,42 +2285,38 @@ function showGridCodingGraduation(blockCount: number): void {
   // Hide cancel button
   resultModalCancel.hidden = true;
 
-  // Show modal
+  // Show modal and focus for keyboard events
   resultModal.hidden = false;
-  resultModalOk.focus();
+  resultModal.focus();
 
-  // Start countdown
-  const countdownDuration = 5000;
-  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
-  resultModalOk.classList.add('countdown');
-
-  gridCodingGraduationTimer = setTimeout(() => {
-    hideGridCodingGraduation();
-  }, countdownDuration);
+  // Keyboard handler: Enter/Escape to dismiss
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      hideGridCodingGraduation();
+      cleanup();
+    }
+  };
+  resultModal.addEventListener('keydown', handleKeydown);
 
   const handleOk = () => {
     hideGridCodingGraduation();
-    resultModalOk.removeEventListener('click', handleOk);
+    cleanup();
   };
   resultModalOk.addEventListener('click', handleOk);
+
+  function cleanup() {
+    resultModalOk.removeEventListener('click', handleOk);
+    resultModal.removeEventListener('keydown', handleKeydown);
+  }
 }
 
 /**
  * Hide the Grid coding mode graduation modal.
  */
 function hideGridCodingGraduation(): void {
-  if (gridCodingGraduationTimer) {
-    clearTimeout(gridCodingGraduationTimer);
-    gridCodingGraduationTimer = null;
-  }
-
   const resultModal = document.getElementById('resultModal')!;
-  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
-
   resultModal.hidden = true;
-  resultModalOk.classList.remove('countdown');
-  okProgress.style.animation = '';
 }
 
 /**
@@ -2324,6 +2402,9 @@ function initializeGridCodingMode(): void {
     flyout.hide();
   }
 
+  // Show intro dialog explaining what coding mode is
+  showGridCodingIntroModal();
+
   // Resize Blockly workspace to fit new layout after a short delay
   // (allows CSS to be applied first)
   setTimeout(() => {
@@ -2397,8 +2478,6 @@ if (!hasLevelInUrl && currentExecutionMode === 'coding' && !isGridMode && !isGri
 
 // ========== LEVEL TRANSITION ==========
 
-let isTransitioning = false;
-
 /**
  * Perform a level transition with fade effect and level banner.
  * @param newLevel The level to transition to
@@ -2408,6 +2487,9 @@ let isTransitioning = false;
 function performLevelTransition(newLevel: number, showBanner: boolean = true, showStageIntro: boolean = true) {
   if (isTransitioning) return;
   isTransitioning = true;
+
+  // Reset replay flag when changing levels
+  isGridCodingReplay = false;
 
   const isPractice = MazeGame.isPracticeModeEnabled();
   const currentLevel = mazeGame.getLevel();
@@ -2645,6 +2727,12 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   // In practice mode, R is handled by the practice mode controller for reset
   if (e.key === 'r' || e.key === 'R') {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      // Check if grid coding success modal is visible - handle R specially
+      const resultModal = document.getElementById('resultModal');
+      if (isGridCodingMode && resultModal && !resultModal.hidden) {
+        // Dispatch to the modal's handler by not intercepting here
+        return;
+      }
       if (currentExecutionMode === 'coding') {
         e.preventDefault();
         e.stopPropagation();
