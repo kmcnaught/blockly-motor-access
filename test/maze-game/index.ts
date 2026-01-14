@@ -1786,16 +1786,18 @@ graduationModal.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // ========== STAGE INTRO MODAL ==========
 
-const stageIntroModal = document.getElementById('stageIntroModal')!;
-const stageIntroName = document.getElementById('stageIntroName')!;
-const stageIntroConcept = document.getElementById('stageIntroConcept')!;
-const stageIntroOk = document.getElementById('stageIntroOk')!;
+const stageIntroModal = document.getElementById('stageIntroModal');
+const stageIntroName = document.getElementById('stageIntroName');
+const stageIntroConcept = document.getElementById('stageIntroConcept');
+const stageIntroOk = document.getElementById('stageIntroOk');
 
 /**
  * Show the stage intro modal for a given stage.
  * @param stageId The stage ID (1-6)
  */
 function showStageIntroModal(stageId: number): void {
+  if (!stageIntroModal || !stageIntroName || !stageIntroConcept || !stageIntroOk) return;
+
   const stageConfig = STAGES.find(s => s.id === stageId);
   if (!stageConfig) return;
 
@@ -1812,25 +1814,28 @@ function showStageIntroModal(stageId: number): void {
  * Hide the stage intro modal.
  */
 function hideStageIntroModal(): void {
+  if (!stageIntroModal) return;
   stageIntroModal.hidden = true;
 }
 
-// Stage intro modal event handlers
-stageIntroOk.addEventListener('click', hideStageIntroModal);
+// Stage intro modal event handlers (only if elements exist)
+if (stageIntroModal && stageIntroOk) {
+  stageIntroOk.addEventListener('click', hideStageIntroModal);
 
-stageIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'Escape' || e.key === 'Enter') {
-    e.preventDefault();
-    hideStageIntroModal();
-  }
-});
+  stageIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault();
+      hideStageIntroModal();
+    }
+  });
 
-stageIntroModal.addEventListener('click', (e: MouseEvent) => {
-  // Close when clicking outside the modal card
-  if (e.target === stageIntroModal) {
-    hideStageIntroModal();
-  }
-});
+  stageIntroModal.addEventListener('click', (e: MouseEvent) => {
+    // Close when clicking outside the modal card
+    if (e.target === stageIntroModal) {
+      hideStageIntroModal();
+    }
+  });
+}
 
 // ========== GRID CODING INTRO MODAL ==========
 
