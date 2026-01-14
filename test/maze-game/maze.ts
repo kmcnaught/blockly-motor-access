@@ -38,6 +38,19 @@ export interface StageConfig {
 }
 
 /**
+ * Grid stage configuration for grid coding mode.
+ * Grid stages are a presentation layer that maps to content stages
+ * with different execution modes.
+ */
+export interface GridStageConfig {
+  id: number;                 // Grid stage ID (used in URL stage=N)
+  contentStageId: number;     // Which content stage (1 = Sequencing)
+  immediateExecution: boolean; // Execute moves as blocks are added
+  name: string;               // Message key for display name
+  description: string;        // Message key for subtitle
+}
+
+/**
  * A maze level with metadata.
  */
 export interface MazeLevel {
@@ -95,6 +108,36 @@ export const STAGES: StageConfig[] = [
     blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever', 'maze_ifColor'],
   },
 ];
+
+/**
+ * Grid stages for grid coding mode.
+ * These map to content stages but with different execution modes.
+ */
+export const GRID_STAGES: GridStageConfig[] = [
+  {
+    id: 1,
+    contentStageId: 1,
+    immediateExecution: true,
+    name: 'MAZE_GRID_STAGE_1_NAME',
+    description: 'MAZE_GRID_STAGE_1_DESC',
+  },
+  {
+    id: 2,
+    contentStageId: 1,
+    immediateExecution: false,
+    name: 'MAZE_GRID_STAGE_2_NAME',
+    description: 'MAZE_GRID_STAGE_2_DESC',
+  },
+];
+
+/**
+ * Get grid stage configuration by ID.
+ * @param stageId Grid stage ID (1-based)
+ * @returns Grid stage config or undefined if not found
+ */
+export function getGridStageConfig(stageId: number): GridStageConfig | undefined {
+  return GRID_STAGES.find(s => s.id === stageId);
+}
 
 /**
  * Result type for maze execution.

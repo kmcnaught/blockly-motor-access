@@ -133,8 +133,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_SUCCESS_MESSAGE: 'You wrote a program with %1 blocks!',
     MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Press Run Code to see it again.',
     MAZE_GRID_CODING_RUN_AGAIN: 'Run Again',
-    MAZE_GRID_CODING_GRADUATION_TITLE: 'Amazing!',
-    MAZE_GRID_CODING_GRADUATION_MESSAGE: 'You completed all the coding levels with %1 blocks!',
+    // A1 (Guided) completion - transition to A2 (Challenge)
+    MAZE_GRID_CODING_A1_COMPLETE_TITLE: 'Excellent Work!',
+    MAZE_GRID_CODING_A1_COMPLETE_MESSAGE: 'You\'ve completed all the guided coding levels!\n\nReady for a challenge?\n\nIn the next levels, you\'ll write your whole program first, then run it to see what happens.',
+    // A2 (Challenge) completion - end of grid coding
     MAZE_GRID_CODING_STAGE_COMPLETE_TITLE: 'Well Done!',
     MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE: 'You have finished all the introductory levels! You will need a different gridset to explore more advanced coding.',
     MAZE_GRID_CODING_INTRO_TITLE: 'Welcome to Coding!',
@@ -172,6 +174,12 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_6_CONCEPT: 'Put everything together to solve these challenging mazes!',
     MAZE_STAGE: 'Stage',
     MAZE_STAGE_SELECT: 'Select Stage',
+
+    // Grid coding stage names (for grid mode stage dropdown)
+    MAZE_GRID_STAGE_1_NAME: 'Guided',
+    MAZE_GRID_STAGE_1_DESC: 'See each move happen',
+    MAZE_GRID_STAGE_2_NAME: 'Challenge',
+    MAZE_GRID_STAGE_2_DESC: 'Build then run',
 
     // New block messages for repeat times and colored conditionals
     MAZE_REPEAT: 'repeat',
@@ -320,8 +328,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_CODING_SUCCESS_MESSAGE: 'Vous avez écrit un programme de %1 blocs !',
     MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Appuyez sur Exécuter le code pour le revoir.',
     MAZE_GRID_CODING_RUN_AGAIN: 'Relancer',
-    MAZE_GRID_CODING_GRADUATION_TITLE: 'Incroyable !',
-    MAZE_GRID_CODING_GRADUATION_MESSAGE: 'Vous avez terminé tous les niveaux de programmation avec %1 blocs !',
+    // A1 (Guided) completion - transition to A2 (Challenge)
+    MAZE_GRID_CODING_A1_COMPLETE_TITLE: 'Excellent travail !',
+    MAZE_GRID_CODING_A1_COMPLETE_MESSAGE: 'Vous avez terminé tous les niveaux guidés !\n\nPrêt pour un défi ?\n\nDans les prochains niveaux, vous écrirez d\'abord tout votre programme, puis vous le lancerez pour voir ce qui se passe.',
+    // A2 (Challenge) completion - end of grid coding
     MAZE_GRID_CODING_STAGE_COMPLETE_TITLE: 'Bravo !',
     MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE: 'Vous avez terminé tous les niveaux d\'introduction ! Vous aurez besoin d\'un autre gridset pour explorer la programmation avancée.',
     MAZE_GRID_CODING_INTRO_TITLE: 'Bienvenue dans la programmation !',
@@ -359,6 +369,12 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_6_CONCEPT: 'Combinez tout pour résoudre ces labyrinthes difficiles !',
     MAZE_STAGE: 'Étape',
     MAZE_STAGE_SELECT: 'Sélectionner l\'étape',
+
+    // Grid coding stage names (for grid mode stage dropdown)
+    MAZE_GRID_STAGE_1_NAME: 'Guidé',
+    MAZE_GRID_STAGE_1_DESC: 'Voir chaque mouvement',
+    MAZE_GRID_STAGE_2_NAME: 'Défi',
+    MAZE_GRID_STAGE_2_DESC: 'Construire puis exécuter',
 
     // New block messages for repeat times and colored conditionals
     MAZE_REPEAT: 'répéter',

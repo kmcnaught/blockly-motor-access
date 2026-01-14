@@ -15,7 +15,7 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
-import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, STAGES, CODING_LEVELS, type ResultType} from './maze';
+import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
@@ -76,6 +76,18 @@ const isGridMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecu
 // Grid coding mode flag (active when grid=1 URL param AND mode=coding)
 // Keyboard commands insert blocks AND execute immediately
 const isGridCodingMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'coding';
+
+// Current grid stage (1 = immediate execution, 2 = delayed execution)
+// Only used when isGridCodingMode is true
+let currentGridStage = getIntegerParamFromUrl('stage', 1, GRID_STAGES.length);
+
+/**
+ * Get the current grid stage configuration.
+ * @returns The grid stage config for the current grid stage
+ */
+function getCurrentGridStageConfig(): GridStageConfig {
+  return getGridStageConfig(currentGridStage) || GRID_STAGES[0];
+}
 
 // Level transition lock - declared early to avoid temporal dead zone issues
 let isTransitioning = false;
@@ -277,7 +289,39 @@ function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinit
 const maxLevelForMode = isGridCodingMode
   ? getLevelsForStage(1, false).length  // Stage 1 has 5 levels (A1-A5)
   : MazeGame.getMaxLevel();
-const initialLevel = getIntegerParamFromUrl('level', 1, maxLevelForMode);
+
+/**
+ * Get the initial level from URL params.
+ * level= takes precedence. If not specified, stage= can be used to load first level of that stage.
+ */
+function getInitialLevel(): number {
+  const levelParam = getStringParamFromUrl('level', '');
+  if (levelParam) {
+    // level= explicitly provided, use it (clamped to valid range)
+    return getIntegerParamFromUrl('level', 1, maxLevelForMode);
+  }
+
+  // No level= param, check for stage= param (for non-grid mode)
+  // In grid coding mode, stage= controls grid stage, not content stage
+  if (!isGridCodingMode) {
+    const stageParam = getStringParamFromUrl('stage', '');
+    if (stageParam) {
+      const stageId = parseInt(stageParam, 10);
+      if (stageId >= 1 && stageId <= STAGES.length) {
+        const isPractice = currentExecutionMode === 'practice';
+        const firstLevelIndex = getFirstLevelIndexForStage(stageId, isPractice);
+        if (firstLevelIndex >= 0) {
+          return firstLevelIndex + 1; // Convert to 1-based
+        }
+      }
+    }
+  }
+
+  // Default to level 1
+  return 1;
+}
+
+const initialLevel = getInitialLevel();
 const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecutionMode === 'practice');
 
 // Initialize Blockly workspace with level-specific configuration
@@ -635,6 +679,10 @@ let gridCodingModeController: GridCodingModeController | null = null;
 if (isGridCodingMode) {
   gridCodingModeController = new GridCodingModeController(workspace, mazeGame);
 
+  // Set initial execution mode based on grid stage
+  const initialGridStageConfig = getCurrentGridStageConfig();
+  gridCodingModeController.setImmediateExecution(initialGridStageConfig.immediateExecution);
+
   // Register block count callback for Grid coding mode
   gridCodingModeController.onBlockCountChange((count) => {
     const blockCountEl = document.getElementById('gridCodingBlockCount');
@@ -702,11 +750,17 @@ if (gridCodingModeController) {
       launchConfetti();
 
       if (currentLevel >= maxGridCodingLevel) {
-        // Show Grid coding graduation message
+        // Last level completed - show appropriate dialog based on grid stage
         setTimeout(() => {
           // Skip if user already started running again
           if (mazeGame.isExecuting()) return;
-          showGridCodingGraduation(gridCodingModeController!.getBlockCount());
+          if (currentGridStage === 1) {
+            // A1 complete - show transition to A2 dialog
+            showGridCodingA1Complete();
+          } else {
+            // A2 complete - show final stage completion
+            showGridCodingModeStageGraduation();
+          }
         }, 1500);
       } else {
         // Show success message
@@ -859,6 +913,11 @@ mazeGame.onExecutionStateChange((isExecuting) => {
  * @returns Formatted level string like "Level A1", "Level B2", etc.
  */
 function formatLevelLabel(level: number, isPractice: boolean): string {
+  if (isGridCodingMode) {
+    // Grid coding mode: show "Level A1-1", "Level A2-3", etc.
+    // All grid stages use Stage A (Sequencing) levels
+    return `${msg('MAZE_LEVEL')} A${currentGridStage}-${level}`;
+  }
   const stage = getStageForLevel(level - 1, isPractice);
   const stageLetter = String.fromCharCode(64 + stage); // 65 is 'A'
   const firstLevelIndex = getFirstLevelIndexForStage(stage, isPractice);
@@ -868,6 +927,7 @@ function formatLevelLabel(level: number, isPractice: boolean): string {
 
 /**
  * Populate the stage dropdown with letter-based options (A, B, C, etc.).
+ * In grid coding mode, shows grid stages (A1, A2) instead of content stages.
  */
 function populateStageDropdown(): void {
   const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
@@ -876,15 +936,28 @@ function populateStageDropdown(): void {
   // Clear existing options
   stageDropdown.innerHTML = '';
 
-  // Add options for each stage
-  STAGES.forEach((stage, index) => {
-    const option = document.createElement('option');
-    option.value = String(stage.id);
-    const stageLetter = String.fromCharCode(65 + index); // A, B, C, etc.
-    const stageName = msg(stage.name);
-    option.textContent = `${stageLetter} - ${stageName}`;
-    stageDropdown.appendChild(option);
-  });
+  if (isGridCodingMode) {
+    // Grid coding mode: show grid stages (A1 - Guided, A2 - Challenge)
+    GRID_STAGES.forEach((gridStage) => {
+      const option = document.createElement('option');
+      option.value = String(gridStage.id);
+      const stageName = msg(gridStage.name);
+      option.textContent = `A${gridStage.id} - ${stageName}`;
+      stageDropdown.appendChild(option);
+    });
+    // Set current grid stage
+    stageDropdown.value = String(currentGridStage);
+  } else {
+    // Normal mode: show content stages (A, B, C, etc.)
+    STAGES.forEach((stage, index) => {
+      const option = document.createElement('option');
+      option.value = String(stage.id);
+      const stageLetter = String.fromCharCode(65 + index); // A, B, C, etc.
+      const stageName = msg(stage.name);
+      option.textContent = `${stageLetter} - ${stageName}`;
+      stageDropdown.appendChild(option);
+    });
+  }
 }
 
 // Update level display
@@ -907,17 +980,23 @@ function updateLevelDisplay() {
 
   // Update stage dropdown
   if (stageSelector) {
-    // Hide stage selector in practice mode
-    if (isPractice) {
+    // Hide stage selector in practice mode (non-grid)
+    if (isPractice && !isGridCodingMode) {
       stageSelector.classList.add('hidden');
     } else {
       stageSelector.classList.remove('hidden');
     }
   }
 
-  // Sync stage dropdown with current level
-  if (stageDropdown && !isPractice) {
-    stageDropdown.value = String(stage);
+  // Sync stage dropdown with current level/grid stage
+  if (stageDropdown) {
+    if (isGridCodingMode) {
+      // Grid coding mode: sync with current grid stage
+      stageDropdown.value = String(currentGridStage);
+    } else if (!isPractice) {
+      // Normal coding mode: sync with content stage
+      stageDropdown.value = String(stage);
+    }
   }
 
   if (prevButton) {
@@ -960,19 +1039,33 @@ document.getElementById('nextLevel')?.addEventListener('click', goToNextLevel);
 // Stage dropdown handler - navigate to first level of selected stage
 document.getElementById('stageDropdown')?.addEventListener('change', (e) => {
   const select = e.target as HTMLSelectElement;
-  const stageId = parseInt(select.value, 10);
-  const isPractice = MazeGame.isPracticeModeEnabled();
+  const selectedId = parseInt(select.value, 10);
 
-  // Get the first level index for this stage (0-based)
-  const firstLevelIndex = getFirstLevelIndexForStage(stageId, isPractice);
+  if (isGridCodingMode) {
+    // Grid coding mode: switching between grid stages (immediate/delayed)
+    const gridStageConfig = getGridStageConfig(selectedId);
+    if (gridStageConfig) {
+      currentGridStage = selectedId;
+      // Re-enable controller with new execution mode
+      if (gridCodingModeController) {
+        gridCodingModeController.setImmediateExecution(gridStageConfig.immediateExecution);
+        // Reset to level 1 and clear workspace
+        performLevelTransition(1, true, true);
+      }
+    }
+  } else {
+    // Normal mode: navigate to first level of selected content stage
+    const isPractice = MazeGame.isPracticeModeEnabled();
+    const firstLevelIndex = getFirstLevelIndexForStage(selectedId, isPractice);
 
-  if (firstLevelIndex >= 0) {
-    // Convert to 1-based level number
-    const newLevel = firstLevelIndex + 1;
+    if (firstLevelIndex >= 0) {
+      // Convert to 1-based level number
+      const newLevel = firstLevelIndex + 1;
 
-    // Use performLevelTransition with showStageIntro=true
-    // This will show the stage intro dialog if stage changes
-    performLevelTransition(newLevel, true, true);
+      // Use performLevelTransition with showStageIntro=true
+      // This will show the stage intro dialog if stage changes
+      performLevelTransition(newLevel, true, true);
+    }
   }
 });
 
@@ -1282,6 +1375,7 @@ document.getElementById('resetButton')?.addEventListener('click', resetProgram);
 document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {
   workspace.clear();
   workspace.scroll(0, 0);
+  mazeGame.reset();
   // Save empty program in coding mode (but not grid coding mode)
   if (!MazeGame.isPracticeModeEnabled() && !isGridCodingMode) {
     saveProgram(mazeGame.getLevel(), workspace);
@@ -2092,11 +2186,81 @@ function hideGridModeGraduation(): void {
 
 // ========== GRID CODING MODE STAGE GRADUATION ==========
 
-let gridCodingStageGraduationTimer: ReturnType<typeof setTimeout> | null = null;
+// Track active modal for keyboard dismissal
+let gridCodingModalActive = false;
+let gridCodingModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 /**
- * Show completion message for Grid coding mode after finishing Stage 1 (Sequencing).
+ * Show completion message for A1 (Guided) mode - encourages transition to A2 (Challenge).
+ * Dismissable with any key or OK button.
+ */
+function showGridCodingA1Complete(): void {
+  const resultModal = document.getElementById('resultModal')!;
+  const resultModalTitle = document.getElementById('resultModalTitle')!;
+  const resultModalMessage = document.getElementById('resultModalMessage')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
+  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
+  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
+
+  // Set localized text
+  resultModalTitle.textContent = msg('MAZE_GRID_CODING_A1_COMPLETE_TITLE');
+  resultModalMessage.textContent = msg('MAZE_GRID_CODING_A1_COMPLETE_MESSAGE');
+  okText.textContent = 'OK';
+
+  // Add success styling
+  modalCard.classList.add('success');
+  modalCard.classList.remove('failure');
+
+  // Hide cancel button and countdown progress
+  resultModalCancel.hidden = true;
+  resultModalOk.classList.remove('countdown');
+
+  // Show modal
+  resultModal.hidden = false;
+  resultModalOk.focus();
+  gridCodingModalActive = true;
+
+  // Handler to dismiss and progress to A2
+  const dismissAndProgressToA2 = () => {
+    hideGridCodingModal();
+    // Progress to A2 (delayed execution mode)
+    currentGridStage = 2;
+    const gridStageConfig = getGridStageConfig(2)!;
+    if (gridCodingModeController) {
+      gridCodingModeController.setImmediateExecution(gridStageConfig.immediateExecution);
+    }
+    // Reset to level 1 and update UI
+    performLevelTransition(1, true, true);
+    // Update stage dropdown
+    const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+    if (stageDropdown) {
+      stageDropdown.value = '2';
+    }
+  };
+
+  // Handle OK button click
+  resultModalOk.addEventListener('click', dismissAndProgressToA2, {once: true});
+
+  // Handle any key press to dismiss
+  gridCodingModalKeyHandler = (e: KeyboardEvent) => {
+    if (gridCodingModalActive) {
+      e.preventDefault();
+      e.stopPropagation();
+      resultModalOk.removeEventListener('click', dismissAndProgressToA2);
+      dismissAndProgressToA2();
+    }
+  };
+  // Use setTimeout to avoid dismissing immediately from the key that opened the modal
+  setTimeout(() => {
+    document.addEventListener('keydown', gridCodingModalKeyHandler!, {capture: true});
+  }, 100);
+}
+
+/**
+ * Show completion message for A2 (Challenge) mode - end of grid coding.
  * Informational only - user needs a different gridset to continue to other stages.
+ * Dismissable with any key or OK button.
  */
 function showGridCodingModeStageGraduation(): void {
   const resultModal = document.getElementById('resultModal')!;
@@ -2105,7 +2269,6 @@ function showGridCodingModeStageGraduation(): void {
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
   const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text
@@ -2117,46 +2280,48 @@ function showGridCodingModeStageGraduation(): void {
   modalCard.classList.add('success');
   modalCard.classList.remove('failure');
 
-  // Hide cancel button
+  // Hide cancel button and countdown progress
   resultModalCancel.hidden = true;
+  resultModalOk.classList.remove('countdown');
 
   // Show modal
   resultModal.hidden = false;
   resultModalOk.focus();
+  gridCodingModalActive = true;
 
-  // Start 5 second countdown with progress bar
-  const countdownDuration = 5000;
-  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
-  resultModalOk.classList.add('countdown');
-
-  gridCodingStageGraduationTimer = setTimeout(() => {
-    hideGridCodingModeStageGraduation();
-  }, countdownDuration);
-
-  // Handle OK button click (dismiss immediately)
+  // Handle OK button click
   const handleOk = () => {
-    hideGridCodingModeStageGraduation();
-    resultModalOk.removeEventListener('click', handleOk);
+    hideGridCodingModal();
   };
-  resultModalOk.addEventListener('click', handleOk);
+  resultModalOk.addEventListener('click', handleOk, {once: true});
+
+  // Handle any key press to dismiss
+  gridCodingModalKeyHandler = (e: KeyboardEvent) => {
+    if (gridCodingModalActive) {
+      e.preventDefault();
+      e.stopPropagation();
+      hideGridCodingModal();
+    }
+  };
+  // Use setTimeout to avoid dismissing immediately from the key that opened the modal
+  setTimeout(() => {
+    document.addEventListener('keydown', gridCodingModalKeyHandler!, {capture: true});
+  }, 100);
 }
 
 /**
- * Hide the Grid coding mode stage graduation modal.
+ * Hide the Grid coding mode completion modal.
  */
-function hideGridCodingModeStageGraduation(): void {
-  if (gridCodingStageGraduationTimer) {
-    clearTimeout(gridCodingStageGraduationTimer);
-    gridCodingStageGraduationTimer = null;
+function hideGridCodingModal(): void {
+  gridCodingModalActive = false;
+
+  if (gridCodingModalKeyHandler) {
+    document.removeEventListener('keydown', gridCodingModalKeyHandler, {capture: true});
+    gridCodingModalKeyHandler = null;
   }
 
   const resultModal = document.getElementById('resultModal')!;
-  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
-
   resultModal.hidden = true;
-  resultModalOk.classList.remove('countdown');
-  okProgress.style.animation = '';
 }
 
 // ========== GRID CODING MODE SUCCESS ==========
@@ -2262,70 +2427,6 @@ function hideGridCodingSuccess(advance: boolean): void {
       gridCodingLevel.textContent = formatLevelLabel(mazeGame.getLevel(), MazeGame.isPracticeModeEnabled());
     }
   }
-}
-
-// ========== GRID CODING MODE GRADUATION ==========
-
-/**
- * Show completion message for Grid coding mode after finishing all simple levels.
- */
-function showGridCodingGraduation(blockCount: number): void {
-  const resultModal = document.getElementById('resultModal')!;
-  const resultModalTitle = document.getElementById('resultModalTitle')!;
-  const resultModalMessage = document.getElementById('resultModalMessage')!;
-  const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
-  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-  const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
-  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okHint = resultModalOk.querySelector('.ok-hint') as HTMLElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
-
-  // Set text
-  resultModalTitle.textContent = msg('MAZE_GRID_CODING_GRADUATION_TITLE');
-  resultModalMessage.textContent = msg('MAZE_GRID_CODING_GRADUATION_MESSAGE', blockCount);
-  resultModalMessage2.textContent = '';
-  okText.textContent = 'OK';
-  okHint.textContent = '[Enter]';
-
-  // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
-
-  // Hide cancel button
-  resultModalCancel.hidden = true;
-
-  // Show modal and focus for keyboard events
-  resultModal.hidden = false;
-  resultModal.focus();
-
-  // Keyboard handler: Enter/Escape to dismiss
-  const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      e.preventDefault();
-      hideGridCodingGraduation();
-      cleanup();
-    }
-  };
-  resultModal.addEventListener('keydown', handleKeydown);
-
-  const handleOk = () => {
-    hideGridCodingGraduation();
-    cleanup();
-  };
-  resultModalOk.addEventListener('click', handleOk);
-
-  function cleanup() {
-    resultModalOk.removeEventListener('click', handleOk);
-    resultModal.removeEventListener('keydown', handleKeydown);
-  }
-}
-
-/**
- * Hide the Grid coding mode graduation modal.
- */
-function hideGridCodingGraduation(): void {
-  const resultModal = document.getElementById('resultModal')!;
-  resultModal.hidden = true;
 }
 
 /**
@@ -2614,8 +2715,14 @@ function goToNextLevel() {
   if (isGridCodingMode) {
     const stage1MaxLevel = getLevelsForStage(1, false).length;
     if (currentLevel >= stage1MaxLevel) {
-      // At last Stage 1 level - show informational dialog
-      showGridCodingModeStageGraduation();
+      // At last Stage 1 level - show appropriate dialog based on grid stage
+      if (currentGridStage === 1) {
+        // A1 complete - encourage transition to A2
+        showGridCodingA1Complete();
+      } else {
+        // A2 complete - show final stage completion
+        showGridCodingModeStageGraduation();
+      }
       return;
     }
   }

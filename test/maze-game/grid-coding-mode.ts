@@ -35,7 +35,8 @@ interface HistoryEntry {
 
 /**
  * Controller for Grid Coding Mode.
- * Keyboard commands insert real Blockly blocks AND execute immediately.
+ * Keyboard commands insert real Blockly blocks AND optionally execute immediately.
+ * In delayed mode, blocks are inserted but execution waits for Run command.
  */
 export class GridCodingModeController {
   private workspace: Blockly.WorkspaceSvg;
@@ -43,6 +44,9 @@ export class GridCodingModeController {
   private enabled = false;
   private executing = false;
   private boundKeyHandler: (e: KeyboardEvent) => void;
+
+  // Execution mode: true = execute as blocks are added (A1), false = delayed (A2)
+  private immediateExecution = true;
 
   // History for undo functionality
   private history: HistoryEntry[] = [];
@@ -130,6 +134,21 @@ export class GridCodingModeController {
   }
 
   /**
+   * Set immediate execution mode.
+   * @param immediate true = execute as blocks are added, false = delayed execution
+   */
+  public setImmediateExecution(immediate: boolean): void {
+    this.immediateExecution = immediate;
+  }
+
+  /**
+   * Check if immediate execution mode is enabled.
+   */
+  public isImmediateExecution(): boolean {
+    return this.immediateExecution;
+  }
+
+  /**
    * Handle keyboard input.
    * All shortcuts require Shift modifier to avoid conflicts with Blockly's
    * built-in keyboard navigation when the workspace has focus.
@@ -201,20 +220,36 @@ export class GridCodingModeController {
   }
 
   /**
-   * Execute forward command - inserts block AND executes immediately.
-   * Block is inserted first as disabled (greyed), then enabled on success or removed on failure.
+   * Execute forward command - inserts block AND optionally executes immediately.
+   * In immediate mode: Block is inserted as disabled (greyed), then enabled on success or removed on failure.
+   * In delayed mode: Block is inserted enabled, no execution until Run.
    */
   private async doMoveForward(): Promise<void> {
     if (this.executing) return;
 
-    // Save state before the move
+    // Save state before the move (only needed for immediate mode)
     const stateBefore = this.saveMazeState();
 
     this.executing = true;
 
-    // Insert block FIRST, but disabled (greyed out) - shows immediate feedback
+    // Insert block
     const block = this.insertBlock('maze_moveForward');
     const blockSvg = block as Blockly.BlockSvg | null;
+
+    // In delayed mode, just insert the block and we're done
+    if (!this.immediateExecution) {
+      if (blockSvg) {
+        this.scrollToBlock(block!);
+        this.history.push({block: block!, stateBefore});
+        this.highlightBlock(block!);
+        this.notifyBlockCountChange();
+        this.focusBlock(blockSvg);
+      }
+      this.executing = false;
+      return;
+    }
+
+    // Immediate mode: disable block while executing
     if (blockSvg) {
       blockSvg.setDisabledReason(true, 'pending_execution');
       this.scrollToBlock(block!);
@@ -259,22 +294,38 @@ export class GridCodingModeController {
   }
 
   /**
-   * Execute turn command - inserts block AND executes immediately.
-   * Block is inserted first as disabled (greyed), then enabled after animation.
+   * Execute turn command - inserts block AND optionally executes immediately.
+   * In immediate mode: Block is inserted as disabled (greyed), then enabled after animation.
+   * In delayed mode: Block is inserted enabled, no execution until Run.
    */
   private async doTurn(direction: 'left' | 'right'): Promise<void> {
     if (this.executing) return;
 
-    // Save state before the turn
+    // Save state before the turn (only needed for immediate mode)
     const stateBefore = this.saveMazeState();
 
     this.executing = true;
 
-    // Insert block FIRST, but disabled (greyed out) - shows immediate feedback
+    // Insert block
     const block = this.insertBlock('maze_turn', {
       DIR: direction === 'left' ? 'turnLeft' : 'turnRight',
     });
     const blockSvg = block as Blockly.BlockSvg | null;
+
+    // In delayed mode, just insert the block and we're done
+    if (!this.immediateExecution) {
+      if (blockSvg) {
+        this.scrollToBlock(block!);
+        this.history.push({block: block!, stateBefore});
+        this.highlightBlock(block!);
+        this.notifyBlockCountChange();
+        this.focusBlock(blockSvg);
+      }
+      this.executing = false;
+      return;
+    }
+
+    // Immediate mode: disable block while executing
     if (blockSvg) {
       blockSvg.setDisabledReason(true, 'pending_execution');
       this.scrollToBlock(block!);
@@ -390,7 +441,7 @@ export class GridCodingModeController {
   }
 
   /**
-   * Undo the last action - removes block and restores maze state.
+   * Undo the last action - removes block and restores maze state (if in immediate mode).
    */
   public undo(): void {
     if (this.history.length === 0) return;
@@ -404,8 +455,10 @@ export class GridCodingModeController {
     // Now dispose - block should be a top block after unplugging
     entry.block.dispose();
 
-    // Restore maze state
-    this.restoreMazeState(entry.stateBefore);
+    // Restore maze state (only needed in immediate mode)
+    if (this.immediateExecution) {
+      this.restoreMazeState(entry.stateBefore);
+    }
 
     this.notifyBlockCountChange();
   }
