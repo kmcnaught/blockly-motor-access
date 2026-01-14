@@ -1917,10 +1917,8 @@ if (stageIntroModal && stageIntroOk) {
   stageIntroOk.addEventListener('click', hideStageIntroModal);
 
   stageIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape' || e.key === 'Enter') {
-      e.preventDefault();
-      hideStageIntroModal();
-    }
+    e.preventDefault();
+    hideStageIntroModal();
   });
 
   stageIntroModal.addEventListener('click', (e: MouseEvent) => {
