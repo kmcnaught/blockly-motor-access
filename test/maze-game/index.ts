@@ -704,11 +704,15 @@ if (gridCodingModeController) {
       if (currentLevel >= maxGridCodingLevel) {
         // Show Grid coding graduation message
         setTimeout(() => {
+          // Skip if user already started running again
+          if (mazeGame.isExecuting()) return;
           showGridCodingGraduation(gridCodingModeController!.getBlockCount());
         }, 1500);
       } else {
-        // Show success and advance to next level
+        // Show success message
         setTimeout(() => {
+          // Skip if user already started running again
+          if (mazeGame.isExecuting()) return;
           showGridCodingSuccess(gridCodingModeController!.getBlockCount());
         }, 1500);
       }
