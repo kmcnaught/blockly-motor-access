@@ -1374,6 +1374,16 @@ window.addEventListener('resize', hidePegmanMenu);
  */
 function runProgram() {
   if (mazeGame.isExecuting()) return;
+
+  // In grid coding mode, dismiss success modal if visible and replay
+  if (isGridCodingMode) {
+    const resultModal = document.getElementById('resultModal');
+    if (resultModal && !resultModal.hidden) {
+      hideGridCodingSuccess(false);
+      isGridCodingReplay = true;
+    }
+  }
+
   hasRun = true;
   hideHint();
   const code = javascriptGenerator.workspaceToCode(workspace);
@@ -1978,7 +1988,10 @@ function showGridCodingIntroModal(): void {
   gridCodingIntroLine3.textContent = msg('MAZE_GRID_CODING_INTRO_LINE3');
 
   gridCodingIntroModal.hidden = false;
-  gridCodingIntroModal.focus();
+  // Delay focus to ensure element is rendered and can receive keyboard events
+  requestAnimationFrame(() => {
+    gridCodingIntroModal.focus();
+  });
 }
 
 /**
@@ -2017,7 +2030,10 @@ function showGridPracticeIntroModal(): void {
   gridPracticeIntroLine3.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE3');
 
   gridPracticeIntroModal.hidden = false;
-  gridPracticeIntroModal.focus();
+  // Delay focus to ensure element is rendered and can receive keyboard events
+  requestAnimationFrame(() => {
+    gridPracticeIntroModal.focus();
+  });
 }
 
 /**
@@ -2182,11 +2198,9 @@ function hideGridModeSuccess(advance: boolean): void {
 
 // ========== GRID MODE GRADUATION ==========
 
-let gridModeGraduationTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
  * Show completion message for Grid mode after finishing all levels.
- * Simpler than regular graduation modal - just OK with auto-dismiss.
+ * Dismissable with OK button or any key press.
  */
 function showGridModeGraduation(): void {
   // Get the result modal elements (reuse the existing result modal)
@@ -2196,7 +2210,6 @@ function showGridModeGraduation(): void {
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
   const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text
@@ -2208,47 +2221,41 @@ function showGridModeGraduation(): void {
   modalCard.classList.add('success');
   modalCard.classList.remove('failure');
 
-  // Hide cancel button
+  // Hide cancel button and countdown progress
   resultModalCancel.hidden = true;
+  resultModalOk.classList.remove('countdown');
 
-  // Show modal
+  // Show modal and focus for keyboard events
   resultModal.hidden = false;
-  resultModalOk.focus();
+  resultModal.focus();
 
-  // Start 5 second countdown with progress bar
-  const countdownDuration = 5000;
-  okProgress.style.animation = `countdown-progress ${countdownDuration}ms linear forwards`;
-  resultModalOk.classList.add('countdown');
-
-  gridModeGraduationTimer = setTimeout(() => {
-    hideGridModeGraduation();
-  }, countdownDuration);
-
-  // Handle OK button click (dismiss immediately)
+  // Handle OK button click
   const handleOk = () => {
     hideGridModeGraduation();
-    resultModalOk.removeEventListener('click', handleOk);
+    cleanup();
   };
   resultModalOk.addEventListener('click', handleOk);
+
+  // Handle any key press to dismiss
+  const handleKeydown = (e: KeyboardEvent) => {
+    e.preventDefault();
+    hideGridModeGraduation();
+    cleanup();
+  };
+  resultModal.addEventListener('keydown', handleKeydown);
+
+  function cleanup() {
+    resultModalOk.removeEventListener('click', handleOk);
+    resultModal.removeEventListener('keydown', handleKeydown);
+  }
 }
 
 /**
  * Hide the Grid mode graduation modal.
  */
 function hideGridModeGraduation(): void {
-  // Clear timer
-  if (gridModeGraduationTimer) {
-    clearTimeout(gridModeGraduationTimer);
-    gridModeGraduationTimer = null;
-  }
-
   const resultModal = document.getElementById('resultModal')!;
-  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-  const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
-
   resultModal.hidden = true;
-  resultModalOk.classList.remove('countdown');
-  okProgress.style.animation = '';
 }
 
 // ========== GRID CODING MODE STAGE GRADUATION ==========
@@ -2395,7 +2402,7 @@ function hideGridCodingModal(): void {
 
 /**
  * Show success message for Grid coding mode with block count.
- * User can press OK to dismiss, or 'r'/Run Again to replay.
+ * Dialog is dismissed by pressing the Run Code button (external keyboard shortcut).
  */
 function showGridCodingSuccess(blockCount: number): void {
   const resultModal = document.getElementById('resultModal')!;
@@ -2404,70 +2411,25 @@ function showGridCodingSuccess(blockCount: number): void {
   const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
-  const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const okHint = resultModalOk.querySelector('.ok-hint') as HTMLElement;
-  const cancelText = resultModalCancel.querySelector('.cancel-text') as HTMLElement;
-  const cancelHint = resultModalCancel.querySelector('.cancel-hint') as HTMLElement;
   const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
-  // Set text
+  // Set text with play icon for "Press Run Code" message
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_SUCCESS_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE', blockCount);
-  resultModalMessage2.textContent = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE2');
-  okText.textContent = msg('MAZE_GRID_CODING_RUN_AGAIN');
-  okHint.textContent = '[R]';
+  // Use innerHTML to include the green play triangle icon
+  const playIcon = '<span class="play-icon" style="color: #4CAF50; font-size: 1.2em; vertical-align: middle;">&#9658;</span>';
+  resultModalMessage2.innerHTML = msg('MAZE_GRID_CODING_SUCCESS_MESSAGE2').replace('%PLAY%', playIcon);
 
-  // Show OK button (repurposed Cancel button) to just dismiss
-  cancelText.textContent = 'OK';
-  cancelHint.textContent = '[Enter]';
-  resultModalCancel.hidden = false;
+  // Hide both buttons - dismissal is via Run Code keyboard shortcut
+  resultModalOk.hidden = true;
+  resultModalCancel.hidden = true;
 
   // Add success styling
   modalCard.classList.add('success');
   modalCard.classList.remove('failure');
 
-  // Show modal and focus it for keyboard events
+  // Show modal
   resultModal.hidden = false;
-  resultModal.focus();
-
-  // OK button just dismisses the dialog
-  const handleCancel = () => {
-    hideGridCodingSuccess(false);
-    cleanup();
-  };
-  resultModalCancel.addEventListener('click', handleCancel);
-
-  // Run Again button replays the program
-  const handleOk = () => {
-    hideGridCodingSuccess(false);
-    cleanup();
-    isGridCodingReplay = true;
-    runProgram();
-  };
-  resultModalOk.addEventListener('click', handleOk);
-
-  // Keyboard handler: 'r' for run again (replay), Enter/Escape for OK (dismiss)
-  const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'r' || e.key === 'R') {
-      e.preventDefault();
-      hideGridCodingSuccess(false);
-      cleanup();
-      // Replay the program
-      isGridCodingReplay = true;
-      runProgram();
-    } else if (e.key === 'Enter' || e.key === 'Escape') {
-      e.preventDefault();
-      hideGridCodingSuccess(false);
-      cleanup();
-    }
-  };
-  resultModal.addEventListener('keydown', handleKeydown);
-
-  function cleanup() {
-    resultModalCancel.removeEventListener('click', handleCancel);
-    resultModalOk.removeEventListener('click', handleOk);
-    resultModal.removeEventListener('keydown', handleKeydown);
-  }
 }
 
 /**
@@ -2476,12 +2438,15 @@ function showGridCodingSuccess(blockCount: number): void {
  */
 function hideGridCodingSuccess(advance: boolean): void {
   const resultModal = document.getElementById('resultModal')!;
+  const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
 
   resultModal.hidden = true;
+  // Reset button visibility for other dialogs
+  resultModalOk.hidden = false;
   resultModalCancel.hidden = true;
-  resultModalMessage2.textContent = '';
+  resultModalMessage2.innerHTML = '';
 
   if (advance) {
     // Clear workspace and advance to next level
@@ -2922,17 +2887,11 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     }
   }
 
-  // R: Run the program in coding mode (no modifiers)
+  // R: Run the program in coding mode (no modifiers, or Shift+R)
   // In practice mode, R is handled by the practice mode controller for reset
   if (e.key === 'r' || e.key === 'R') {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-      // Check if grid coding success modal is visible - handle R specially
-      const resultModal = document.getElementById('resultModal');
-      if (isGridCodingMode && resultModal && !resultModal.hidden) {
-        // Dispatch to the modal's handler by not intercepting here
-        return;
-      }
-      if (currentExecutionMode === 'coding') {
+      if (currentExecutionMode === 'coding' || isGridCodingMode) {
         e.preventDefault();
         e.stopPropagation();
         runProgram();

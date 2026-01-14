@@ -131,7 +131,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_BLOCKS: 'Blocks: %1',
     MAZE_GRID_CODING_SUCCESS_TITLE: 'Great job!',
     MAZE_GRID_CODING_SUCCESS_MESSAGE: 'You wrote a program with %1 blocks!',
-    MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Press Run Code to see it again.',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Press Run Code %PLAY% to see it again.',
     MAZE_GRID_CODING_RUN_AGAIN: 'Run Again',
     // A1 (Guided) completion - transition to A2 (Challenge)
     MAZE_GRID_CODING_A1_COMPLETE_TITLE: 'Excellent Work!',
@@ -355,7 +355,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_BLOCKS: 'Blocs : %1',
     MAZE_GRID_CODING_SUCCESS_TITLE: 'Excellent !',
     MAZE_GRID_CODING_SUCCESS_MESSAGE: 'Vous avez écrit un programme de %1 blocs !',
-    MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Appuyez sur Exécuter le code pour le revoir.',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Appuyez sur Exécuter le code %PLAY% pour le revoir.',
     MAZE_GRID_CODING_RUN_AGAIN: 'Relancer',
     // A1 (Guided) completion - transition to A2 (Challenge)
     MAZE_GRID_CODING_A1_COMPLETE_TITLE: 'Excellent travail !',
