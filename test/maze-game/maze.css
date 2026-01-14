@@ -1437,6 +1437,10 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
   color: #1976d2;
 }
 
+.result-modal.stage-intro .result-modal-message {
+  white-space: pre-line;
+}
+
 /* Modal content */
 .result-modal-title {
   margin: 0 0 12px;
