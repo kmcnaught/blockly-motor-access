@@ -19,6 +19,29 @@ In grid mode, we remove a lot of the web based UI and users access the page via 
 UI via buttons that send keyboard controls. 
 
 
+
+
+## Grid 3 WebView2 Compatibility Issue
+
+**Problem:** When testing in Grid 3's embedded WebView2 browser, clicks may fail with:
+```
+clickedElement._grid_ensureId is not a function
+```
+
+**Cause:** Webpack dev server injects client-side code that interferes with Grid 3's DOM element tracking (`_grid_ensureId` method
+injection).
+
+**Workaround only when required:** Serve static files instead of using webpack dev server:
+```bash
+cd test/maze-game && npx serve -p 8083
+```
+
+This serves the pre-built `bundle.js` without webpack's injected client code.
+
+**For normal development:** Use `npm run start:maze` - the issue only affects Grid 3's WebView2, not regular browsers like Firefox or
+Chrome.
+
+
 # Project Workflow Configuration
 
 ## Core Principle: Minimal Main Context
