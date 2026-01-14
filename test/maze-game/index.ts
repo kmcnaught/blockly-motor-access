@@ -1680,6 +1680,29 @@ mazeGame.onComplete((success: boolean) => {
   if (success) {
     launchConfetti();
   }
+
+  // Handle grid coding delayed mode (A2) success dialog
+  // In immediate mode (A1), the dialog is shown via gridCodingModeController.onLevelComplete()
+  // In delayed mode (A2), we need to show it here when the run completes
+  if (isGridCodingMode && gridCodingModeController && !gridCodingModeController.isImmediateExecution() && success) {
+    // Skip dialog on replay
+    if (isGridCodingReplay) {
+      isGridCodingReplay = false;
+      return;
+    }
+
+    const currentLevel = mazeGame.getLevel();
+    const maxGridCodingLevel = getLevelsForStage(1, false).length;
+
+    setTimeout(() => {
+      if (mazeGame.isExecuting()) return;
+      if (currentLevel >= maxGridCodingLevel) {
+        showGridCodingModeStageGraduation();
+      } else {
+        showGridCodingSuccess(gridCodingModeController!.getBlockCount());
+      }
+    }, 1500);
+  }
 });
 
 // ========== RESULT MODAL ==========
