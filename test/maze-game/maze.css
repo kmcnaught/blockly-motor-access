@@ -1734,7 +1734,7 @@ body.grid-coding-mode .container {
 body.grid-coding-mode .blockly-container {
   order: 1;
   flex: 1;
-  min-width: 300px;
+  min-width: 30%;
   height: 100%;
   border: 2px solid #e1bee7;
   border-radius: 8px;
@@ -1746,18 +1746,19 @@ body.grid-coding-mode #blocklyDiv {
   width: 100%;
 }
 
-/* Game container in grid coding mode - right side */
+/* Game container in grid coding mode - right side, width determined by height */
 body.grid-coding-mode .game-container {
   order: 2;
-  flex: 0 1 auto;
-  min-width: 40%;
+  flex: 0 0 auto;
   height: 100%;
+  aspect-ratio: 1 / 1.15;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 0;
   gap: 8px;
+  overflow: hidden;
 }
 
 /* Level label for Grid coding mode */
@@ -1806,9 +1807,11 @@ body.grid-coding-mode .game-container.compact {
   border-radius: 8px;
 }
 
-/* Canvas wrapper in grid coding mode */
+/* Canvas wrapper in grid coding mode - height determines width via aspect-ratio */
 body.grid-coding-mode .canvas-wrapper {
-  flex: 0 1 auto;
+  flex: 1;
+  aspect-ratio: 1;
+  max-height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1836,10 +1839,8 @@ body.grid-coding-mode .container.sidebar-collapsed .blockly-container {
   opacity: 1;
 }
 
-/* Maze canvas sizing in grid coding mode - fit in right column */
+/* Maze canvas sizing in grid coding mode - scale to fill wrapper */
 body.grid-coding-mode #mazeCanvas {
-  max-width: 100%;
-  max-height: calc(100vh - 150px);
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
 }
