@@ -2789,6 +2789,95 @@ function goToNextLevel() {
 }
 
 /**
+ * Go to previous stage (first level of the previous stage).
+ * In grid coding mode, navigates between grid stages.
+ */
+function goToPreviousStage() {
+  if (isTransitioning) return;
+
+  if (isGridCodingMode) {
+    // Grid coding mode: switch between grid stages
+    if (currentGridStage > 1) {
+      const newGridStage = currentGridStage - 1;
+      const gridStageConfig = getGridStageConfig(newGridStage);
+      if (gridStageConfig && gridCodingModeController) {
+        currentGridStage = newGridStage;
+        gridCodingModeController.setImmediateExecution(gridStageConfig.immediateExecution);
+        performLevelTransition(1, true, true);
+        // Update stage dropdown
+        const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+        if (stageDropdown) {
+          stageDropdown.value = String(newGridStage);
+        }
+      }
+    }
+  } else {
+    // Normal mode: navigate to first level of previous content stage
+    const currentLevel = mazeGame.getLevel();
+    const isPractice = MazeGame.isPracticeModeEnabled();
+    const currentStage = getStageForLevel(currentLevel - 1, isPractice);
+
+    if (currentStage > 1) {
+      const previousStage = currentStage - 1;
+      const firstLevelIndex = getFirstLevelIndexForStage(previousStage, isPractice);
+      if (firstLevelIndex >= 0) {
+        performLevelTransition(firstLevelIndex + 1, true, true);
+        // Update stage dropdown
+        const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+        if (stageDropdown) {
+          stageDropdown.value = String(previousStage);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Go to next stage (first level of the next stage).
+ * In grid coding mode, navigates between grid stages.
+ */
+function goToNextStage() {
+  if (isTransitioning) return;
+
+  if (isGridCodingMode) {
+    // Grid coding mode: switch between grid stages
+    if (currentGridStage < GRID_STAGES.length) {
+      const newGridStage = currentGridStage + 1;
+      const gridStageConfig = getGridStageConfig(newGridStage);
+      if (gridStageConfig && gridCodingModeController) {
+        currentGridStage = newGridStage;
+        gridCodingModeController.setImmediateExecution(gridStageConfig.immediateExecution);
+        performLevelTransition(1, true, true);
+        // Update stage dropdown
+        const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+        if (stageDropdown) {
+          stageDropdown.value = String(newGridStage);
+        }
+      }
+    }
+  } else {
+    // Normal mode: navigate to first level of next content stage
+    const currentLevel = mazeGame.getLevel();
+    const isPractice = MazeGame.isPracticeModeEnabled();
+    const currentStage = getStageForLevel(currentLevel - 1, isPractice);
+    const maxStage = STAGES.length;
+
+    if (currentStage < maxStage) {
+      const nextStage = currentStage + 1;
+      const firstLevelIndex = getFirstLevelIndexForStage(nextStage, isPractice);
+      if (firstLevelIndex >= 0) {
+        performLevelTransition(firstLevelIndex + 1, true, true);
+        // Update stage dropdown
+        const stageDropdown = document.getElementById('stageDropdown') as HTMLSelectElement;
+        if (stageDropdown) {
+          stageDropdown.value = String(nextStage);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Global keyboard shortcuts for quick navigation and actions.
  * These work from anywhere on the page.
  *
@@ -2797,6 +2886,8 @@ function goToNextLevel() {
  * - Ctrl+Alt+2: Jump to toolbox
  * - Ctrl+Alt+R: Run the program (alternative)
  * - H: Toggle instruction bar display mode
+ * - {: Previous stage
+ * - }: Next stage
  * - [: Previous level
  * - ]: Next level
  * - R: Run the program
@@ -2883,6 +2974,26 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       goToNextLevel();
+      return;
+    }
+  }
+
+  // {: Previous stage (Shift+[)
+  if (e.key === '{') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      goToPreviousStage();
+      return;
+    }
+  }
+
+  // }: Next stage (Shift+])
+  if (e.key === '}') {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      goToNextStage();
       return;
     }
   }
