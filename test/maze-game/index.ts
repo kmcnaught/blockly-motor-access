@@ -3075,14 +3075,12 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     }
   }
 
-  // M: Toggle mute (no modifiers)
-  if (e.key === 'm' || e.key === 'M') {
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleSound();
-      return;
-    }
+  // Shift+M: Toggle mute (frees M for Blockly move mode)
+  if (e.key === 'M' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSound();
+    return;
   }
 
   // Escape: Exit fullscreen mode
