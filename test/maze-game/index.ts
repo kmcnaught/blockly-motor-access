@@ -2891,6 +2891,7 @@ function goToNextStage() {
  * - [: Previous level
  * - ]: Next level
  * - R: Run the program
+ * - Shift+R: Reset maze position
  * - F: Toggle fullscreen mode
  * - G: Toggle game panel/sidebar
  * - ,: Previous character
@@ -2998,10 +2999,18 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     }
   }
 
-  // R: Run the program in coding mode (no modifiers, or Shift+R)
+  // Shift+R: Reset maze position (global)
+  if (e.key === 'R' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    resetProgram();
+    return;
+  }
+
+  // R: Run the program in coding mode (no modifiers)
   // In practice mode, R is handled by the practice mode controller for reset
   if (e.key === 'r' || e.key === 'R') {
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
       if (currentExecutionMode === 'coding' || isGridCodingMode) {
         e.preventDefault();
         e.stopPropagation();
