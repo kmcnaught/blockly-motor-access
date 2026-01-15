@@ -3248,6 +3248,7 @@ function checkBlocklyWidth() {
 function checkSizeAndAutoCollapse() {
   if (userManuallyToggled) return; // Respect user's manual choice
   if (weTriggeredChange) return; // Ignore size changes we caused
+  if (isGridMode || isGridCodingMode) return; // Grid modes manage their own layout
   if (!mainContainer || !gameContainer) return;
 
   // Get the game container's min-width from CSS (the space it needs)
@@ -3267,12 +3268,69 @@ function checkSizeAndAutoCollapse() {
 }
 
 /**
+ * In grid coding mode, manage layout based on available space.
+ * - Sets min-height based on width to maintain aspect ratio
+ * - Toggles compact mode when content doesn't fit vertically
+ * - Hides instruction bar when even more space is needed
+ */
+let gridCodingLayoutPending = false;
+function updateGridCodingMinHeight() {
+  if (!isGridCodingMode || !gameContainer) return;
+  if (gridCodingLayoutPending) return; // Debounce
+  gridCodingLayoutPending = true;
+
+  requestAnimationFrame(() => {
+    gridCodingLayoutPending = false;
+    if (!isGridCodingMode || !gameContainer) return;
+
+    // Set min-height to 40% of width - allows vertical shrinking while maintaining proportion
+    const minHeight = gameContainer.offsetWidth * 0.4;
+    gameContainer.style.minHeight = `${minHeight}px`;
+
+    // Check if content overflows - if so, enable compact mode
+    const canvas = document.getElementById('mazeCanvas');
+    const instructionBar = document.getElementById('instructionBar');
+    if (!canvas) return;
+
+    const availableHeight = gameContainer.clientHeight;
+    const canvasHeight = canvas.offsetHeight;
+    const controlsHeight = 40; // approximate height of controls
+    const gaps = gameContainer.classList.contains('compact') ? 8 : 16;
+
+    // Calculate needed height based on current state (without label if compact)
+    const neededHeight = canvasHeight + controlsHeight + gaps;
+    const isCompact = gameContainer.classList.contains('compact');
+    const isInstructionBarHidden = instructionBar?.classList.contains('hidden');
+
+    // Use hysteresis: need more space to expand than to collapse
+    const collapseThreshold = availableHeight;
+    const expandThreshold = availableHeight - 20; // 20px buffer to prevent oscillation
+
+    if (neededHeight > collapseThreshold && !isCompact) {
+      gameContainer.classList.add('compact');
+    } else if (neededHeight < expandThreshold && isCompact) {
+      gameContainer.classList.remove('compact');
+      // Restore instruction bar when expanding
+      if (instructionBar && isInstructionBarHidden) {
+        instructionBar.classList.remove('hidden');
+      }
+    }
+
+    // Second level: hide instruction bar if still too tight even in compact mode
+    if (isCompact && neededHeight > availableHeight && instructionBar && !isInstructionBarHidden) {
+      instructionBar.classList.add('hidden');
+    }
+  });
+}
+
+/**
  * Handle size changes detected by ResizeObserver.
  * More efficient than polling - only runs when sizes actually change.
  */
 function handleSizeChange() {
   checkSizeAndAutoCollapse();
   checkBlocklyWidth();
+  updateGridCodingMinHeight();
 }
 
 // Use ResizeObserver for efficient size change detection
@@ -3287,3 +3345,4 @@ if (mainContainer) {
 // Check on load
 checkSizeAndAutoCollapse();
 checkBlocklyWidth();
+updateGridCodingMinHeight();

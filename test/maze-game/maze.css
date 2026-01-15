@@ -1750,7 +1750,7 @@ body.grid-coding-mode #blocklyDiv {
 body.grid-coding-mode .game-container {
   order: 2;
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: 40%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -1773,6 +1773,15 @@ body.grid-coding-mode .game-container {
 
 .grid-coding-level.hidden {
   display: none;
+}
+
+/* Compact mode - when vertical space is tight */
+body.grid-coding-mode .game-container.compact .grid-coding-level {
+  display: none;
+}
+
+body.grid-coding-mode .game-container.compact {
+  gap: 4px;
 }
 
 /* Block count display for Grid coding mode */
@@ -1829,7 +1838,7 @@ body.grid-coding-mode .container.sidebar-collapsed .blockly-container {
 
 /* Maze canvas sizing in grid coding mode - fit in right column */
 body.grid-coding-mode #mazeCanvas {
-  max-width: min(50vw, 100%);
+  max-width: 100%;
   max-height: calc(100vh - 150px);
   width: auto;
   height: auto;
