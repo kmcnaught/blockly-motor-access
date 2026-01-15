@@ -374,8 +374,7 @@ export class EnterAction {
     }
 
     const curBlock = this.navigation.getFlyoutCursor(workspace)?.getCurNode();
-    if (!(curBlock instanceof BlockSvg) || !curBlock.isEnabled()) {
-      console.warn("Can't insert a disabled block.");
+    if (!(curBlock instanceof BlockSvg)) {
       return null;
     }
 
