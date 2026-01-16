@@ -1734,7 +1734,7 @@ body.grid-coding-mode .container {
 body.grid-coding-mode .blockly-container {
   order: 1;
   flex: 1;
-  min-width: 30%;
+  min-width: 35%;
   height: 100%;
   border: 2px solid #e1bee7;
   border-radius: 8px;
