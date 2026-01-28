@@ -2974,7 +2974,14 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
-      goToNextLevel();
+      // If grid coding success modal is showing, dismiss it and advance
+      const resultModal = document.getElementById('resultModal');
+      const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
+      if (isGridCodingMode && resultModal && !resultModal.hidden && resultModalOk && resultModalOk.hidden) {
+        hideGridCodingSuccess(true);
+      } else {
+        goToNextLevel();
+      }
       return;
     }
   }
@@ -3048,6 +3055,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       e.stopPropagation();
       hideGridCodingIntroModal();
       hideGridPracticeIntroModal();
+      hideStageIntroModal();
       cycleCharacterPrevious();
       return;
     }
@@ -3060,6 +3068,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       e.stopPropagation();
       hideGridCodingIntroModal();
       hideGridPracticeIntroModal();
+      hideStageIntroModal();
       cycleCharacterNext();
       return;
     }
