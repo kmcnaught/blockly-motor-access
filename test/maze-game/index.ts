@@ -2110,6 +2110,9 @@ const confirmationModalConfirm = document.getElementById('confirmationModalConfi
  * @param onConfirm Callback to execute if user confirms
  */
 function showConfirmationModal(title: string, message: string, onConfirm: () => void): void {
+  // Hide any other open modals
+  hideShortcutsModal();
+
   confirmationModalTitle.textContent = title;
   confirmationModalMessage.textContent = message;
 

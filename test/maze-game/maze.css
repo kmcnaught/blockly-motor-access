@@ -1377,6 +1377,11 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
   display: none;
 }
 
+/* Confirmation modal needs to appear above other modals */
+#confirmationModal {
+  z-index: 1100;
+}
+
 /* Modal card */
 .result-modal {
   background: white;
