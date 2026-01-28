@@ -454,6 +454,43 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
         }
       }
     }
+
+    // Handle top blocks with no parent connection
+    // If this block has a NEXT_STATEMENT and had children, create candidate
+    if (!neighbour && this.block.nextConnection) {
+      const nextConn = this.block.nextConnection;
+
+      // Find the healed child at the same position
+      const workspace = this.block.workspace;
+      const topBlocks = workspace.getTopBlocks(false);
+
+      for (const topBlock of topBlocks) {
+        if (topBlock === this.block) continue;
+
+        const prevConn = topBlock.previousConnection;
+        if (prevConn) {
+          // Check if this block is at our old NEXT position
+          const tolerance = 5;
+          if (
+            Math.abs(prevConn.x - nextConn.x) < tolerance &&
+            Math.abs(prevConn.y - nextConn.y) < tolerance
+          ) {
+            // Found healed child - create reconnection candidate
+            this.searchNode = nextConn;
+            return {
+              neighbour: prevConn,
+              local: nextConn,
+              distance: 0,
+            };
+          }
+        }
+      }
+
+      // No healed child found by position, but still set searchNode
+      // so traversal will work
+      this.searchNode = nextConn;
+    }
+
     return null;
   }
 
