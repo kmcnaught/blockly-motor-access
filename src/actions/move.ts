@@ -98,6 +98,13 @@ export class MoveActions {
       keyCodes: [KeyCodes.M],
     },
     {
+      name: 'toggle_move_off',
+      preconditionFn: (workspace) => this.mover.isMoving(workspace),
+      callback: (workspace) => this.mover.finishMove(workspace),
+      keyCodes: [KeyCodes.M],
+      allowCollision: true,
+    },
+    {
       name: 'finish_move',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
       callback: (workspace) => this.mover.finishMove(workspace),
