@@ -826,6 +826,8 @@ export class Navigation {
       Blockly.getFocusManager().focusTree(toolbox);
     } else if (flyout) {
       Blockly.getFocusManager().focusTree(flyout.getWorkspace());
+      // Initialize the flyout cursor position so arrow keys work immediately
+      this.defaultFlyoutCursorIfNeeded(workspace);
     }
   }
 

@@ -35,7 +35,10 @@ export class ExitAction {
         switch (this.navigation.getState()) {
           case Constants.STATE.FLYOUT:
           case Constants.STATE.TOOLBOX:
-            getFocusManager().focusTree(workspace.targetWorkspace ?? workspace);
+            const targetWorkspace = workspace.targetWorkspace ?? workspace;
+            getFocusManager().focusTree(targetWorkspace);
+            // Initialize the workspace cursor position so arrow keys work immediately
+            this.navigation.defaultWorkspaceCursorPositionIfNeeded(targetWorkspace);
             if (!Gesture.inProgress()) {
               workspace.hideChaff();
             }

@@ -280,6 +280,18 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Ensures the workspace cursor is initialized to a valid position.
+   * This is useful after programmatically focusing the workspace to ensure
+   * arrow key navigation works immediately.
+   *
+   * If the cursor is already on a valid node, this is a no-op.
+   * Otherwise, it positions the cursor on the first block (or workspace if no blocks).
+   */
+  ensureWorkspaceCursorInitialized(): void {
+    this.navigationController.getNavigation().defaultWorkspaceCursorPositionIfNeeded(this.workspace);
+  }
+
+  /**
    * Registers a default toolbox implementation that doesn't handle
    * keydown events, since we now handle them in this plugin. If you
    * use the default toolbox, call this function before calling
