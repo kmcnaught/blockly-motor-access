@@ -315,9 +315,14 @@ export class KeyboardNavigation {
     // or to core/renderers/.
     Blockly.Css.register(`
   .injectionDiv {
-    --blockly-active-node-color: #fff200;
-    --blockly-active-tree-color: #60a5fa;
-    --blockly-selection-width: 3px;
+    --blockly-active-node-color: #ff6600;
+    --blockly-active-tree-color: #ff6600;
+    --blockly-selection-width: 5px;
+  }
+
+  /* Override Blockly's default selection stroke to use our orange color */
+  .blocklySelected > .blocklyPath {
+    stroke: #ff6600 !important;
   }
 `);
 
