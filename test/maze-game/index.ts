@@ -2095,23 +2095,87 @@ shortcutsModal.addEventListener('click', (e: MouseEvent) => {
   }
 });
 
+// ========== CONFIRMATION MODAL ==========
+
+const confirmationModal = document.getElementById('confirmationModal')!;
+const confirmationModalTitle = document.getElementById('confirmationModalTitle')!;
+const confirmationModalMessage = document.getElementById('confirmationModalMessage')!;
+const confirmationModalCancel = document.getElementById('confirmationModalCancel')!;
+const confirmationModalConfirm = document.getElementById('confirmationModalConfirm')!;
+
+/**
+ * Show a confirmation modal with a custom message.
+ * @param title The title of the confirmation dialog
+ * @param message The confirmation message
+ * @param onConfirm Callback to execute if user confirms
+ */
+function showConfirmationModal(title: string, message: string, onConfirm: () => void): void {
+  confirmationModalTitle.textContent = title;
+  confirmationModalMessage.textContent = message;
+
+  // Remove any existing event listeners by cloning buttons
+  const newConfirm = confirmationModalConfirm.cloneNode(true) as HTMLButtonElement;
+  const newCancel = confirmationModalCancel.cloneNode(true) as HTMLButtonElement;
+  confirmationModalConfirm.replaceWith(newConfirm);
+  confirmationModalCancel.replaceWith(newCancel);
+
+  // Update references to new buttons
+  const confirmBtn = document.getElementById('confirmationModalConfirm') as HTMLButtonElement;
+  const cancelBtn = document.getElementById('confirmationModalCancel') as HTMLButtonElement;
+
+  // Add event listeners
+  const hideAndConfirm = () => {
+    confirmationModal.hidden = true;
+    onConfirm();
+  };
+
+  const hideModal = () => {
+    confirmationModal.hidden = true;
+  };
+
+  confirmBtn.addEventListener('click', hideAndConfirm);
+  cancelBtn.addEventListener('click', hideModal);
+
+  // Keyboard shortcuts
+  const keyHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      hideAndConfirm();
+      confirmationModal.removeEventListener('keydown', keyHandler);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      hideModal();
+      confirmationModal.removeEventListener('keydown', keyHandler);
+    }
+  };
+  confirmationModal.addEventListener('keydown', keyHandler);
+
+  // Show modal and focus confirm button
+  confirmationModal.hidden = false;
+  confirmBtn.focus();
+}
+
 // Delete user data button
 const deleteUserDataBtn = document.getElementById('deleteUserDataBtn')!;
 deleteUserDataBtn.addEventListener('click', () => {
-  if (confirm('Delete all saved programs and settings? This cannot be undone.')) {
-    // Clear all maze-related localStorage keys
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('maze')) {
-        keysToRemove.push(key);
+  showConfirmationModal(
+    'Delete All Data',
+    'Delete all saved programs and settings? This cannot be undone.',
+    () => {
+      // Clear all maze-related localStorage keys
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('maze')) {
+          keysToRemove.push(key);
+        }
       }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+      keysToRemove.forEach(key => localStorage.removeItem(key));
 
-    // Reload the page to reset state
-    window.location.reload();
-  }
+      // Reload the page to reset state
+      window.location.reload();
+    }
+  );
 });
 
 // ========== GRID MODE SUCCESS ==========

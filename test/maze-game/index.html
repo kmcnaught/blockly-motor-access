@@ -155,6 +155,18 @@
       </div>
     </div>
 
+    <!-- Confirmation Modal (for delete confirmation, etc.) -->
+    <div id="confirmationModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmationModalTitle" hidden>
+      <div class="result-modal">
+        <h2 id="confirmationModalTitle" class="result-modal-title"></h2>
+        <p id="confirmationModalMessage" class="result-modal-message"></p>
+        <div class="result-modal-buttons">
+          <button id="confirmationModalCancel" class="result-modal-cancel">Cancel</button>
+          <button id="confirmationModalConfirm" class="result-modal-ok">Confirm</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Stage Intro Modal -->
     <div id="stageIntroModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stageIntroName" hidden>
       <div class="result-modal stage-intro">
