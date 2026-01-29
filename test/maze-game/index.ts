@@ -19,6 +19,7 @@ import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForS
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
+import {PanelResizer} from './panel-resizer';
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -695,6 +696,10 @@ const immediateModeController = new ImmediateModeController(
 
 // Initialize Grid coding mode controller (only created if in Grid coding mode)
 let gridCodingModeController: GridCodingModeController | null = null;
+
+// Panel resizer for adjusting workspace/game panel widths (initialized later)
+let panelResizer: PanelResizer | null = null;
+
 if (isGridCodingMode) {
   gridCodingModeController = new GridCodingModeController(workspace, mazeGame);
 
@@ -880,6 +885,8 @@ function updateModeUI(): void {
     immediateModeController.setMazeGame(mazeGame);
     immediateModeController.enable();
     gridCodingModeController?.disable();
+    // Reset to flex layout when Blockly hidden
+    panelResizer?.resetToFlexLayout();
   } else if (isGridCodingMode) {
     // Grid coding mode: Show Blockly workspace, hide other controls
     blocklyDiv?.classList.remove('hidden');
@@ -893,6 +900,9 @@ function updateModeUI(): void {
     }
     // Resize Blockly to fill available space
     Blockly.svgResize(workspace);
+    // Update mode and restore saved widths
+    panelResizer?.setGridCodingMode(true);
+    setTimeout(() => panelResizer?.restoreSavedWidths(), 100);
   } else {
     // Normal coding mode: Show Blockly, hide command buttons
     blocklyDiv?.classList.remove('hidden');
@@ -904,6 +914,9 @@ function updateModeUI(): void {
     Blockly.svgResize(workspace);
     // Update capacity bubble
     updateCapacityBubble();
+    // Update mode and restore saved widths
+    panelResizer?.setGridCodingMode(false);
+    setTimeout(() => panelResizer?.restoreSavedWidths(), 100);
   }
 }
 
@@ -3369,6 +3382,8 @@ function collapseSidebar() {
   weTriggeredChange = true;
   mainContainer.classList.add('sidebar-collapsed');
   sidebarCollapsed = true;
+  // Reset to flex layout when sidebar collapsed
+  panelResizer?.resetToFlexLayout();
   // Trigger Blockly resize and width check after transition
   setTimeout(() => {
     Blockly.svgResize(workspace);
@@ -3390,6 +3405,8 @@ function expandSidebar() {
     Blockly.svgResize(workspace);
     checkBlocklyWidth();
     weTriggeredChange = false;
+    // Restore panel widths after sidebar expands
+    panelResizer?.restoreSavedWidths();
   }, 400);
 }
 
@@ -3408,9 +3425,33 @@ function toggleSidebar() {
 // Wire up toggle button
 sidebarToggle?.addEventListener('click', toggleSidebar);
 
-// ========== NARROW BLOCKLY DETECTION ==========
+// ========== PANEL RESIZER ==========
 
 const blocklyContainer = document.querySelector('.blockly-container') as HTMLElement;
+const panelResizerElement = document.getElementById('panelResizer') as HTMLElement;
+
+// Initialize panel resizer if applicable (not in grid practice mode)
+if (panelResizerElement && blocklyContainer && gameContainer && !isGridMode) {
+  panelResizer = new PanelResizer(
+    workspace,
+    mainContainer,
+    blocklyContainer,
+    gameContainer,
+    panelResizerElement,
+    isGridCodingMode,
+    () => {
+      // Trigger maze redraw when panels are resized
+      mazeGame.redraw();
+    }
+  );
+
+  // Restore saved widths after initialization
+  setTimeout(() => {
+    panelResizer?.restoreSavedWidths();
+  }, 200);
+}
+
+// ========== NARROW BLOCKLY DETECTION ==========
 
 /**
  * Check if Blockly workspace is narrow and hide controls if so.

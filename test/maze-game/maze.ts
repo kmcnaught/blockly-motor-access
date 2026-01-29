@@ -1294,28 +1294,53 @@ export class MazeGame {
   /**
    * Calculate the scale factor to fit the maze in the fixed canvas size.
    */
+  /**
+   * Get the canvas size based on available container space.
+   * Falls back to fixed size if container size can't be determined.
+   */
+  private getCanvasSize(): number {
+    const wrapper = this.canvas.parentElement;
+    if (!wrapper) return MazeGame.CANVAS_SIZE;
+
+    // Get available space, accounting for any padding/margins
+    const containerWidth = wrapper.clientWidth || MazeGame.CANVAS_SIZE;
+    const containerHeight = wrapper.clientHeight || MazeGame.CANVAS_SIZE;
+
+    // Use the smaller dimension to keep canvas square
+    // No longer cap at CANVAS_SIZE to allow expansion beyond 400px
+    const size = Math.min(containerWidth, containerHeight);
+
+    // Ensure minimum size for usability
+    return Math.max(200, size);
+  }
+
   private calculateScale(): void {
     const mazeWidth = this.maze[0].length * this.squareSize;
     const mazeHeight = this.maze.length * this.squareSize;
     const maxDimension = Math.max(mazeWidth, mazeHeight);
-    this.scale = MazeGame.CANVAS_SIZE / maxDimension;
+    const canvasSize = this.getCanvasSize();
+    this.scale = canvasSize / maxDimension;
   }
 
   private draw(skipPegman: boolean = false) {
     const mazeWidth = this.maze[0].length * this.squareSize;
     const mazeHeight = this.maze.length * this.squareSize;
 
-    // Use fixed canvas size
-    this.canvas.width = MazeGame.CANVAS_SIZE;
-    this.canvas.height = MazeGame.CANVAS_SIZE;
+    // Recalculate scale for current container size
+    this.calculateScale();
+
+    // Use dynamic canvas size based on container
+    const canvasSize = this.getCanvasSize();
+    this.canvas.width = canvasSize;
+    this.canvas.height = canvasSize;
 
     // Calculate offset to center the maze
-    const offsetX = (MazeGame.CANVAS_SIZE - mazeWidth * this.scale) / 2;
-    const offsetY = (MazeGame.CANVAS_SIZE - mazeHeight * this.scale) / 2;
+    const offsetX = (canvasSize - mazeWidth * this.scale) / 2;
+    const offsetY = (canvasSize - mazeHeight * this.scale) / 2;
 
     // Clear canvas
     this.ctx.fillStyle = '#F1EEE7';
-    this.ctx.fillRect(0, 0, MazeGame.CANVAS_SIZE, MazeGame.CANVAS_SIZE);
+    this.ctx.fillRect(0, 0, canvasSize, canvasSize);
 
     // Apply scaling and centering transform
     this.ctx.save();
@@ -2130,6 +2155,14 @@ export class MazeGame {
       this.executionStateCallback(false);
     }
 
+    this.draw();
+  }
+
+  /**
+   * Redraw the maze without resetting state.
+   * Useful for responding to container size changes.
+   */
+  public redraw(): void {
     this.draw();
   }
 
