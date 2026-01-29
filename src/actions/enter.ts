@@ -144,7 +144,7 @@ export class EnterAction {
       return true;
     } else if (curNode instanceof BlockSvg) {
       if (!this.tryShowFullBlockFieldEditor(curNode)) {
-        showHelpHint(workspace);
+        showHelpHint(workspace, curNode);
       }
       return true;
     } else if (

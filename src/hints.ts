@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {Msg, WorkspaceSvg, Toast} from 'blockly';
+import {Msg, WorkspaceSvg, Toast, BlockSvg} from 'blockly';
 import {SHORTCUT_NAMES} from './constants';
 import {getShortActionShortcut} from './shortcut_formatting';
 
@@ -101,8 +101,24 @@ export function clearPasteHints(workspace: WorkspaceSvg) {
  * Nudge the user to open the help.
  *
  * @param workspace The workspace.
+ * @param block Optional block to check for fields. Only shows hint if block has fields.
  */
-export function showHelpHint(workspace: WorkspaceSvg) {
+export function showHelpHint(workspace: WorkspaceSvg, block?: BlockSvg) {
+  // If a block is provided, only show hint if it has editable input fields
+  if (block) {
+    const hasEditableFields = block.inputList.some((input) =>
+      input.fieldRow.some(
+        (field) =>
+          field.EDITABLE &&
+          field.name !== null && // Exclude anonymous fields (usually labels/icons)
+          field.name !== '',
+      ),
+    );
+    if (!hasEditableFields) {
+      return; // Don't show hint if block has no editable fields
+    }
+  }
+
   const shortcut = getShortActionShortcut('list_shortcuts');
   const message = Msg['HELP_PROMPT'].replace('%1', shortcut);
   const id = helpHintId;

@@ -103,6 +103,9 @@ let currentLocale: SupportedLocale =
 // Load internationalized messages
 loadMessages(currentLocale);
 
+// Override help prompt to focus on field navigation instead of general help
+Blockly.Msg['HELP_PROMPT'] = 'Press → to move to block fields';
+
 // Register maze-specific blocks
 registerMazeBlocks();
 
