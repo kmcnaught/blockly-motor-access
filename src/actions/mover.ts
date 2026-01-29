@@ -281,7 +281,9 @@ export class Mover {
     this.moves.set(workspace, info);
     // Begin drag.
     dragger.onDragStart(info.fakePointerEvent('pointerdown'));
-    info.updateTotalDelta();
+    // DON'T call updateTotalDelta() here - totalDelta should start at (0, 0)
+    // The preview offset shown by forceShowPreview() is temporary visual feedback
+    // and should NOT be reflected in totalDelta until the user actually moves
     // In case a block is detached, ensure that it still retains focus
     // (otherwise dragging will break). This is also the point a new block's
     // initial insert position is scrolled into view.
@@ -349,6 +351,18 @@ export class Mover {
     }
 
     const info = this.preDragEndCleanup(workspace);
+
+    const targetPos = new utils.Coordinate(
+      info.startLocation.x + info.totalDelta.x,
+      info.startLocation.y + info.totalDelta.y,
+    );
+
+    // Move the block to the correct position before calling onDragEnd.
+    // This is necessary because the block may be at a preview offset position
+    // (from forceShowPreview) which is just temporary visual feedback.
+    if (info.draggable instanceof BlockSvg) {
+      info.draggable.moveDuringDrag(targetPos);
+    }
 
     info.dragger.onDragEnd(
       info.fakePointerEvent('pointerup'),
