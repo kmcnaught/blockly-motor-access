@@ -366,6 +366,19 @@ export class StickyModeController {
    * @returns True if sticky mode was successfully entered.
    */
   enter(block: Blockly.BlockSvg, clientX: number, clientY: number): boolean {
+    // Prevent sticky mode if no other blocks to move to
+    const otherTopBlocks = this.workspace
+      .getTopBlocks(false)
+      .filter((b) => b !== block && b.isMovable());
+
+    if (otherTopBlocks.length === 0) {
+      Blockly.Toast.show(this.workspace, {
+        message: 'Need at least 2 blocks to use move mode',
+        id: 'maze_move_mode_hint',
+      });
+      return false;
+    }
+
     if (this.mover.isMoving(this.workspace)) {
       this.mover.abortMove(this.workspace);
     }

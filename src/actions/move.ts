@@ -9,6 +9,7 @@ import {
   ContextMenuRegistry,
   Msg,
   ShortcutRegistry,
+  Toast,
   utils,
   WorkspaceSvg,
   keyboardNavigationController,
@@ -76,6 +77,22 @@ export class MoveActions {
       callback: (workspace) => {
         keyboardNavigationController.setIsActive(true);
         const startDraggable = this.getCurrentDraggable(workspace);
+
+        // Prevent move mode if no other blocks to move to
+        if (startDraggable instanceof BlockSvg) {
+          const otherTopBlocks = workspace
+            .getTopBlocks(false)
+            .filter((b) => b !== startDraggable && b.isMovable());
+
+          if (otherTopBlocks.length === 0) {
+            Toast.show(workspace, {
+              message: 'Need at least 2 blocks to use move mode',
+              id: 'maze_move_mode_hint',
+            });
+            return false;
+          }
+        }
+
         // Focus the root draggable in case one of its children
         // was focused when the move was triggered.
         if (startDraggable) {
