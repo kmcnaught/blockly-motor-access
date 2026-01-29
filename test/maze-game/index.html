@@ -6,6 +6,8 @@
     <link rel="stylesheet" href="maze.css">
   </head>
   <body>
+    <div id="leftPadding" class="screen-padding left-padding"></div>
+    <div class="main-content-wrapper">
     <header>
       <h1>Maze</h1>
       <div class="header-center">
@@ -130,6 +132,14 @@
         </div>
       </div>
     </div>
+
+    </div><!-- close main-content-wrapper -->
+
+    <div id="rightPadding" class="screen-padding right-padding"></div>
+
+    <!-- Control buttons positioned at page edges -->
+    <button id="padLeftBtn" class="padding-control-btn pad-left" aria-label="Adjust left padding">&laquo;</button>
+    <button id="padRightBtn" class="padding-control-btn pad-right" aria-label="Adjust right padding">&raquo;</button>
 
     <div id="pegmanMenu"></div>
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>

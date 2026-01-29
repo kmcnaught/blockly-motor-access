@@ -20,6 +20,7 @@ import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messa
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
 import {PanelResizer} from './panel-resizer';
+import {PaddingControlsManager} from './padding-controls';
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -489,7 +490,6 @@ Blockly.keyboardNavigationController.setIsActive(true);
 
 // Track hint display (resets on page refresh)
 let clickConnectionHintShown = false;
-let clickWorkspaceHintShown = false;
 let keyboardMoveHintShown = false;
 
 /**
@@ -543,20 +543,9 @@ function hasValidConnections(block: Blockly.BlockSvg): boolean {
 
 /**
  * Show a hint when entering move mode via click.
- * Each hint type shown once per page load independently.
+ * Shown once per page load.
  */
 function showClickMoveModeHint(block: Blockly.BlockSvg) {
-  // If no valid connections, show workspace placement hint (once)
-  if (!hasValidConnections(block)) {
-    if (clickWorkspaceHintShown) return;
-    clickWorkspaceHintShown = true;
-    Blockly.Toast.show(workspace, {
-      message: 'Click on the workspace to move the block there',
-      id: 'maze_move_mode_hint',
-    });
-    return;
-  }
-
   // Show connection hint (once)
   if (clickConnectionHintShown) return;
   clickConnectionHintShown = true;
@@ -830,6 +819,8 @@ function setExecutionMode(mode: ExecutionMode): void {
   updateInstructionBar();
   // Update URL to reflect mode change
   updateUrlState();
+  // Update padding controls visibility based on mode
+  paddingManager?.setMode(false, false); // Neither grid mode nor grid coding mode in normal toggle
 }
 
 /**
@@ -3450,6 +3441,15 @@ if (panelResizerElement && blocklyContainer && gameContainer && !isGridMode) {
     panelResizer?.restoreSavedWidths();
   }, 200);
 }
+
+// ========== PADDING CONTROLS ==========
+
+// Initialize padding controls manager for eye gaze accessibility
+const paddingManager = new PaddingControlsManager({
+  isGridMode,
+  isGridCodingMode
+});
+paddingManager.init();
 
 // ========== NARROW BLOCKLY DETECTION ==========
 

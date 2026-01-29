@@ -4,8 +4,17 @@ body {
   padding: 0;
   background: #f5f5f5;
   display: flex;
-  flex-direction: column;
+  flex-direction: row; /* Horizontal layout for padding panels */
   height: 100vh;
+}
+
+/* Main content wrapper - contains header and container */
+.main-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Allow shrinking */
+  overflow: hidden;
 }
 
 header {
@@ -1924,4 +1933,68 @@ body.grid-coding-mode .container.sidebar-collapsed .blockly-container {
 body.grid-coding-mode #mazeCanvas {
   width: 100%;
   height: 100%;
+}
+
+/* ============================================================
+   Screen Padding Controls for Eye Gaze Accessibility
+   ============================================================ */
+
+/* Screen padding elements - create actual rectangular areas that push content inward */
+.screen-padding {
+  flex: 0 0 auto;
+  width: 0; /* Default, will be set dynamically */
+  background: rgba(100, 100, 100, 0.1);
+  border: 2px dashed rgba(100, 100, 100, 0.3);
+  transition: width 0.3s ease;
+  height: 100vh;
+}
+
+.screen-padding.left-padding {
+  order: -1; /* Ensure it appears first */
+}
+
+.screen-padding.right-padding {
+  order: 1; /* Ensure it appears last */
+}
+
+/* Control buttons - positioned at page edges */
+.padding-control-btn {
+  position: fixed;
+  bottom: 12px;
+  background: rgba(33, 150, 243, 0.85);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 1001; /* Above modals */
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.padding-control-btn:hover {
+  background: rgba(33, 150, 243, 0.95);
+  transform: scale(1.05);
+}
+
+.padding-control-btn:active {
+  transform: scale(0.95);
+}
+
+.padding-control-btn.pad-left {
+  left: 12px;
+}
+
+.padding-control-btn.pad-right {
+  right: 12px;
+}
+
+/* Hide in grid modes */
+body.grid-mode .padding-control-btn,
+body.grid-coding-mode .padding-control-btn,
+body.grid-mode .screen-padding,
+body.grid-coding-mode .screen-padding {
+  display: none;
 }
