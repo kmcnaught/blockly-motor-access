@@ -1329,6 +1329,20 @@ export class StickyModeController {
       }
     }
 
+    // Check if click is on a toast - exclude these from bin detection
+    const toastElement = document.querySelector('.blocklyToast');
+    if (toastElement) {
+      const toastRect = toastElement.getBoundingClientRect();
+      if (
+        clientX >= toastRect.left &&
+        clientX <= toastRect.right &&
+        clientY >= toastRect.top &&
+        clientY <= toastRect.bottom
+      ) {
+        return false; // Click is on toast, not the bin
+      }
+    }
+
     const rect = trashcanElement.getBoundingClientRect();
 
     return (
