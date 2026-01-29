@@ -1983,12 +1983,50 @@ body.grid-coding-mode #mazeCanvas {
   transform: scale(0.95);
 }
 
-.padding-control-btn.pad-left {
+/* Left side button positioning - both start at edge */
+.padding-control-btn.pad-left-dec {
   left: 12px;
 }
 
-.padding-control-btn.pad-right {
+.padding-control-btn.pad-left-inc {
+  left: 12px; /* Starts at edge when alone */
+}
+
+/* When decrease is visible, push increase button out */
+.padding-control-btn.pad-left-dec.active ~ .padding-control-btn.pad-left-inc {
+  left: 60px;
+}
+
+/* Right side button positioning - both start at edge */
+.padding-control-btn.pad-right-dec {
   right: 12px;
+}
+
+.padding-control-btn.pad-right-inc {
+  right: 12px; /* Starts at edge when alone */
+}
+
+/* When decrease is visible, push increase button out */
+.padding-control-btn.pad-right-dec.active ~ .padding-control-btn.pad-right-inc {
+  right: 60px;
+}
+
+/* Hidden by default, shown when appropriate */
+.padding-control-btn.pad-left-dec,
+.padding-control-btn.pad-right-dec {
+  display: none;
+}
+
+/* Show decrease buttons when active */
+.padding-control-btn.pad-left-dec.active,
+.padding-control-btn.pad-right-dec.active {
+  display: block;
+}
+
+/* Disable increase buttons at max */
+.padding-control-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Hide in grid modes */

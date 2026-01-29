@@ -138,8 +138,13 @@
     <div id="rightPadding" class="screen-padding right-padding"></div>
 
     <!-- Control buttons positioned at page edges -->
-    <button id="padLeftBtn" class="padding-control-btn pad-left" aria-label="Adjust left padding">&laquo;</button>
-    <button id="padRightBtn" class="padding-control-btn pad-right" aria-label="Adjust right padding">&raquo;</button>
+    <!-- Left side: decrease («) at edge, increase (») moves out when both visible -->
+    <button id="padLeftDecBtn" class="padding-control-btn pad-left-dec" aria-label="Decrease left padding">&laquo;</button>
+    <button id="padLeftIncBtn" class="padding-control-btn pad-left-inc" aria-label="Increase left padding">&raquo;</button>
+
+    <!-- Right side: decrease (») at edge, increase («) moves out when both visible -->
+    <button id="padRightDecBtn" class="padding-control-btn pad-right-dec" aria-label="Decrease right padding">&raquo;</button>
+    <button id="padRightIncBtn" class="padding-control-btn pad-right-inc" aria-label="Increase right padding">&laquo;</button>
 
     <div id="pegmanMenu"></div>
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>
