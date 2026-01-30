@@ -334,6 +334,7 @@ const workspace = Blockly.inject('blocklyDiv', {
   renderer: 'zelos',
   toolbox: getToolboxForLevel(initialLevel),
   trashcan: true,
+  maxTrashcanContents: 0,  // Keep trashcan icon for deleting, but disable the sidebar
   maxBlocks: initialMaxBlocks === Infinity ? undefined : initialMaxBlocks,
   zoom: {
     controls: true,
