@@ -259,6 +259,17 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
     // point for the search.
     if (!candidateConnection && !this.searchNode) {
       candidateConnection = this.findNearestCandidate(localConns);
+
+      // If we found the initial connection (healed child), skip it and find next
+      if (candidateConnection &&
+          this.initialConnectionNeighbour &&
+          candidateConnection.neighbour === this.initialConnectionNeighbour) {
+        // Manually search through allConnections to find nearest excluding initial
+        candidateConnection = this.findNearestCandidateExcluding(
+          localConns,
+          this.initialConnectionNeighbour,
+        );
+      }
     }
     return candidateConnection;
   }
@@ -291,6 +302,51 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
       }
     }
     return candidate;
+  }
+
+  /**
+   * Get the nearest valid candidate connection, excluding a specific connection.
+   * Manually searches through allConnections instead of using conn.closest().
+   * Finds the nearest connection by distance (allows wrap-around behavior).
+   *
+   * @param localConns The list of connections on the dragging block(s) that are
+   *     available to connect to.
+   * @param excludeConn The connection to exclude from the search.
+   * @returns A candidate connection and radius, or null if none was found.
+   */
+  findNearestCandidateExcluding(
+    localConns: RenderedConnection[],
+    excludeConn: RenderedConnection,
+  ): ConnectionCandidate | null {
+    const connectionChecker = this.block.workspace.connectionChecker;
+    let nearestCandidate: ConnectionCandidate | null = null;
+    let minDistance = Infinity;
+
+    for (const localConn of localConns) {
+      for (const potentialConn of this.allConnections) {
+        // Skip the excluded connection
+        if (potentialConn === excludeConn) continue;
+
+        // Check if these connections can connect
+        if (connectionChecker.canConnect(localConn, potentialConn, true, Infinity)) {
+          // Calculate distance
+          const dx = localConn.x - potentialConn.x;
+          const dy = localConn.y - potentialConn.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestCandidate = {
+              local: localConn,
+              neighbour: potentialConn,
+              distance: distance,
+            };
+          }
+        }
+      }
+    }
+
+    return nearestCandidate;
   }
 
   /**
@@ -476,7 +532,8 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
             Math.abs(prevConn.y - nextConn.y) < tolerance
           ) {
             // Found healed child - create reconnection candidate
-            this.searchNode = nextConn;
+            // Don't set searchNode so first arrow press uses findNearestCandidate
+            // instead of wrapping back to the healed child position
             return {
               neighbour: prevConn,
               local: nextConn,
@@ -485,10 +542,6 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
           }
         }
       }
-
-      // No healed child found by position, but still set searchNode
-      // so traversal will work
-      this.searchNode = nextConn;
     }
 
     return null;
