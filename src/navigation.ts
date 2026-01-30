@@ -418,6 +418,22 @@ export class Navigation {
       // the most plausible connection on the moving block.
       return stationaryNode;
     } else if (stationaryNode instanceof Blockly.WorkspaceSvg) {
+      // When cursor is on workspace, connect to the visually bottommost block
+      const workspace = stationaryNode;
+      const bottomBlock = this.findVisuallyBottommostBlock(workspace, movingBlock);
+
+      if (bottomBlock) {
+        // Follow the chain to find the actual last block
+        let lastInChain = bottomBlock;
+        while (lastInChain.nextConnection?.targetBlock()) {
+          lastInChain = lastInChain.nextConnection.targetBlock()!;
+        }
+
+        // Recurse to the block branch which already has logic to handle next connections
+        return this.findInsertStartPoint(lastInChain, movingBlock);
+      }
+
+      // Fallback to old behavior if no compatible connection
       return null;
     } else if (stationaryNode instanceof Blockly.BlockSvg) {
       // 1. Connect blocks to first compatible input
@@ -496,6 +512,36 @@ export class Navigation {
     }
     this.warn(`Unexpected case in findInsertStartPoint ${stationaryNode}.`);
     return null;
+  }
+
+  /**
+   * Find the top-level block that appears furthest down on the workspace.
+   * @param workspace The workspace to search
+   * @param excludeBlock Block to exclude from search (typically the block being inserted)
+   * @returns The visually bottommost top-level block, or null if no blocks exist
+   */
+  private findVisuallyBottommostBlock(
+    workspace: Blockly.WorkspaceSvg,
+    excludeBlock?: Blockly.BlockSvg,
+  ): Blockly.BlockSvg | null {
+    const topBlocks = workspace
+      .getTopBlocks(true) // ordered=true
+      .filter((block) => !excludeBlock || block.id !== excludeBlock.id);
+
+    if (topBlocks.length === 0) return null;
+
+    let bottomBlock = topBlocks[0];
+    let maxY = bottomBlock.getRelativeToSurfaceXY().y;
+
+    for (const block of topBlocks) {
+      const blockY = block.getRelativeToSurfaceXY().y;
+      if (blockY > maxY) {
+        maxY = blockY;
+        bottomBlock = block;
+      }
+    }
+
+    return bottomBlock;
   }
 
   /**
