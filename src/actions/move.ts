@@ -80,11 +80,16 @@ export class MoveActions {
 
         // Prevent move mode if no other blocks to move to
         if (startDraggable instanceof BlockSvg) {
-          const otherTopBlocks = workspace
-            .getTopBlocks(false)
-            .filter((b) => b !== startDraggable && b.isMovable());
+          // Get all blocks in workspace
+          const allBlocks = workspace.getAllBlocks(false);
 
-          if (otherTopBlocks.length === 0) {
+          // Find blocks other than the draggable itself
+          // (descendants ARE valid move targets - can move parent below its children)
+          const otherBlocks = allBlocks.filter(
+            (b) => b !== startDraggable && b.isMovable()
+          );
+
+          if (otherBlocks.length === 0) {
             Toast.show(workspace, {
               message: 'Need at least 2 blocks to use move mode',
               id: 'maze_move_mode_hint',
