@@ -59,7 +59,7 @@ export class NavigationController {
 
   clipboard: Clipboard;
 
-  duplicateAction = new DuplicateAction();
+  duplicateAction: DuplicateAction = new DuplicateAction(this.navigation);
 
   workspaceMovement: WorkspaceMovement = new WorkspaceMovement(this.navigation);
 

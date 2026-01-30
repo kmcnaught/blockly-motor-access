@@ -13,9 +13,13 @@ import {
   utils,
   comments,
   ICopyData,
+  Events,
+  renderManagement,
+  getFocusManager,
 } from 'blockly';
 import * as Constants from '../constants';
 import {getMenuItem} from '../shortcut_formatting';
+import type {Navigation} from '../navigation';
 
 /**
  * Duplicate action that adds a keyboard shortcut for duplicate and overrides
@@ -24,6 +28,11 @@ import {getMenuItem} from '../shortcut_formatting';
 export class DuplicateAction {
   private duplicateShortcut: ShortcutRegistry.KeyboardShortcut | null = null;
   private uninstallHandlers: Array<() => void> = [];
+  private navigation: Navigation;
+
+  constructor(navigation: Navigation) {
+    this.navigation = navigation;
+  }
 
   /**
    * Install the shortcuts and override context menu entries.
@@ -60,6 +69,27 @@ export class DuplicateAction {
   }
 
   /**
+   * Position a duplicated block near its source block when connection isn't possible.
+   *
+   * @param sourceBlock The original block that was duplicated.
+   * @param duplicatedBlock The newly created duplicate block.
+   */
+  private positionNearSourceBlock(
+    sourceBlock: BlockSvg,
+    duplicatedBlock: BlockSvg,
+  ): void {
+    const sourceXY = sourceBlock.getRelativeToSurfaceXY();
+    const DUPLICATE_OFFSET_X = 20;
+    const DUPLICATE_OFFSET_Y = 20;
+
+    duplicatedBlock.moveBy(
+      sourceXY.x + DUPLICATE_OFFSET_X,
+      sourceXY.y + DUPLICATE_OFFSET_Y,
+    );
+    duplicatedBlock.snapToGrid();
+  }
+
+  /**
    * Create and register the keyboard shortcut for the duplicate action.
    * Same behaviour as for the core context menu.
    * Skipped if there is a shortcut with a matching name already.
@@ -90,11 +120,51 @@ export class DuplicateAction {
         }
         return false;
       },
-      callback(workspace, e, shortcut, scope) {
+      callback: (workspace, e, shortcut, scope) => {
         const copyable = scope.focusedNode as ICopyable<ICopyData>;
         const data = copyable.toCopyData();
         if (!data) return false;
-        return !!clipboard.paste(data, workspace);
+
+        // Only do smart positioning if we're duplicating a block
+        const sourceBlock =
+          scope.focusedNode instanceof BlockSvg ? scope.focusedNode : null;
+
+        // Create event group for atomic undo/redo
+        const existingGroup = Events.getGroup();
+        if (!existingGroup) {
+          Events.setGroup(true);
+        }
+
+        // Paste the block using Blockly's clipboard
+        const pastedBlock = clipboard.paste(data, workspace) as BlockSvg;
+
+        if (pastedBlock && sourceBlock) {
+          // Try to connect to the source block using navigation logic
+          const insertStartPoint = this.navigation.findInsertStartPoint(
+            sourceBlock,
+            pastedBlock,
+          );
+
+          if (insertStartPoint) {
+            this.navigation.insertBlock(pastedBlock, insertStartPoint);
+          } else {
+            // If we can't connect, position near the source block
+            this.positionNearSourceBlock(sourceBlock, pastedBlock);
+          }
+
+          // Focus the new block
+          renderManagement.finishQueuedRenders().then(() => {
+            getFocusManager().focusNode(pastedBlock);
+          });
+        }
+        // If sourceBlock is null, clipboard.paste() uses default positioning
+
+        // Close event group if we created one
+        if (!existingGroup) {
+          Events.setGroup(false);
+        }
+
+        return !!pastedBlock;
       },
       keyCodes: [utils.KeyCodes.D],
     };
