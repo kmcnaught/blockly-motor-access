@@ -802,6 +802,54 @@ header.christmas h1::after {
   outline-offset: 2px;
 }
 
+/* Settings section in shortcuts modal */
+.settings-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.settings-heading {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+  text-align: left;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: left;
+}
+
+.setting-item:hover {
+  background-color: #f5f5f5;
+}
+
+.setting-item input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.setting-item span {
+  font-size: 1em;
+  color: #333;
+  user-select: none;
+}
+
 /* Shortcuts modal content */
 .shortcuts-modal .shortcuts-list {
   display: flex;

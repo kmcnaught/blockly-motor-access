@@ -231,6 +231,19 @@
     <div id="shortcutsModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle" hidden>
       <div class="result-modal shortcuts-modal">
         <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
+        <div class="settings-section">
+          <h3 class="settings-heading">Block Movement</h3>
+          <div class="settings-group">
+            <label class="setting-item">
+              <input type="checkbox" id="mouseDragCheckbox">
+              <span>Enable mouse drag</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="clickToMoveCheckbox" checked>
+              <span>Enable click-to-move</span>
+            </label>
+          </div>
+        </div>
         <div class="shortcuts-list">
           <div class="shortcut-item"><kbd>R</kbd> Run program</div>
           <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
