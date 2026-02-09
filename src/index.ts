@@ -240,6 +240,15 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Enable or disable click-to-move (sticky mode).
+   *
+   * @param enabled Whether to allow click-to-move functionality.
+   */
+  setClickToMoveEnabled(enabled: boolean): void {
+    this.stickyModeController.setEnabled(enabled);
+  }
+
+  /**
    * Set a callback that fires when sticky mode is entered via click.
    *
    * @param callback The callback to invoke when entering sticky mode.

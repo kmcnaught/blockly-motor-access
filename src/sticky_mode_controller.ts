@@ -58,6 +58,9 @@ export class StickyModeController {
   /** The current trigger mode for entering sticky mode. */
   private triggerMode: TriggerMode = TriggerMode.DOUBLE_CLICK;
 
+  /** Whether click-to-move features are enabled. */
+  private enabled: boolean = true;
+
   /** The block that was focused before pointerdown (for focused-click trigger mode). */
   private focusedBlockBeforePointerdown: Blockly.BlockSvg | null = null;
 
@@ -165,6 +168,22 @@ export class StickyModeController {
   }
 
   /**
+   * Enable or disable click-to-move features.
+   * When disabled, blocks cannot enter sticky mode via any trigger.
+   *
+   * @param enabled Whether click-to-move features should be enabled.
+   */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled && this.isActive()) {
+      this.exit('abort');
+    }
+    if (!enabled) {
+      this.hideGrip();
+    }
+  }
+
+  /**
    * Set a callback that fires when sticky mode is entered.
    *
    * @param callback The callback to invoke when entering sticky mode.
@@ -250,6 +269,8 @@ export class StickyModeController {
    * @param event
    */
   private handleFocusChange(event: Blockly.Events.Abstract): void {
+    if (!this.enabled) return;
+
     // Only show grip in GRIP_CLICK mode
     if (this.triggerMode !== TriggerMode.GRIP_CLICK) {
       return;
@@ -330,6 +351,8 @@ export class StickyModeController {
    * @param event
    */
   private handleGripClick(block: Blockly.BlockSvg, event: MouseEvent): void {
+    if (!this.enabled) return;
+
     const nonShadowBlock = getNonShadowBlock(block);
     if (nonShadowBlock && nonShadowBlock.isMovable()) {
       if (this.enter(nonShadowBlock, event.clientX, event.clientY)) {
@@ -588,6 +611,8 @@ export class StickyModeController {
    * @param event
    */
   private handleDoubleClick(event: MouseEvent) {
+    if (!this.enabled) return;
+
     // Only handle double-clicks if trigger mode is set to DOUBLE_CLICK
     if (this.triggerMode !== TriggerMode.DOUBLE_CLICK) {
       return;
@@ -627,6 +652,8 @@ export class StickyModeController {
    * @param event
    */
   private handleClick(event: MouseEvent) {
+    if (!this.enabled) return;
+
     // If we just entered sticky mode via shift+click or pending flyout, ignore this click
     if (this.ignoreNextClick) {
       this.ignoreNextClick = false;
