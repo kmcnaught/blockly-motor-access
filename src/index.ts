@@ -249,6 +249,17 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Enable or disable single-block drag mode.
+   * When enabled: single-block drag by default, Ctrl/Cmd for stack drag.
+   * When disabled: stack drag by default (current behavior), Ctrl/Cmd for single-block.
+   *
+   * @param enabled Whether to use single-block drag by default.
+   */
+  setSingleBlockDragMode(enabled: boolean): void {
+    this.navigationController.setSingleBlockDragMode(enabled);
+  }
+
+  /**
    * Set a callback that fires when sticky mode is entered via click.
    *
    * @param callback The callback to invoke when entering sticky mode.

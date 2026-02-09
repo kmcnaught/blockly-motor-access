@@ -92,6 +92,9 @@ export class Mover {
   /** Optional callback to check if auto-scrolling should be disabled. */
   private shouldDisableAutoScroll?: () => boolean;
 
+  /** Whether to use single-block drag mode (vs stack drag). */
+  private singleBlockDragMode: boolean = false;
+
   constructor(
     protected navigation: Navigation,
     highlightConnections = true,
@@ -181,6 +184,24 @@ export class Mover {
       const dragStrategy = (moveInfo.draggable as any).dragStrategy;
       if (dragStrategy instanceof KeyboardDragStrategy) {
         dragStrategy.setConnectionSize(size);
+      }
+    }
+  }
+
+  /**
+   * Set whether to use single-block drag mode.
+   * When enabled: single-block drag by default, Ctrl/Cmd for stack drag.
+   * When disabled: stack drag by default, Ctrl/Cmd for single-block.
+   *
+   * @param enabled Whether to use single-block drag by default.
+   */
+  setSingleBlockDragMode(enabled: boolean): void {
+    this.singleBlockDragMode = enabled;
+    // Update any active drag strategies
+    for (const [_workspace, moveInfo] of this.moves) {
+      const dragStrategy = (moveInfo.draggable as any).dragStrategy;
+      if (dragStrategy instanceof KeyboardDragStrategy) {
+        dragStrategy.setSingleBlockDragMode(enabled);
       }
     }
   }
@@ -568,6 +589,7 @@ export class Mover {
     );
     keyboardDragStrategy.setFatterConnections(this.fatterConnections);
     keyboardDragStrategy.setConnectionSize(this.connectionSize);
+    keyboardDragStrategy.setSingleBlockDragMode(this.singleBlockDragMode);
     block.setDragStrategy(keyboardDragStrategy);
   }
 

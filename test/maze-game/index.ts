@@ -505,6 +505,10 @@ const mouseDragEnabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : f
 const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
 const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
 
+// Single-block drag defaults to false (stack drag is default)
+const savedSingleBlockDrag = localStorage.getItem('mazeSingleBlockDragEnabled');
+const singleBlockDragEnabled = savedSingleBlockDrag !== null ? savedSingleBlockDrag === 'true' : false;
+
 /**
  * Enable or disable mouse dragging for all blocks in the workspace.
  * @param enabled Whether blocks should be draggable with the mouse.
@@ -519,7 +523,39 @@ function setBlocksDraggable(enabled: boolean): void {
 // Apply saved block movement preferences
 keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
+keyboardNavigation.setSingleBlockDragMode(singleBlockDragEnabled);
 setBlocksDraggable(mouseDragEnabled);
+
+// Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
+// This makes the setting work for both mouse drags and keyboard drags
+(Blockly.dragging.BlockDragStrategy.prototype as any).shouldHealStack = function(e: PointerEvent | undefined): boolean {
+  // @ts-ignore - accessing private property
+  const block = this.block;
+
+  // If block has no previous connection, can't heal to stack (always single-block)
+  if (!block.previousConnection) {
+    return false;
+  }
+
+  // Get the current setting
+  const savedSingleBlockDrag = localStorage.getItem('mazeSingleBlockDragEnabled');
+  const singleBlockDragMode = savedSingleBlockDrag === 'true';
+
+  // Check if Ctrl/Cmd key is pressed (toggle behavior)
+  const isCtrlPressed = e?.ctrlKey || e?.metaKey || false;
+
+  if (singleBlockDragMode) {
+    // When single-block mode is enabled:
+    // - Default (no Ctrl): single-block drag (don't heal) = return false
+    // - With Ctrl: stack drag (heal) = return true
+    return !isCtrlPressed;
+  } else {
+    // When single-block mode is disabled (default behavior):
+    // - Default (no Ctrl): stack drag (heal) = return true
+    // - With Ctrl: single-block drag (don't heal) = return false
+    return isCtrlPressed;
+  }
+};
 
 // Listen for new blocks being created and apply draggability setting
 workspace.addChangeListener((event) => {
@@ -2153,9 +2189,11 @@ shortcutsModal.addEventListener('click', (e: MouseEvent) => {
 
 const mouseDragCheckbox = document.getElementById('mouseDragCheckbox') as HTMLInputElement;
 const clickToMoveCheckbox = document.getElementById('clickToMoveCheckbox') as HTMLInputElement;
+const singleBlockDragCheckbox = document.getElementById('singleBlockDragCheckbox') as HTMLInputElement;
 
 mouseDragCheckbox.checked = mouseDragEnabled;
 clickToMoveCheckbox.checked = clickToMoveEnabled;
+singleBlockDragCheckbox.checked = singleBlockDragEnabled;
 
 mouseDragCheckbox.addEventListener('change', () => {
   const enabled = mouseDragCheckbox.checked;
@@ -2168,6 +2206,12 @@ clickToMoveCheckbox.addEventListener('change', () => {
   const enabled = clickToMoveCheckbox.checked;
   localStorage.setItem('mazeClickToMoveEnabled', String(enabled));
   keyboardNavigation.setClickToMoveEnabled(enabled);
+});
+
+singleBlockDragCheckbox.addEventListener('change', () => {
+  const enabled = singleBlockDragCheckbox.checked;
+  localStorage.setItem('mazeSingleBlockDragEnabled', String(enabled));
+  keyboardNavigation.setSingleBlockDragMode(enabled);
 });
 
 // ========== CONFIRMATION MODAL ==========

@@ -73,6 +73,9 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
   /** The initial connection where the block started (for comparison with current preview). */
   private initialConnectionNeighbour: RenderedConnection | null = null;
 
+  /** Whether to use single-block drag mode (vs stack drag). */
+  private singleBlockDragMode: boolean = false;
+
   constructor(
     private block: BlockSvg,
     public moveType: MoveType,
@@ -202,6 +205,17 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
     if (this.highlightingEnabled) {
       this.connectionHighlighter.clearHighlights();
     }
+  }
+
+  /**
+   * Set whether to use single-block drag mode.
+   * When enabled: single-block drag by default, Ctrl/Cmd for stack drag.
+   * When disabled: stack drag by default, Ctrl/Cmd for single-block.
+   *
+   * @param enabled Whether to use single-block drag by default.
+   */
+  setSingleBlockDragMode(enabled: boolean): void {
+    this.singleBlockDragMode = enabled;
   }
 
   /**
@@ -548,7 +562,25 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
   }
 
   override shouldHealStack(e: PointerEvent | undefined): boolean {
-    return Boolean(this.block.previousConnection);
+    // If block has no previous connection, can't heal to stack (always single-block)
+    if (!this.block.previousConnection) {
+      return false;
+    }
+
+    // Check if Ctrl/Cmd key is pressed (toggle behavior)
+    const isCtrlPressed = e?.ctrlKey || e?.metaKey || false;
+
+    if (this.singleBlockDragMode) {
+      // When single-block drag mode is enabled:
+      // - Default (no Ctrl): single-block drag (don't heal)
+      // - With Ctrl: stack drag (heal)
+      return isCtrlPressed;
+    } else {
+      // When single-block drag mode is disabled (current behavior):
+      // - Default (no Ctrl): stack drag (heal)
+      // - With Ctrl: single-block drag (don't heal)
+      return !isCtrlPressed;
+    }
   }
 
   /**

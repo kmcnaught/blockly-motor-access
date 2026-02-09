@@ -323,6 +323,17 @@ export class NavigationController {
   }
 
   /**
+   * Set whether to use single-block drag mode.
+   * When enabled: single-block drag by default, Ctrl/Cmd for stack drag.
+   * When disabled: stack drag by default, Ctrl/Cmd for single-block.
+   *
+   * @param enabled Whether to use single-block drag by default.
+   */
+  setSingleBlockDragMode(enabled: boolean): void {
+    this.mover.setSingleBlockDragMode(enabled);
+  }
+
+  /**
    * Set a callback that fires when a keyboard move is initiated.
    *
    * @param callback The callback to invoke when starting a keyboard move.
