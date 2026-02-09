@@ -359,6 +359,17 @@ if (currentExecutionMode !== 'practice') {
   }
 }
 
+// Listen for workspace finished loading (when XML is restored)
+workspace.addChangeListener((event) => {
+  if (event.type === Blockly.Events.FINISHED_LOADING) {
+    // After workspace loads saved program, ensure UI controls are visible
+    requestAnimationFrame(() => {
+      Blockly.svgResize(workspace);
+      checkBlocklyWidth();
+    });
+  }
+});
+
 /**
  * Get the scroll X position to use in grid coding mode.
  * Returns a negative offset to compensate for the hidden flyout space,
@@ -3498,7 +3509,11 @@ if (panelResizerElement && blocklyContainer && gameContainer && !isGridMode) {
 
   // Restore saved widths after initialization
   setTimeout(() => {
-    panelResizer?.restoreSavedWidths();
+    panelResizer?.restoreSavedWidths(() => {
+      // After restoration completes, verify Blockly width class and force final resize
+      checkBlocklyWidth();
+      Blockly.svgResize(workspace);
+    });
   }, 200);
 }
 

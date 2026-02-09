@@ -334,13 +334,27 @@ export class PanelResizer {
   /**
    * Apply panel widths (override flex layout).
    */
-  private applyWidths(blocklyWidth: number, gameWidth: number): void {
+  private applyWidths(blocklyWidth: number, gameWidth: number, ensureVisible: boolean = false): void {
     this.blocklyContainer.style.flex = 'none';
     this.blocklyContainer.style.width = `${blocklyWidth}px`;
     this.gameContainer.style.flex = 'none';
     this.gameContainer.style.width = `${gameWidth}px`;
 
+    // First resize - let browser apply the width changes
     Blockly.svgResize(this.workspace);
+
+    // If ensureVisible is true, do a delayed double-resize to ensure controls appear
+    if (ensureVisible) {
+      // Use RAF to wait for browser layout to complete
+      requestAnimationFrame(() => {
+        Blockly.svgResize(this.workspace);
+
+        // Additional verification after a short delay
+        setTimeout(() => {
+          Blockly.svgResize(this.workspace);
+        }, 50);
+      });
+    }
 
     // ResizeObserver will automatically trigger maze redraw when size changes
   }
@@ -360,7 +374,7 @@ export class PanelResizer {
   /**
    * Restore saved widths from localStorage.
    */
-  public restoreSavedWidths(): void {
+  public restoreSavedWidths(onComplete?: () => void): void {
     try {
       const savedBlocklyWidth = localStorage.getItem(BLOCKLY_WIDTH_KEY);
       const savedGameWidth = localStorage.getItem(GAME_WIDTH_KEY);
@@ -385,10 +399,19 @@ export class PanelResizer {
           gameWidth >= minGameWidth && gameWidth <= maxGameWidth &&
           blocklyWidth + gameWidth <= availableWidth + 10) { // 10px tolerance
 
-        this.applyWidths(blocklyWidth, gameWidth);
+        this.applyWidths(blocklyWidth, gameWidth, true);
       }
     } catch (err) {
       console.warn('Failed to restore panel widths:', err);
+    }
+
+    // Call completion callback if provided, after resize operations complete
+    if (onComplete) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          onComplete();
+        }, 100); // Wait for all resize operations to settle
+      });
     }
   }
 
