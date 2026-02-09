@@ -168,32 +168,36 @@ export class MoveActions {
     {
       name: 'move_left_constrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveConstrained(workspace, Direction.Left),
+      callback: (workspace) => {
+        return this.mover.moveConstrained(workspace, Direction.Left);
+      },
       keyCodes: [KeyCodes.LEFT],
       allowCollision: true,
     },
     {
       name: 'move_right_constrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveConstrained(workspace, Direction.Right),
+      callback: (workspace) => {
+        return this.mover.moveConstrained(workspace, Direction.Right);
+      },
       keyCodes: [KeyCodes.RIGHT],
       allowCollision: true,
     },
     {
       name: 'move_up_constrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveConstrained(workspace, Direction.Up),
+      callback: (workspace) => {
+        return this.mover.moveConstrained(workspace, Direction.Up);
+      },
       keyCodes: [KeyCodes.UP],
       allowCollision: true,
     },
     {
       name: 'move_down_constrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveConstrained(workspace, Direction.Down),
+      callback: (workspace) => {
+        return this.mover.moveConstrained(workspace, Direction.Down);
+      },
       keyCodes: [KeyCodes.DOWN],
       allowCollision: true,
     },
@@ -202,8 +206,9 @@ export class MoveActions {
     {
       name: 'move_left_unconstrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveUnconstrained(workspace, Direction.Left),
+      callback: (workspace) => {
+        return this.mover.moveUnconstrained(workspace, Direction.Left);
+      },
       keyCodes: [
         createSerializedKey(KeyCodes.LEFT, [KeyCodes.ALT]),
         createSerializedKey(KeyCodes.LEFT, [KeyCodes.CTRL]),
@@ -212,8 +217,9 @@ export class MoveActions {
     {
       name: 'move_right_unconstrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveUnconstrained(workspace, Direction.Right),
+      callback: (workspace) => {
+        return this.mover.moveUnconstrained(workspace, Direction.Right);
+      },
       keyCodes: [
         createSerializedKey(KeyCodes.RIGHT, [KeyCodes.ALT]),
         createSerializedKey(KeyCodes.RIGHT, [KeyCodes.CTRL]),
@@ -222,8 +228,9 @@ export class MoveActions {
     {
       name: 'move_up_unconstrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveUnconstrained(workspace, Direction.Up),
+      callback: (workspace) => {
+        return this.mover.moveUnconstrained(workspace, Direction.Up);
+      },
       keyCodes: [
         createSerializedKey(KeyCodes.UP, [KeyCodes.ALT]),
         createSerializedKey(KeyCodes.UP, [KeyCodes.CTRL]),
@@ -232,8 +239,9 @@ export class MoveActions {
     {
       name: 'move_down_unconstrained',
       preconditionFn: (workspace) => this.mover.isMoving(workspace),
-      callback: (workspace) =>
-        this.mover.moveUnconstrained(workspace, Direction.Down),
+      callback: (workspace) => {
+        return this.mover.moveUnconstrained(workspace, Direction.Down);
+      },
       keyCodes: [
         createSerializedKey(KeyCodes.DOWN, [KeyCodes.ALT]),
         createSerializedKey(KeyCodes.DOWN, [KeyCodes.CTRL]),
