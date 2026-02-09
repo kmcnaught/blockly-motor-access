@@ -482,10 +482,45 @@ const keyboardNavigation = new KeyboardNavigation(workspace, {
 // Configure for "click n stick" style:
 // - FOCUSED_CLICK: click a focused block to enter move mode
 // - Large connections: bigger click targets for accessibility
-// - Keep block in place: don't drag with mouse, click destination instead
 keyboardNavigation.setTriggerMode(TriggerMode.FOCUSED_CLICK);
 keyboardNavigation.setConnectionSize('large');
-keyboardNavigation.setKeepBlockOnMouse(false);
+
+// Load saved block movement preferences from localStorage
+// Mouse drag defaults to false (disabled) for assistive tech users
+const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
+const mouseDragEnabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : false;
+
+// Click-to-move defaults to true (enabled)
+const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
+const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
+
+/**
+ * Enable or disable mouse dragging for all blocks in the workspace.
+ * @param enabled Whether blocks should be draggable with the mouse.
+ */
+function setBlocksDraggable(enabled: boolean): void {
+  const blocks = workspace.getAllBlocks(false);
+  blocks.forEach((block) => {
+    block.setMovable(enabled);
+  });
+}
+
+// Apply saved block movement preferences
+keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
+keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
+setBlocksDraggable(mouseDragEnabled);
+
+// Listen for new blocks being created and apply draggability setting
+workspace.addChangeListener((event) => {
+  if (event.type === Blockly.Events.BLOCK_CREATE && 'blockId' in event) {
+    const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
+    const enabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : false;
+    const block = workspace.getBlockById((event as any).blockId);
+    if (block) {
+      block.setMovable(enabled);
+    }
+  }
+});
 
 // Enable keyboard navigation mode from the start so focus indicators show on tab
 Blockly.keyboardNavigationController.setIsActive(true);
@@ -2101,6 +2136,27 @@ shortcutsModal.addEventListener('click', (e: MouseEvent) => {
   if (e.target === shortcutsModal) {
     hideShortcutsModal();
   }
+});
+
+// ========== BLOCK MOVEMENT SETTINGS CHECKBOXES ==========
+
+const mouseDragCheckbox = document.getElementById('mouseDragCheckbox') as HTMLInputElement;
+const clickToMoveCheckbox = document.getElementById('clickToMoveCheckbox') as HTMLInputElement;
+
+mouseDragCheckbox.checked = mouseDragEnabled;
+clickToMoveCheckbox.checked = clickToMoveEnabled;
+
+mouseDragCheckbox.addEventListener('change', () => {
+  const enabled = mouseDragCheckbox.checked;
+  localStorage.setItem('mazeMouseDragEnabled', String(enabled));
+  keyboardNavigation.setKeepBlockOnMouse(enabled);
+  setBlocksDraggable(enabled);
+});
+
+clickToMoveCheckbox.addEventListener('change', () => {
+  const enabled = clickToMoveCheckbox.checked;
+  localStorage.setItem('mazeClickToMoveEnabled', String(enabled));
+  keyboardNavigation.setClickToMoveEnabled(enabled);
 });
 
 // ========== CONFIRMATION MODAL ==========
