@@ -192,10 +192,17 @@ export class EnterAction {
       Events.setGroup(true);
     }
 
-    // If the workspace has never had focus default the stationary node.
-    const stationaryNode =
-      FocusableTreeTraverser.findFocusedNode(workspace) ??
-      workspace.getRestoredFocusableNode(null);
+    // Note: We use workspace cursor position (getCurNode) rather than DOM focus
+    // (findFocusedNode) because when inserting from flyout, DOM focus is on the
+    // flyout workspace, not the main workspace. The cursor position is preserved
+    // and represents where the user was positioned before opening the flyout.
+    const cursor = workspace.getCursor();
+    const curNode = cursor.getCurNode();
+    const disposed = cursor.getSourceBlock()?.disposed;
+
+    const stationaryNode = (curNode && !disposed)
+      ? curNode
+      : workspace.getRestoredFocusableNode(null);
     const newBlock = this.createNewBlock(workspace);
     if (!newBlock) return;
     const insertStartPoint = stationaryNode

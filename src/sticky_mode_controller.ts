@@ -1205,11 +1205,17 @@ export class StickyModeController {
     }
 
     try {
-      // Get the stationary node using the same approach as keyboard Enter
-      // FocusableTreeTraverser.findFocusedNode returns properly typed IFocusableNode
-      const stationaryNode =
-        Blockly.FocusableTreeTraverser.findFocusedNode(this.workspace) ??
-        this.workspace.getRestoredFocusableNode(null);
+      // Note: We use workspace cursor position (getCurNode) rather than DOM focus
+      // (findFocusedNode) because when inserting from flyout, DOM focus is on the
+      // flyout workspace, not the main workspace. The cursor position is preserved
+      // and represents where the user was positioned before opening the flyout.
+      const cursor = this.workspace.getCursor();
+      const curNode = cursor.getCurNode();
+      const disposed = cursor.getSourceBlock()?.disposed;
+
+      const stationaryNode = (curNode && !disposed)
+        ? curNode
+        : this.workspace.getRestoredFocusableNode(null);
 
       // Create the block on the main workspace (same as enter.ts createNewBlock)
       const newBlock = flyout.createBlock(flyoutBlock);
