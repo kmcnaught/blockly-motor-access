@@ -1504,32 +1504,9 @@ body.resizing .blocklyToolboxDiv {
    Result Modal (replaces alert boxes)
    ============================================ */
 
-/* Overlay backdrop */
-.result-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000; /* Above confetti (99) but allows it to show through */
-  animation: fadeIn 0.2s ease-out;
-}
-
-.result-modal-overlay[hidden] {
-  display: none;
-}
-
-/* Confirmation modal needs to appear above other modals */
-#confirmationModal {
-  z-index: 1100;
-}
-
-/* Modal card */
-.result-modal {
+/* Native dialog element */
+dialog.result-modal {
+  border: none;
   background: white;
   border-radius: 12px;
   padding: 24px 32px;
@@ -1538,6 +1515,17 @@ body.resizing .blocklyToolboxDiv {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   text-align: center;
   animation: modalSlideIn 0.2s ease-out;
+}
+
+/* Dialog backdrop (replaces .result-modal-overlay background) */
+dialog.result-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Confirmation modal needs to appear above other modals */
+#confirmationModal {
+  z-index: 1100;
 }
 
 @keyframes modalSlideIn {

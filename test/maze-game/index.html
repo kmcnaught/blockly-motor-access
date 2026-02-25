@@ -151,124 +151,110 @@
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>
 
     <!-- Result Modal (replaces alert boxes) -->
-    <div id="resultModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" tabindex="-1" hidden>
-      <div class="result-modal">
-        <h2 id="resultModalTitle" class="result-modal-title"></h2>
-        <p id="resultModalMessage" class="result-modal-message"></p>
-        <p id="resultModalMessage2" class="result-modal-message"></p>
-        <div class="result-modal-buttons">
-          <button id="resultModalCancel" class="result-modal-cancel" hidden>
-            <span class="cancel-text">Cancel</span>
-            <span class="cancel-hint">[Esc]</span>
-          </button>
-          <button id="resultModalOk" class="result-modal-ok">
-            <span class="ok-text">OK</span>
-            <span class="ok-hint">[Enter]</span>
-            <span class="ok-progress"></span>
-          </button>
-        </div>
+    <dialog id="resultModal" class="result-modal" aria-labelledby="resultModalTitle">
+      <h2 id="resultModalTitle" class="result-modal-title"></h2>
+      <p id="resultModalMessage" class="result-modal-message"></p>
+      <p id="resultModalMessage2" class="result-modal-message"></p>
+      <div class="result-modal-buttons">
+        <button id="resultModalCancel" class="result-modal-cancel" hidden>
+          <span class="cancel-text">Cancel</span>
+          <span class="cancel-hint">[Esc]</span>
+        </button>
+        <button id="resultModalOk" class="result-modal-ok">
+          <span class="ok-text">OK</span>
+          <span class="ok-hint">[Enter]</span>
+          <span class="ok-progress"></span>
+        </button>
       </div>
-    </div>
+    </dialog>
 
     <!-- Practice Mode Graduation Modal -->
-    <div id="graduationModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="graduationModalTitle" hidden>
-      <div class="result-modal success">
-        <h2 id="graduationModalTitle" class="result-modal-title"></h2>
-        <p id="graduationModalMessage" class="result-modal-message"></p>
-        <div class="result-modal-buttons graduation-buttons">
-          <button id="graduationTryCoding" class="result-modal-ok graduation-primary"></button>
-          <button id="graduationStay" class="result-modal-ok graduation-secondary"></button>
-        </div>
+    <dialog id="graduationModal" class="result-modal success" aria-labelledby="graduationModalTitle">
+      <h2 id="graduationModalTitle" class="result-modal-title"></h2>
+      <p id="graduationModalMessage" class="result-modal-message"></p>
+      <div class="result-modal-buttons graduation-buttons">
+        <button id="graduationTryCoding" class="result-modal-ok graduation-primary"></button>
+        <button id="graduationStay" class="result-modal-ok graduation-secondary"></button>
       </div>
-    </div>
+    </dialog>
 
     <!-- Confirmation Modal (for delete confirmation, etc.) -->
-    <div id="confirmationModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmationModalTitle" hidden>
-      <div class="result-modal">
-        <h2 id="confirmationModalTitle" class="result-modal-title"></h2>
-        <p id="confirmationModalMessage" class="result-modal-message"></p>
-        <div class="result-modal-buttons">
-          <button id="confirmationModalCancel" class="result-modal-cancel">Cancel</button>
-          <button id="confirmationModalConfirm" class="result-modal-ok">Confirm</button>
-        </div>
+    <dialog id="confirmationModal" class="result-modal" aria-labelledby="confirmationModalTitle">
+      <h2 id="confirmationModalTitle" class="result-modal-title"></h2>
+      <p id="confirmationModalMessage" class="result-modal-message"></p>
+      <div class="result-modal-buttons">
+        <button id="confirmationModalCancel" class="result-modal-cancel">Cancel</button>
+        <button id="confirmationModalConfirm" class="result-modal-ok">Confirm</button>
       </div>
-    </div>
+    </dialog>
 
     <!-- Stage Intro Modal -->
-    <div id="stageIntroModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stageIntroName" hidden>
-      <div class="result-modal stage-intro">
-        <h2 id="stageIntroName" class="result-modal-title stage-intro-name"></h2>
-        <p id="stageIntroConcept" class="result-modal-message"></p>
-        <div class="result-modal-buttons">
-          <button id="stageIntroOk" class="result-modal-ok">
-            <span class="ok-text">Let's Go!</span>
-            <span class="ok-hint">[Enter]</span>
-          </button>
-        </div>
+    <dialog id="stageIntroModal" class="result-modal stage-intro" aria-labelledby="stageIntroName">
+      <h2 id="stageIntroName" class="result-modal-title stage-intro-name"></h2>
+      <p id="stageIntroConcept" class="result-modal-message"></p>
+      <div class="result-modal-buttons">
+        <button id="stageIntroOk" class="result-modal-ok">
+          <span class="ok-text">Let's Go!</span>
+          <span class="ok-hint">[Enter]</span>
+        </button>
       </div>
-    </div>
+    </dialog>
 
     <!-- Grid Coding Intro Modal -->
-    <div id="gridCodingIntroModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gridCodingIntroTitle" tabindex="-1" hidden>
-      <div class="result-modal stage-intro">
-        <h2 id="gridCodingIntroTitle" class="result-modal-title stage-intro-name"></h2>
-        <p id="gridCodingIntroLine1" class="result-modal-message"></p>
-        <p id="gridCodingIntroLine2" class="result-modal-message"></p>
-        <p id="gridCodingIntroLine3" class="result-modal-message"></p>
-      </div>
-    </div>
+    <dialog id="gridCodingIntroModal" class="result-modal stage-intro" aria-labelledby="gridCodingIntroTitle">
+      <h2 id="gridCodingIntroTitle" class="result-modal-title stage-intro-name"></h2>
+      <p id="gridCodingIntroLine1" class="result-modal-message"></p>
+      <p id="gridCodingIntroLine2" class="result-modal-message"></p>
+      <p id="gridCodingIntroLine3" class="result-modal-message"></p>
+    </dialog>
 
     <!-- Grid Practice Intro Modal -->
-    <div id="gridPracticeIntroModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gridPracticeIntroTitle" tabindex="-1" hidden>
-      <div class="result-modal stage-intro">
-        <h2 id="gridPracticeIntroTitle" class="result-modal-title stage-intro-name"></h2>
-        <p id="gridPracticeIntroLine1" class="result-modal-message"></p>
-        <p id="gridPracticeIntroLine2" class="result-modal-message"></p>
-        <p id="gridPracticeIntroLine3" class="result-modal-message"></p>
-      </div>
-    </div>
+    <dialog id="gridPracticeIntroModal" class="result-modal stage-intro" aria-labelledby="gridPracticeIntroTitle">
+      <h2 id="gridPracticeIntroTitle" class="result-modal-title stage-intro-name"></h2>
+      <p id="gridPracticeIntroLine1" class="result-modal-message"></p>
+      <p id="gridPracticeIntroLine2" class="result-modal-message"></p>
+      <p id="gridPracticeIntroLine3" class="result-modal-message"></p>
+    </dialog>
 
     <!-- Shortcuts Info Modal -->
-    <div id="shortcutsModal" class="result-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle" hidden>
-      <div class="result-modal shortcuts-modal">
-        <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
-        <div class="settings-section">
-          <h3 class="settings-heading">Block Movement</h3>
-          <div class="settings-group">
-            <label class="setting-item">
-              <input type="checkbox" id="mouseDragCheckbox">
-              <span>Enable mouse drag</span>
-            </label>
-            <label class="setting-item">
-              <input type="checkbox" id="clickToMoveCheckbox" checked>
-              <span>Enable click-to-move</span>
-            </label>
-            <label class="setting-item">
-              <input type="checkbox" id="singleBlockDragCheckbox">
-              <span>Single-block drag by default</span>
-            </label>
-          </div>
+    <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle">
+      <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
+      <div class="settings-section">
+        <h3 class="settings-heading">Block Movement</h3>
+        <div class="settings-group">
+          <label class="setting-item">
+            <input type="checkbox" id="mouseDragCheckbox">
+            <span>Enable mouse drag</span>
+          </label>
+          <label class="setting-item">
+            <input type="checkbox" id="clickToMoveCheckbox" checked>
+            <span>Enable click-to-move</span>
+          </label>
+          <label class="setting-item">
+            <input type="checkbox" id="singleBlockDragCheckbox">
+            <span>Single-block drag by default</span>
+          </label>
         </div>
-        <div class="shortcuts-list">
-          <div class="shortcut-item"><kbd>R</kbd> Run program</div>
-          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
-          <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
-          <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
-          <div class="shortcut-item"><kbd>F</kbd> Fullscreen maze</div>
-          <div class="shortcut-item"><kbd>G</kbd> Toggle panel</div>
-          <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
-          <div class="shortcut-item"><kbd>L</kbd> Change language</div>
-          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
-        </div>
-        <div class="result-modal-buttons">
-          <button id="shortcutsModalClose" class="result-modal-ok">
-            <span class="ok-text">Close</span>
-            <span class="ok-hint">[Esc]</span>
-          </button>
-        </div>
-        <button id="deleteUserDataBtn" class="delete-data-btn">Delete all saved data</button>
       </div>
-    </div>
+      <div class="shortcuts-list">
+        <div class="shortcut-item"><kbd>R</kbd> Run program</div>
+        <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
+        <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
+        <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
+        <div class="shortcut-item"><kbd>F</kbd> Fullscreen maze</div>
+        <div class="shortcut-item"><kbd>G</kbd> Toggle panel</div>
+        <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
+        <div class="shortcut-item"><kbd>L</kbd> Change language</div>
+        <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
+      </div>
+      <div class="result-modal-buttons">
+        <button id="shortcutsModalClose" class="result-modal-ok">
+          <span class="ok-text">Close</span>
+          <span class="ok-hint">[Esc]</span>
+        </button>
+      </div>
+      <button id="deleteUserDataBtn" class="delete-data-btn">Delete all saved data</button>
+    </dialog>
 
     <!-- Christmas Snow Effect Container -->
     <div id="snowContainer"></div>

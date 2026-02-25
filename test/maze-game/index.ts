@@ -21,6 +21,7 @@ import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
 import {PanelResizer} from './panel-resizer';
 import {PaddingControlsManager} from './padding-controls';
+import {Dialog, AutoCloseDialog} from './dialogs';
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -1467,8 +1468,8 @@ function runProgram() {
 
   // In grid coding mode, dismiss success modal if visible and replay
   if (isGridCodingMode) {
-    const resultModal = document.getElementById('resultModal');
-    if (resultModal && !resultModal.hidden) {
+    const resultModal = document.getElementById('resultModal') as HTMLDialogElement | null;
+    if (resultModal && resultModal.open) {
       hideGridCodingSuccess(false);
       isGridCodingReplay = true;
     }
@@ -1796,15 +1797,10 @@ mazeGame.onComplete((success: boolean) => {
 // ========== RESULT MODAL ==========
 
 const resultModal = document.getElementById('resultModal')!;
-const resultModalCard = resultModal.querySelector('.result-modal')!;
 const resultModalTitle = document.getElementById('resultModalTitle')!;
 const resultModalMessage = document.getElementById('resultModalMessage')!;
 const resultModalCancel = document.getElementById('resultModalCancel')!;
 const resultModalOk = document.getElementById('resultModalOk')!;
-const resultModalProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
-
-// Auto-close timer reference
-let autoCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Track if this is a "next level" prompt (OK advances, Cancel stays)
 let isNextLevelPrompt = false;
@@ -1813,20 +1809,25 @@ let isNextLevelPrompt = false;
 const AUTO_CLOSE_SUCCESS = 7000; // 7 seconds for success - time to decide on next level
 const AUTO_CLOSE_FAILURE = 5000; // 5 seconds for failure/timeout (need to read)
 
+// Initialize result dialog using AutoCloseDialog
+const resultDialog = new AutoCloseDialog('resultModal', {
+  progressBarSelector: '.ok-progress',
+  focusSelector: '#resultModalOk',
+  onAutoClose: () => {
+    if (isNextLevelPrompt) {
+      goToNextLevel();
+    }
+  }
+});
+
 /**
  * Show the result modal with appropriate styling and message.
  * Modal will auto-close after a countdown.
  * For success on non-final levels, shows a "next level" prompt with Cancel/OK.
  */
 function showResultModal(type: ResultType): void {
-  // Clear any existing timer
-  if (autoCloseTimer) {
-    clearTimeout(autoCloseTimer);
-    autoCloseTimer = null;
-  }
-
   // Set styling class (success = green accent, failure/timeout = gray)
-  resultModalCard.className = 'result-modal ' + (type === 'success' ? 'success' : 'failure');
+  resultModal.className = 'result-modal ' + (type === 'success' ? 'success' : 'failure');
 
   // Check if this is a success on a non-final level (show next level prompt)
   const currentLevel = mazeGame.getLevel();
@@ -1864,60 +1865,24 @@ function showResultModal(type: ResultType): void {
   // Show/hide Cancel button based on whether this is a next level prompt
   resultModalCancel.hidden = !isNextLevelPrompt;
 
-  // Set up auto-close countdown
+  // Determine auto-close duration
   const duration = type === 'success' ? AUTO_CLOSE_SUCCESS : AUTO_CLOSE_FAILURE;
 
-  // Reset and start progress bar animation
-  resultModalOk.classList.remove('countdown');
-  // Force reflow to restart animation
-  void resultModalOk.offsetWidth;
-  resultModalProgress.style.animationDuration = `${duration}ms`;
-  resultModalOk.classList.add('countdown');
-
-  // Set auto-close timer - advances to next level if this is a next level prompt
-  autoCloseTimer = setTimeout(() => {
-    if (isNextLevelPrompt) {
-      goToNextLevel();
-    }
-    hideResultModal();
-  }, duration);
-
-  // Show modal and focus OK button
-  resultModal.hidden = false;
-  resultModalOk.focus();
-}
-
-/**
- * Hide the result modal and return focus to the run button.
- */
-function hideResultModal(): void {
-  // Clear auto-close timer
-  if (autoCloseTimer) {
-    clearTimeout(autoCloseTimer);
-    autoCloseTimer = null;
-  }
-
-  // Stop countdown animation
-  resultModalOk.classList.remove('countdown');
-
-  resultModal.hidden = true;
-  const runButton = document.getElementById('runButton');
-  if (runButton) {
-    runButton.focus();
-  }
+  // Show dialog with auto-close
+  resultDialog.show(duration);
 }
 
 // Result modal event handlers
 
 // Cancel button - just close the modal (stay on current level)
-resultModalCancel.addEventListener('click', hideResultModal);
+resultModalCancel.addEventListener('click', () => resultDialog.hide());
 
 // OK button - advance to next level if this is a next level prompt, then close
 resultModalOk.addEventListener('click', () => {
   if (isNextLevelPrompt) {
     goToNextLevel();
   }
-  hideResultModal();
+  resultDialog.hide();
 });
 
 // Keyboard shortcuts
@@ -1925,14 +1890,14 @@ resultModal.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
     // Cancel - just close the modal
     e.preventDefault();
-    hideResultModal();
+    resultDialog.hide();
   } else if (e.key === 'Enter') {
     // OK - advance if next level prompt, then close
     e.preventDefault();
     if (isNextLevelPrompt) {
       goToNextLevel();
     }
-    hideResultModal();
+    resultDialog.hide();
   }
 });
 
@@ -1958,6 +1923,13 @@ const graduationModalMessage = document.getElementById('graduationModalMessage')
 const graduationTryCoding = document.getElementById('graduationTryCoding')!;
 const graduationStay = document.getElementById('graduationStay')!;
 
+// Initialize graduation dialog
+const graduationDialog = new Dialog('graduationModal', {
+  focusSelector: '#graduationTryCoding',
+  closeOnEscape: true,
+  closeOnBackdropClick: true
+});
+
 /**
  * Show the graduation modal after completing all practice levels.
  */
@@ -1968,21 +1940,13 @@ function showGraduationModal(): void {
   graduationTryCoding.textContent = msg('MAZE_PRACTICE_TRY_CODING');
   graduationStay.textContent = msg('MAZE_PRACTICE_STAY');
 
-  // Show modal and focus primary button
-  graduationModal.hidden = false;
-  graduationTryCoding.focus();
-}
-
-/**
- * Hide the graduation modal.
- */
-function hideGraduationModal(): void {
-  graduationModal.hidden = true;
+  // Show dialog
+  graduationDialog.show();
 }
 
 // Graduation modal event handlers
 graduationTryCoding.addEventListener('click', () => {
-  hideGraduationModal();
+  graduationDialog.hide();
   // Switch to coding mode (this will reset to level 1 and use coding mazes)
   setExecutionMode('coding');
   // Show Stage 1 intro since user is starting coding mode
@@ -1990,7 +1954,7 @@ graduationTryCoding.addEventListener('click', () => {
 });
 
 graduationStay.addEventListener('click', () => {
-  hideGraduationModal();
+  graduationDialog.hide();
   // Reset to level 1 of practice mode to replay
   mazeGame.setLevel(1);
   updateLevelDisplay();
@@ -2000,7 +1964,7 @@ graduationModal.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
     e.preventDefault();
     // Just dismiss the modal without resetting level
-    hideGraduationModal();
+    graduationDialog.hide();
   } else if (e.key === 'Enter') {
     e.preventDefault();
     // Same as clicking "Try Coding Mode"
@@ -2015,12 +1979,19 @@ const stageIntroName = document.getElementById('stageIntroName');
 const stageIntroConcept = document.getElementById('stageIntroConcept');
 const stageIntroOk = document.getElementById('stageIntroOk');
 
+// Initialize stage intro dialog
+const stageIntroDialog = new Dialog('stageIntroModal', {
+  focusSelector: '#stageIntroOk',
+  closeOnEscape: true,
+  closeOnBackdropClick: true
+});
+
 /**
  * Show the stage intro modal for a given stage.
  * @param stageId The stage ID (1-6)
  */
 function showStageIntroModal(stageId: number): void {
-  if (!stageIntroModal || !stageIntroName || !stageIntroConcept || !stageIntroOk) return;
+  if (!stageIntroName || !stageIntroConcept) return;
 
   const stageConfig = STAGES.find(s => s.id === stageId);
   if (!stageConfig) return;
@@ -2029,34 +2000,13 @@ function showStageIntroModal(stageId: number): void {
   stageIntroName.textContent = msg('MAZE_STAGE') + ' ' + stageId + ': ' + msg(stageConfig.name);
   stageIntroConcept.textContent = msg(stageConfig.concept);
 
-  // Show modal and focus button
-  stageIntroModal.hidden = false;
-  stageIntroOk.focus();
+  // Show dialog
+  stageIntroDialog.show();
 }
 
-/**
- * Hide the stage intro modal.
- */
-function hideStageIntroModal(): void {
-  if (!stageIntroModal) return;
-  stageIntroModal.hidden = true;
-}
-
-// Stage intro modal event handlers (only if elements exist)
-if (stageIntroModal && stageIntroOk) {
-  stageIntroOk.addEventListener('click', hideStageIntroModal);
-
-  stageIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
-    e.preventDefault();
-    hideStageIntroModal();
-  });
-
-  stageIntroModal.addEventListener('click', (e: MouseEvent) => {
-    // Close when clicking outside the modal card
-    if (e.target === stageIntroModal) {
-      hideStageIntroModal();
-    }
-  });
+// Stage intro OK button handler
+if (stageIntroOk) {
+  stageIntroOk.addEventListener('click', () => stageIntroDialog.hide());
 }
 
 // ========== GRID CODING INTRO MODAL ==========
@@ -2066,6 +2016,12 @@ const gridCodingIntroTitle = document.getElementById('gridCodingIntroTitle')!;
 const gridCodingIntroLine1 = document.getElementById('gridCodingIntroLine1')!;
 const gridCodingIntroLine2 = document.getElementById('gridCodingIntroLine2')!;
 const gridCodingIntroLine3 = document.getElementById('gridCodingIntroLine3')!;
+
+// Initialize grid coding intro dialog (closes on any key or click)
+const gridCodingIntroDialog = new Dialog('gridCodingIntroModal', {
+  closeOnEscape: true,
+  closeOnBackdropClick: true
+});
 
 /**
  * Show the grid coding intro modal.
@@ -2077,28 +2033,17 @@ function showGridCodingIntroModal(): void {
   gridCodingIntroLine2.textContent = msg('MAZE_GRID_CODING_INTRO_LINE2');
   gridCodingIntroLine3.textContent = msg('MAZE_GRID_CODING_INTRO_LINE3');
 
-  gridCodingIntroModal.hidden = false;
-  // Delay focus to ensure element is rendered and can receive keyboard events
-  requestAnimationFrame(() => {
-    gridCodingIntroModal.focus();
-  });
+  gridCodingIntroDialog.show();
 }
 
-/**
- * Hide the grid coding intro modal.
- */
-function hideGridCodingIntroModal(): void {
-  gridCodingIntroModal.hidden = true;
-}
-
-// Grid coding intro modal event handlers - any key or click dismisses
+// Dismiss on any keydown or click inside the dialog
 gridCodingIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
   e.preventDefault();
-  hideGridCodingIntroModal();
+  gridCodingIntroDialog.hide();
 });
 
 gridCodingIntroModal.addEventListener('click', () => {
-  hideGridCodingIntroModal();
+  gridCodingIntroDialog.hide();
 });
 
 // ========== GRID PRACTICE INTRO MODAL ==========
@@ -2108,6 +2053,12 @@ const gridPracticeIntroTitle = document.getElementById('gridPracticeIntroTitle')
 const gridPracticeIntroLine1 = document.getElementById('gridPracticeIntroLine1')!;
 const gridPracticeIntroLine2 = document.getElementById('gridPracticeIntroLine2')!;
 const gridPracticeIntroLine3 = document.getElementById('gridPracticeIntroLine3')!;
+
+// Initialize grid practice intro dialog (closes on any key or click)
+const gridPracticeIntroDialog = new Dialog('gridPracticeIntroModal', {
+  closeOnEscape: true,
+  closeOnBackdropClick: true
+});
 
 /**
  * Show the grid practice intro modal.
@@ -2119,28 +2070,17 @@ function showGridPracticeIntroModal(): void {
   gridPracticeIntroLine2.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE2');
   gridPracticeIntroLine3.textContent = msg('MAZE_GRID_PRACTICE_INTRO_LINE3');
 
-  gridPracticeIntroModal.hidden = false;
-  // Delay focus to ensure element is rendered and can receive keyboard events
-  requestAnimationFrame(() => {
-    gridPracticeIntroModal.focus();
-  });
+  gridPracticeIntroDialog.show();
 }
 
-/**
- * Hide the grid practice intro modal.
- */
-function hideGridPracticeIntroModal(): void {
-  gridPracticeIntroModal.hidden = true;
-}
-
-// Grid practice intro modal event handlers - any key or click dismisses
+// Dismiss on any keydown or click inside the dialog
 gridPracticeIntroModal.addEventListener('keydown', (e: KeyboardEvent) => {
   e.preventDefault();
-  hideGridPracticeIntroModal();
+  gridPracticeIntroDialog.hide();
 });
 
 gridPracticeIntroModal.addEventListener('click', () => {
-  hideGridPracticeIntroModal();
+  gridPracticeIntroDialog.hide();
 });
 
 // ========== SHORTCUTS INFO MODAL ==========
@@ -2149,41 +2089,18 @@ const shortcutsModal = document.getElementById('shortcutsModal')!;
 const shortcutsModalClose = document.getElementById('shortcutsModalClose')!;
 const infoBtn = document.getElementById('infoBtn')!;
 
-/**
- * Show the shortcuts info modal.
- */
-function showShortcutsModal(): void {
-  shortcutsModal.hidden = false;
-  shortcutsModalClose.focus();
-}
-
-/**
- * Hide the shortcuts info modal.
- */
-function hideShortcutsModal(): void {
-  shortcutsModal.hidden = true;
-}
+// Initialize shortcuts dialog using Dialog class
+const shortcutsDialog = new Dialog('shortcutsModal', {
+  focusSelector: '#shortcutsModalClose',
+  closeOnEscape: true,
+  closeOnBackdropClick: true
+});
 
 // Info button click handler
-infoBtn.addEventListener('click', showShortcutsModal);
+infoBtn.addEventListener('click', () => shortcutsDialog.show());
 
 // Close button handler
-shortcutsModalClose.addEventListener('click', hideShortcutsModal);
-
-// Keyboard and click-outside handlers
-shortcutsModal.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'Escape' || e.key === 'Enter') {
-    e.preventDefault();
-    hideShortcutsModal();
-  }
-});
-
-shortcutsModal.addEventListener('click', (e: MouseEvent) => {
-  // Close when clicking outside the modal card
-  if (e.target === shortcutsModal) {
-    hideShortcutsModal();
-  }
-});
+shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 
 // ========== BLOCK MOVEMENT SETTINGS CHECKBOXES ==========
 
@@ -2222,6 +2139,13 @@ const confirmationModalMessage = document.getElementById('confirmationModalMessa
 const confirmationModalCancel = document.getElementById('confirmationModalCancel')!;
 const confirmationModalConfirm = document.getElementById('confirmationModalConfirm')!;
 
+// Initialize confirmation dialog
+const confirmationDialog = new Dialog('confirmationModal', {
+  focusSelector: '#confirmationModalConfirm',
+  closeOnEscape: true,
+  closeOnBackdropClick: false  // Don't close on backdrop click for confirmations
+});
+
 /**
  * Show a confirmation modal with a custom message.
  * @param title The title of the confirmation dialog
@@ -2230,51 +2154,42 @@ const confirmationModalConfirm = document.getElementById('confirmationModalConfi
  */
 function showConfirmationModal(title: string, message: string, onConfirm: () => void): void {
   // Hide any other open modals
-  hideShortcutsModal();
+  if (shortcutsDialog.isOpen()) {
+    shortcutsDialog.hide();
+  }
 
   confirmationModalTitle.textContent = title;
   confirmationModalMessage.textContent = message;
 
-  // Remove any existing event listeners by cloning buttons
-  const newConfirm = confirmationModalConfirm.cloneNode(true) as HTMLButtonElement;
-  const newCancel = confirmationModalCancel.cloneNode(true) as HTMLButtonElement;
-  confirmationModalConfirm.replaceWith(newConfirm);
-  confirmationModalCancel.replaceWith(newCancel);
-
-  // Update references to new buttons
-  const confirmBtn = document.getElementById('confirmationModalConfirm') as HTMLButtonElement;
-  const cancelBtn = document.getElementById('confirmationModalCancel') as HTMLButtonElement;
-
-  // Add event listeners
-  const hideAndConfirm = () => {
-    confirmationModal.hidden = true;
+  // Set up one-time event listeners using { once: true }
+  const confirmHandler = () => {
+    confirmationDialog.hide();
     onConfirm();
   };
 
-  const hideModal = () => {
-    confirmationModal.hidden = true;
+  const cancelHandler = () => {
+    confirmationDialog.hide();
   };
 
-  confirmBtn.addEventListener('click', hideAndConfirm);
-  cancelBtn.addEventListener('click', hideModal);
+  confirmationModalConfirm.addEventListener('click', confirmHandler, { once: true });
+  confirmationModalCancel.addEventListener('click', cancelHandler, { once: true });
 
   // Keyboard shortcuts
   const keyHandler = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      hideAndConfirm();
+      confirmHandler();
       confirmationModal.removeEventListener('keydown', keyHandler);
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      hideModal();
+      cancelHandler();
       confirmationModal.removeEventListener('keydown', keyHandler);
     }
   };
   confirmationModal.addEventListener('keydown', keyHandler);
 
-  // Show modal and focus confirm button
-  confirmationModal.hidden = false;
-  confirmBtn.focus();
+  // Show dialog
+  confirmationDialog.show();
 }
 
 // Delete user data button
@@ -2309,14 +2224,13 @@ let gridModeCountdownInterval: ReturnType<typeof setInterval> | null = null;
  */
 function showGridModeSuccess(instructionCount: number): void {
   // Get the result modal elements (reuse the existing result modal)
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
   const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text with instruction count
   resultModalTitle.textContent = msg('MAZE_GRID_SUCCESS_TITLE');
@@ -2324,14 +2238,14 @@ function showGridModeSuccess(instructionCount: number): void {
   okText.textContent = 'OK';
 
   // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
+  resultModal.classList.add('success');
+  resultModal.classList.remove('failure');
 
   // Hide cancel button
   resultModalCancel.hidden = true;
 
   // Show modal
-  resultModal.hidden = false;
+  resultModal.showModal();
   resultModalOk.focus();
 
   // Start 5 second countdown with progress bar
@@ -2361,11 +2275,11 @@ function hideGridModeSuccess(advance: boolean): void {
     gridModeCountdownInterval = null;
   }
 
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const okProgress = resultModalOk.querySelector('.ok-progress') as HTMLElement;
 
-  resultModal.hidden = true;
+  resultModal.close();
   resultModalOk.classList.remove('countdown');
   okProgress.style.animation = '';
 
@@ -2390,13 +2304,12 @@ function hideGridModeSuccess(advance: boolean): void {
  */
 function showGridModeGraduation(): void {
   // Get the result modal elements (reuse the existing result modal)
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_GRADUATION_TITLE');
@@ -2404,15 +2317,15 @@ function showGridModeGraduation(): void {
   okText.textContent = 'OK';
 
   // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
+  resultModal.classList.add('success');
+  resultModal.classList.remove('failure');
 
   // Hide cancel button and countdown progress
   resultModalCancel.hidden = true;
   resultModalOk.classList.remove('countdown');
 
   // Show modal and focus for keyboard events
-  resultModal.hidden = false;
+  resultModal.showModal();
   resultModal.focus();
 
   // Handle OK button click
@@ -2440,8 +2353,8 @@ function showGridModeGraduation(): void {
  * Hide the Grid mode graduation modal.
  */
 function hideGridModeGraduation(): void {
-  const resultModal = document.getElementById('resultModal')!;
-  resultModal.hidden = true;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
+  resultModal.close();
 }
 
 // ========== GRID CODING MODE STAGE GRADUATION ==========
@@ -2455,13 +2368,12 @@ let gridCodingModalKeyHandler: ((e: KeyboardEvent) => void) | null = null;
  * Dismissable with any key or OK button.
  */
 function showGridCodingA1Complete(): void {
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_A1_COMPLETE_TITLE');
@@ -2469,15 +2381,15 @@ function showGridCodingA1Complete(): void {
   okText.textContent = 'OK';
 
   // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
+  resultModal.classList.add('success');
+  resultModal.classList.remove('failure');
 
   // Hide cancel button and countdown progress
   resultModalCancel.hidden = true;
   resultModalOk.classList.remove('countdown');
 
   // Show modal
-  resultModal.hidden = false;
+  resultModal.showModal();
   resultModalOk.focus();
   gridCodingModalActive = true;
 
@@ -2523,13 +2435,12 @@ function showGridCodingA1Complete(): void {
  * Dismissable with any key or OK button.
  */
 function showGridCodingModeStageGraduation(): void {
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const okText = resultModalOk.querySelector('.ok-text') as HTMLElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_STAGE_COMPLETE_TITLE');
@@ -2537,15 +2448,15 @@ function showGridCodingModeStageGraduation(): void {
   okText.textContent = 'OK';
 
   // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
+  resultModal.classList.add('success');
+  resultModal.classList.remove('failure');
 
   // Hide cancel button and countdown progress
   resultModalCancel.hidden = true;
   resultModalOk.classList.remove('countdown');
 
   // Show modal
-  resultModal.hidden = false;
+  resultModal.showModal();
   resultModalOk.focus();
   gridCodingModalActive = true;
 
@@ -2580,8 +2491,8 @@ function hideGridCodingModal(): void {
     gridCodingModalKeyHandler = null;
   }
 
-  const resultModal = document.getElementById('resultModal')!;
-  resultModal.hidden = true;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
+  resultModal.close();
 }
 
 // ========== GRID CODING MODE SUCCESS ==========
@@ -2591,13 +2502,12 @@ function hideGridCodingModal(): void {
  * Dialog is dismissed by pressing the Run Code button (external keyboard shortcut).
  */
 function showGridCodingSuccess(blockCount: number): void {
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalTitle = document.getElementById('resultModalTitle')!;
   const resultModalMessage = document.getElementById('resultModalMessage')!;
   const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
-  const modalCard = resultModal.querySelector('.result-modal') as HTMLElement;
 
   // Set text with play icon for "Press Run Code" message
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_SUCCESS_TITLE');
@@ -2611,11 +2521,11 @@ function showGridCodingSuccess(blockCount: number): void {
   resultModalCancel.hidden = true;
 
   // Add success styling
-  modalCard.classList.add('success');
-  modalCard.classList.remove('failure');
+  resultModal.classList.add('success');
+  resultModal.classList.remove('failure');
 
   // Show modal
-  resultModal.hidden = false;
+  resultModal.showModal();
 }
 
 /**
@@ -2623,12 +2533,12 @@ function showGridCodingSuccess(blockCount: number): void {
  * @param advance If true, clears workspace and advances to next level.
  */
 function hideGridCodingSuccess(advance: boolean): void {
-  const resultModal = document.getElementById('resultModal')!;
+  const resultModal = document.getElementById('resultModal') as HTMLDialogElement;
   const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
   const resultModalCancel = document.getElementById('resultModalCancel') as HTMLButtonElement;
   const resultModalMessage2 = document.getElementById('resultModalMessage2')!;
 
-  resultModal.hidden = true;
+  resultModal.close();
   // Reset button visibility for other dialogs
   resultModalOk.hidden = false;
   resultModalCancel.hidden = true;
@@ -3163,7 +3073,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
       // If grid coding success modal is showing, dismiss it and advance
       const resultModal = document.getElementById('resultModal');
       const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-      if (isGridCodingMode && resultModal && !resultModal.hidden && resultModalOk && resultModalOk.hidden) {
+      if (isGridCodingMode && resultModal && (resultModal as HTMLDialogElement).open && resultModalOk && resultModalOk.hidden) {
         hideGridCodingSuccess(true);
       } else {
         goToNextLevel();
@@ -3239,9 +3149,9 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
-      hideGridCodingIntroModal();
-      hideGridPracticeIntroModal();
-      hideStageIntroModal();
+      gridCodingIntroDialog.hide();
+      gridPracticeIntroDialog.hide();
+      stageIntroDialog.hide();
       cycleCharacterPrevious();
       return;
     }
@@ -3252,9 +3162,9 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
-      hideGridCodingIntroModal();
-      hideGridPracticeIntroModal();
-      hideStageIntroModal();
+      gridCodingIntroDialog.hide();
+      gridPracticeIntroDialog.hide();
+      stageIntroDialog.hide();
       cycleCharacterNext();
       return;
     }
