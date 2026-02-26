@@ -567,6 +567,11 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
       return false;
     }
 
+    // Sticky click always operates on a single block, never a stack.
+    if (this.isClickAndStick) {
+      return false;
+    }
+
     // Check if Ctrl/Cmd key is pressed (toggle behavior)
     const isCtrlPressed = e?.ctrlKey || e?.metaKey || false;
 
