@@ -498,10 +498,6 @@ keyboardNavigation.setTriggerMode(TriggerMode.FOCUSED_CLICK);
 keyboardNavigation.setConnectionSize('large');
 
 // Load saved block movement preferences from localStorage
-// Mouse drag defaults to false (disabled) for assistive tech users
-const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
-const mouseDragEnabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : false;
-
 // Click-to-move defaults to true (enabled)
 const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
 const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
@@ -510,22 +506,11 @@ const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'tru
 const savedSingleBlockDrag = localStorage.getItem('mazeSingleBlockDragEnabled');
 const singleBlockDragEnabled = savedSingleBlockDrag !== null ? savedSingleBlockDrag === 'true' : false;
 
-/**
- * Enable or disable mouse dragging for all blocks in the workspace.
- * @param enabled Whether blocks should be draggable with the mouse.
- */
-function setBlocksDraggable(enabled: boolean): void {
-  const blocks = workspace.getAllBlocks(false);
-  blocks.forEach((block) => {
-    block.setMovable(enabled);
-  });
-}
-
 // Apply saved block movement preferences
-keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
+// Mouse drag is always enabled
+keyboardNavigation.setKeepBlockOnMouse(true);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
 keyboardNavigation.setSingleBlockDragMode(singleBlockDragEnabled);
-setBlocksDraggable(mouseDragEnabled);
 
 // Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
 // This makes the setting work for both mouse drags and keyboard drags
@@ -557,18 +542,6 @@ setBlocksDraggable(mouseDragEnabled);
     return isCtrlPressed;
   }
 };
-
-// Listen for new blocks being created and apply draggability setting
-workspace.addChangeListener((event) => {
-  if (event.type === Blockly.Events.BLOCK_CREATE && 'blockId' in event) {
-    const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
-    const enabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : false;
-    const block = workspace.getBlockById((event as any).blockId);
-    if (block) {
-      block.setMovable(enabled);
-    }
-  }
-});
 
 // Enable keyboard navigation mode from the start so focus indicators show on tab
 Blockly.keyboardNavigationController.setIsActive(true);
@@ -2104,20 +2077,11 @@ shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 
 // ========== BLOCK MOVEMENT SETTINGS CHECKBOXES ==========
 
-const mouseDragCheckbox = document.getElementById('mouseDragCheckbox') as HTMLInputElement;
 const clickToMoveCheckbox = document.getElementById('clickToMoveCheckbox') as HTMLInputElement;
 const singleBlockDragCheckbox = document.getElementById('singleBlockDragCheckbox') as HTMLInputElement;
 
-mouseDragCheckbox.checked = mouseDragEnabled;
 clickToMoveCheckbox.checked = clickToMoveEnabled;
 singleBlockDragCheckbox.checked = singleBlockDragEnabled;
-
-mouseDragCheckbox.addEventListener('change', () => {
-  const enabled = mouseDragCheckbox.checked;
-  localStorage.setItem('mazeMouseDragEnabled', String(enabled));
-  keyboardNavigation.setKeepBlockOnMouse(enabled);
-  setBlocksDraggable(enabled);
-});
 
 clickToMoveCheckbox.addEventListener('change', () => {
   const enabled = clickToMoveCheckbox.checked;
