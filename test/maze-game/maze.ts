@@ -1331,8 +1331,12 @@ export class MazeGame {
 
     // Use dynamic canvas size based on container
     const canvasSize = this.getCanvasSize();
-    this.canvas.width = canvasSize;
-    this.canvas.height = canvasSize;
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = canvasSize * dpr;
+    this.canvas.height = canvasSize * dpr;
+    this.canvas.style.width = canvasSize + 'px';
+    this.canvas.style.height = canvasSize + 'px';
+    this.ctx.scale(dpr, dpr);
 
     // Calculate offset to center the maze
     const offsetX = (canvasSize - mazeWidth * this.scale) / 2;
