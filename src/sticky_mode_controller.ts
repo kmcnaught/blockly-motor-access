@@ -504,7 +504,7 @@ export class StickyModeController {
       const clickedBlock = this.getBlockFromEvent(event);
       if (clickedBlock) {
         const target = event.target as Element;
-        if (target && this.isDoubleClickOnField(target)) {
+        if (target && this.isDoubleClickOnField(target) && !this.isBlockFromFlyout(clickedBlock)) {
           return;
         }
 
@@ -529,11 +529,6 @@ export class StickyModeController {
     if (this.triggerMode === TriggerMode.FOCUSED_CLICK) {
       const clickedBlock = this.getBlockFromEvent(event);
       if (clickedBlock && this.isBlockFromFlyout(clickedBlock)) {
-        const target = event.target as Element;
-        if (target && this.isDoubleClickOnField(target)) {
-          return;
-        }
-
         // Prevent Blockly's gesture from starting - this prevents focus going to flyout
         event.preventDefault();
         event.stopPropagation();
