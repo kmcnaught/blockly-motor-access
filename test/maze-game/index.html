@@ -7,9 +7,15 @@
     <link rel="stylesheet" href="maze.css">
   </head>
   <body>
+  <div id="page-scale-wrapper">
     <div id="leftPadding" class="screen-padding left-padding"></div>
     <div class="main-content-wrapper">
     <header>
+      <div class="zoom-controls" aria-label="Page zoom">
+        <button id="zoomOutBtn" class="icon-button" title="Zoom out" aria-label="Zoom out">−</button>
+        <span id="zoomLabel" class="zoom-label">100%</span>
+        <button id="zoomInBtn" class="icon-button" title="Zoom in" aria-label="Zoom in">+</button>
+      </div>
       <h1>Maze</h1>
       <div class="header-center">
         <span id="modeLabel" class="mode-label">Coding</span>
@@ -270,6 +276,9 @@
       <div class="fullscreen-hint">Press <kbd>Esc</kbd> or <kbd>F</kbd> to exit fullscreen</div>
     </div>
 
+  </div><!-- close page-scale-wrapper -->
+  <!-- Blockly appends .blocklyDropDownDiv / .blocklyTooltipDiv / .blocklyWidgetDiv
+       to document.body (here, outside the wrapper) at runtime -->
     <script src="bundle.js"></script>
   </body>
 </html>

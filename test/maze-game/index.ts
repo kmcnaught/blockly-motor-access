@@ -3351,6 +3351,7 @@ window.addEventListener('resize', checkCompactMode);
 const mainContainer = document.querySelector('.container') as HTMLElement;
 const sidebarToggle = document.getElementById('sidebarToggle');
 let sidebarCollapsed = false;
+
 /**
  * Collapse the sidebar (game panel).
  */
@@ -3435,6 +3436,47 @@ const paddingManager = new PaddingControlsManager({
   isGridCodingMode
 });
 paddingManager.init();
+
+// ========== PAGE ZOOM CONTROLS ==========
+
+const ZOOM_KEY = 'mazePageZoom';
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2.0;
+const ZOOM_STEP = 0.1;
+
+let pageZoom = parseFloat(localStorage.getItem(ZOOM_KEY) ?? '1');
+
+function applyPageZoom(zoom: number) {
+  pageZoom = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom)) * 10) / 10;
+
+  const wrapper = document.getElementById('page-scale-wrapper')!;
+  const size = 100 / pageZoom;
+  wrapper.style.width = `${size}vw`;
+  wrapper.style.height = `${size}vh`;
+  wrapper.style.transform = `scale(${pageZoom})`;
+
+  // Remove any body zoom/size styles left over from previous approach
+  (document.body.style as any)['zoom'] = '';
+  document.body.style.width = '';
+  document.body.style.height = '';
+
+  // Blockly measures its container in JS — tell it to resize after layout settles.
+  requestAnimationFrame(() => Blockly.svgResize(workspace));
+
+  localStorage.setItem(ZOOM_KEY, String(pageZoom));
+  const label = document.getElementById('zoomLabel');
+  if (label) label.textContent = `${Math.round(pageZoom * 100)}%`;
+  const zoomOutBtn = document.getElementById('zoomOutBtn') as HTMLButtonElement;
+  const zoomInBtn = document.getElementById('zoomInBtn') as HTMLButtonElement;
+  if (zoomOutBtn) zoomOutBtn.disabled = pageZoom <= ZOOM_MIN;
+  if (zoomInBtn) zoomInBtn.disabled = pageZoom >= ZOOM_MAX;
+}
+
+document.getElementById('zoomOutBtn')?.addEventListener('click', () => applyPageZoom(pageZoom - ZOOM_STEP));
+document.getElementById('zoomInBtn')?.addEventListener('click', () => applyPageZoom(pageZoom + ZOOM_STEP));
+
+// Apply saved zoom on load
+applyPageZoom(pageZoom);
 
 // ========== NARROW BLOCKLY DETECTION ==========
 
