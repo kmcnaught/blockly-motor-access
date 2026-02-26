@@ -3387,15 +3387,11 @@ window.addEventListener('resize', checkCompactMode);
 const mainContainer = document.querySelector('.container') as HTMLElement;
 const sidebarToggle = document.getElementById('sidebarToggle');
 let sidebarCollapsed = false;
-let userManuallyToggled = false; // Track if user manually toggled to prevent auto-collapse fighting
-let weTriggeredChange = false; // Track if we triggered the size change (vs external zoom/resize)
-
 /**
  * Collapse the sidebar (game panel).
  */
 function collapseSidebar() {
   if (!mainContainer) return;
-  weTriggeredChange = true;
   mainContainer.classList.add('sidebar-collapsed');
   sidebarCollapsed = true;
   // Reset to flex layout when sidebar collapsed
@@ -3404,7 +3400,6 @@ function collapseSidebar() {
   setTimeout(() => {
     Blockly.svgResize(workspace);
     checkBlocklyWidth();
-    weTriggeredChange = false;
   }, 400);
 }
 
@@ -3413,14 +3408,12 @@ function collapseSidebar() {
  */
 function expandSidebar() {
   if (!mainContainer) return;
-  weTriggeredChange = true;
   mainContainer.classList.remove('sidebar-collapsed');
   sidebarCollapsed = false;
   // Trigger Blockly resize and width check after transition
   setTimeout(() => {
     Blockly.svgResize(workspace);
     checkBlocklyWidth();
-    weTriggeredChange = false;
     // Restore panel widths after sidebar expands
     panelResizer?.restoreSavedWidths();
   }, 400);
@@ -3430,7 +3423,6 @@ function expandSidebar() {
  * Toggle the sidebar collapsed state.
  */
 function toggleSidebar() {
-  userManuallyToggled = true;
   if (sidebarCollapsed) {
     expandSidebar();
   } else {
@@ -3502,35 +3494,6 @@ function checkBlocklyWidth() {
   }
 }
 
-// ========== AUTO-COLLAPSE BASED ON RELATIVE SIZE ==========
-
-/**
- * Check if sidebar should auto-collapse based on available space.
- * Uses hysteresis (different thresholds for collapse/expand) to prevent oscillation.
- * Only responds to external changes (zoom/resize), not our own collapse/expand.
- */
-function checkSizeAndAutoCollapse() {
-  if (userManuallyToggled) return; // Respect user's manual choice
-  if (weTriggeredChange) return; // Ignore size changes we caused
-  if (isGridMode || isGridCodingMode) return; // Grid modes manage their own layout
-  if (!mainContainer || !gameContainer) return;
-
-  // Get the game container's min-width from CSS (the space it needs)
-  const gameMinWidth = parseFloat(getComputedStyle(gameContainer).minWidth) || 450;
-  const containerWidth = mainContainer.offsetWidth;
-
-  // Calculate how much space blockly would get
-  const blocklySpace = containerWidth - gameMinWidth;
-
-  // Collapse when blockly would get less space than the game panel
-  // Expand when blockly would get more space than the game panel
-  if (!sidebarCollapsed && blocklySpace <= gameMinWidth) {
-    collapseSidebar();
-  } else if (sidebarCollapsed && blocklySpace > gameMinWidth) {
-    expandSidebar();
-  }
-}
-
 /**
  * In grid coding mode, manage layout based on available space.
  * - Sets min-height based on width to maintain aspect ratio
@@ -3592,7 +3555,6 @@ function updateGridCodingMinHeight() {
  * More efficient than polling - only runs when sizes actually change.
  */
 function handleSizeChange() {
-  checkSizeAndAutoCollapse();
   checkBlocklyWidth();
   updateGridCodingMinHeight();
 }
@@ -3607,6 +3569,5 @@ if (mainContainer) {
 }
 
 // Check on load
-checkSizeAndAutoCollapse();
 checkBlocklyWidth();
 updateGridCodingMinHeight();
