@@ -40,6 +40,17 @@ export class Navigation {
   protected workspaces: Blockly.WorkspaceSvg[] = [];
 
   /**
+   * Stores the workspace cursor node from before the flyout was opened, so
+   * that insertFromFlyout can insert relative to the correct workspace block
+   * rather than the flyout block (which the workspace cursor moves to when
+   * focus shifts to the flyout).
+   */
+  private preFlyoutCurNode = new Map<
+    Blockly.WorkspaceSvg,
+    Blockly.IFocusableNode | null
+  >();
+
+  /**
    * Constructor for keyboard navigation.
    */
   constructor() {
@@ -282,6 +293,7 @@ export class Navigation {
     }
     const flyout = mainWorkspace.getFlyout();
     if (flyout) {
+      this.savePreFlyoutCursor(mainWorkspace);
       Blockly.getFocusManager().focusTree(flyout.getWorkspace());
     }
   }
@@ -380,6 +392,28 @@ export class Navigation {
     const cursor = flyout ? flyout.getWorkspace().getCursor() : null;
 
     return cursor;
+  }
+
+  /**
+   * Saves the current workspace cursor node before the flyout opens.
+   * Call this immediately before focusTree(flyout.getWorkspace()).
+   */
+  savePreFlyoutCursor(workspace: Blockly.WorkspaceSvg) {
+    const node = workspace.getCursor().getCurNode();
+    // Only save workspace-side nodes; ignore if already pointing at a flyout block.
+    if (!(node as any)?.workspace?.isFlyout) {
+      this.preFlyoutCurNode.set(workspace, node);
+    }
+  }
+
+  /**
+   * Returns the workspace cursor node that was saved before the flyout opened,
+   * or null if nothing was saved.
+   */
+  getPreFlyoutCurNode(
+    workspace: Blockly.WorkspaceSvg,
+  ): Blockly.IFocusableNode | null {
+    return this.preFlyoutCurNode.get(workspace) ?? null;
   }
 
   /**
@@ -871,6 +905,7 @@ export class Navigation {
     if (toolbox) {
       Blockly.getFocusManager().focusTree(toolbox);
     } else if (flyout) {
+      this.savePreFlyoutCursor(workspace);
       Blockly.getFocusManager().focusTree(flyout.getWorkspace());
       // Initialize the flyout cursor position so arrow keys work immediately
       this.defaultFlyoutCursorIfNeeded(workspace);

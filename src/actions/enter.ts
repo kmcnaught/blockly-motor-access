@@ -192,17 +192,17 @@ export class EnterAction {
       Events.setGroup(true);
     }
 
-    // Note: We use workspace cursor position (getCurNode) rather than DOM focus
-    // (findFocusedNode) because when inserting from flyout, DOM focus is on the
-    // flyout workspace, not the main workspace. The cursor position is preserved
-    // and represents where the user was positioned before opening the flyout.
-    const cursor = workspace.getCursor();
-    const curNode = cursor.getCurNode();
-    const disposed = cursor.getSourceBlock()?.disposed;
+    // Use the cursor node that was saved before the flyout opened. The live
+    // workspace cursor is unreliable here because Blockly moves it to the
+    // flyout block when focus shifts to the flyout.
+    const preFlyoutNode = this.navigation.getPreFlyoutCurNode(workspace);
 
-    const stationaryNode = (curNode && !disposed)
-      ? curNode
+    // Convert connections/fields to their owning block so we insert at end of
+    // chain rather than at the literal (possibly mid-chain) cursor connection.
+    const stationaryNode = preFlyoutNode
+      ? ((preFlyoutNode as any).getSourceBlock?.() ?? preFlyoutNode)
       : workspace.getRestoredFocusableNode(null);
+
     const newBlock = this.createNewBlock(workspace);
     if (!newBlock) return;
     const insertStartPoint = stationaryNode

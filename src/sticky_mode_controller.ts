@@ -1204,13 +1204,10 @@ export class StickyModeController {
       // (findFocusedNode) because when inserting from flyout, DOM focus is on the
       // flyout workspace, not the main workspace. The cursor position is preserved
       // and represents where the user was positioned before opening the flyout.
-      const cursor = this.workspace.getCursor();
-      const curNode = cursor.getCurNode();
-      const disposed = cursor.getSourceBlock()?.disposed;
+      const stationaryNode =
+        Blockly.FocusableTreeTraverser.findFocusedNode(this.workspace) ??
+        this.workspace.getRestoredFocusableNode(null);
 
-      const stationaryNode = (curNode && !disposed)
-        ? curNode
-        : this.workspace.getRestoredFocusableNode(null);
 
       // Create the block on the main workspace (same as enter.ts createNewBlock)
       const newBlock = flyout.createBlock(flyoutBlock);
@@ -1222,6 +1219,7 @@ export class StickyModeController {
       const insertPoint = stationaryNode
         ? navigation.findInsertStartPoint(stationaryNode, newBlock)
         : null;
+
 
       // If insert point found, connect the block
       if (insertPoint) {

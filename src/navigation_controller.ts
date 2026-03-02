@@ -239,6 +239,7 @@ export class NavigationController {
             } else if (flyout) {
               // Initialize the flyout cursor position before focusing
               this.navigation.defaultFlyoutCursorIfNeeded(workspace);
+              this.navigation.savePreFlyoutCursor(workspace);
               Blockly.getFocusManager().focusTree(flyout.getWorkspace());
             } else {
               Blockly.getFocusManager().focusTree(workspace);
