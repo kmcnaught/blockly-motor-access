@@ -2156,6 +2156,21 @@ function showConfirmationModal(title: string, message: string, onConfirm: () => 
   confirmationDialog.show();
 }
 
+/**
+ * Dismiss all open game dialogs. Called before level transitions.
+ */
+function dismissOpenDialogs(): void {
+  for (const d of [resultDialog, graduationDialog, stageIntroDialog,
+                   gridCodingIntroDialog, gridPracticeIntroDialog, shortcutsDialog]) {
+    if (d.isOpen()) d.hide();
+  }
+  // Reset resultModal button/message state in case grid coding success mode left them hidden
+  resultModalOk.hidden = false;
+  resultModalCancel.hidden = true;
+  const msg2 = document.getElementById('resultModalMessage2');
+  if (msg2) msg2.innerHTML = '';
+}
+
 // Delete user data button
 const deleteUserDataBtn = document.getElementById('deleteUserDataBtn')!;
 deleteUserDataBtn.addEventListener('click', () => {
@@ -2816,6 +2831,7 @@ function goToPreviousLevel() {
  */
 function goToNextLevel() {
   if (isTransitioning) return;
+  dismissOpenDialogs();
   const currentLevel = mazeGame.getLevel();
   const maxLevel = MazeGame.getMaxLevel();
 
@@ -3034,14 +3050,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
-      // If grid coding success modal is showing, dismiss it and advance
-      const resultModal = document.getElementById('resultModal');
-      const resultModalOk = document.getElementById('resultModalOk') as HTMLButtonElement;
-      if (isGridCodingMode && resultModal && (resultModal as HTMLDialogElement).open && resultModalOk && resultModalOk.hidden) {
-        hideGridCodingSuccess(true);
-      } else {
-        goToNextLevel();
-      }
+      goToNextLevel();
       return;
     }
   }
