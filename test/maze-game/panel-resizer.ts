@@ -140,7 +140,7 @@ export class PanelResizer {
    */
   private getMinBlocklyWidth(): number {
     if (this.isGridCodingMode) {
-      return 300; // No toolbox visible, but need room for blocks
+      return 150; // No toolbox visible; allow narrower workspace
     }
 
     const flyout = this.workspace.getFlyout();

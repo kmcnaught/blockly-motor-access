@@ -2628,9 +2628,15 @@ function initializeGridCodingMode(): void {
   // Resize Blockly workspace to fit new layout after a short delay
   // (allows CSS to be applied first)
   setTimeout(() => {
+    // Capture the settled flyout width (after updateToolbox([]) has been processed)
+    // and use it to drive the CSS transform that hides the dead space.
+    const settledFlyout = workspace.getFlyout();
+    const flyoutWidth = settledFlyout ? settledFlyout.getWidth() : 0;
+    document.getElementById('blocklyDiv')
+      ?.style.setProperty('--flyout-width', `${flyoutWidth}px`);
+    // Resize AFTER setting the CSS variable so Blockly measures the
+    // correctly-sized div (widened by flyoutWidth to fill the dead-space gap).
     Blockly.svgResize(workspace);
-    // Scroll workspace to origin where blocks will be placed
-    // Use negative offset to compensate for hidden flyout space
     workspace.scroll(getGridCodingModeScrollX(), 0);
   }, 100);
 }

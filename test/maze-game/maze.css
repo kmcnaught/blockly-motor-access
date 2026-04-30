@@ -1939,17 +1939,22 @@ body.grid-coding-mode .container {
 body.grid-coding-mode .blockly-container {
   order: 0;
   flex: 1;
-  min-width: 300px;
+  min-width: 150px;
   height: 100%;
   border: 3px solid #9c27b0;
   border-radius: 8px;
-  overflow: visible;
+  overflow: hidden;
   box-shadow: 2px 0 8px rgba(156, 39, 176, 0.2);
 }
 
 body.grid-coding-mode #blocklyDiv {
   height: 100%;
-  width: 100%;
+  /* Extend width by the flyout dead-space so the right edge reaches the container edge
+     after the leftward transform. --flyout-width is set by JS once the settled
+     flyout width is known; the 50px fallback matches the empirically measured value.
+     The 8px offset leaves a small gap on the left so blocks aren't flush with the border. */
+  width: calc(100% + var(--flyout-width, 50px));
+  transform: translateX(calc(-1 * var(--flyout-width, 50px) + 8px));
 }
 
 /* Game container in grid coding mode - right side, constrained to square */
@@ -1967,7 +1972,7 @@ body.grid-coding-mode .game-container {
   gap: 8px;
   overflow: hidden;
   border-left: 4px solid #9c27b0;
-  padding-left: 16px;
+  padding-left: 8px;
 }
 
 /* Level label for Grid coding mode */
