@@ -52,7 +52,8 @@ h1 {
 .container {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  /* overflow: clip (not hidden) so focus outlines aren't clipped at the edges */
+  overflow: clip;
 }
 
 .blockly-container {
@@ -1181,8 +1182,7 @@ body.fullscreen-active > *:not(#fullscreenOverlay):not(#snowContainer) {
   flex: 1;
 }
 
-/* Hide Blockly controls when workspace is narrow */
-.blockly-container.narrow .blocklyTrash,
+/* Hide zoom controls when workspace is narrow (but keep trash visible) */
 .blockly-container.narrow .blocklyZoom {
   display: none !important;
 }
