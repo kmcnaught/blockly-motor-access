@@ -346,9 +346,9 @@ const workspace = Blockly.inject('blocklyDiv', {
     scaleSpeed: 1.2,
   },
   move: {
-    scrollbars: true,
-    drag: true,
-    wheel: true,
+    scrollbars: { vertical: true, horizontal: false },
+    drag: false,   // disable canvas panning by mouse drag
+    wheel: true,   // keep vertical scroll wheel
   },
 });
 
@@ -452,6 +452,21 @@ workspace.addChangeListener((event) => {
   // If first block was just added, reset scroll so it appears at predictable location
   if (event.type === Blockly.Events.BLOCK_CREATE && topBlocks.length === 1) {
     workspace.scroll(getGridCodingModeScrollX(), 0);
+  }
+});
+
+// Enforce: blocks must always remain in one connected stack.
+// If a drag ends with >1 top-level block, the drop was invalid — undo it.
+workspace.addChangeListener((event) => {
+  if (event.type === Blockly.Events.BLOCK_DRAG) {
+    const dragEvent = event as Blockly.Events.BlockDrag;
+    if (!dragEvent.isStart) {
+      const topBlocks = workspace.getTopBlocks(false);
+      if (topBlocks.length > 1) {
+        // Block was dropped floating — undo the whole drag (including any heal)
+        workspace.undo(false);
+      }
+    }
   }
 });
 
