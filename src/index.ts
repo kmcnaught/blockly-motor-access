@@ -9,6 +9,7 @@ import {NavigationController} from './navigation_controller';
 import {enableBlocksOnDrag, reenableBlocksOnDelete} from './disabled_blocks';
 import {registerHtmlToast} from './html_toast';
 import {StickyModeController, TriggerMode} from './sticky_mode_controller';
+import {MouseDragStrategy} from './mouse_drag_strategy';
 
 // Re-export TriggerMode for external use
 export {TriggerMode};
@@ -112,6 +113,26 @@ export class KeyboardNavigation {
 
     // Add the event listener to re-enable capacity-disabled blocks on delete.
     workspace.addChangeListener(reenableBlocksOnDelete);
+
+    // Apply single-block mouse drag to existing blocks.
+    for (const block of workspace.getAllBlocks(false)) {
+      (block as Blockly.BlockSvg).setDragStrategy(
+        new MouseDragStrategy(block as Blockly.BlockSvg),
+      );
+    }
+
+    // Apply to newly created blocks (e.g. from flyout or XML load).
+    workspace.addChangeListener((event) => {
+      if (event.type !== Blockly.Events.BLOCK_CREATE) return;
+      const blockEvent = event as Blockly.Events.BlockCreate;
+      const ids = blockEvent.ids ?? (blockEvent.blockId ? [blockEvent.blockId] : []);
+      for (const id of ids) {
+        const block = workspace.getBlockById(id);
+        if (block instanceof Blockly.BlockSvg) {
+          block.setDragStrategy(new MouseDragStrategy(block));
+        }
+      }
+    });
 
     this.stickyModeController.install();
 
