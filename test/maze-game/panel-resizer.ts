@@ -85,10 +85,11 @@ export class PanelResizer {
     this.boundHandleWindowResize = this.handleWindowResize.bind(this);
     this.boundHandleKeyboard = this.handleKeyboard.bind(this);
 
-    // Set up ResizeObserver to detect when game container actually resizes
+    // Set up ResizeObserver to detect when game container actually resizes.
+    // No rAF debounce here — ResizeObserver already fires asynchronously at the
+    // end of the frame, so an extra rAF would push the maze redraw 2 frames late.
     if (this.onResizeCallback) {
       this.resizeObserver = new ResizeObserver(() => {
-        // Only trigger callback if not currently resizing (wait for drag to complete)
         if (!this.isResizing) {
           this.onResizeCallback?.();
         }
@@ -144,19 +145,21 @@ export class PanelResizer {
     }
 
     const flyout = this.workspace.getFlyout();
-    if (!flyout) return 400;
+    if (!flyout) return 280;
 
     const flyoutWidth = flyout.getWidth();
     // Need toolbox + space for blocks = 2.2x toolbox width
-    return Math.max(400, Math.ceil(flyoutWidth * 2.2));
+    return Math.max(280, Math.ceil(flyoutWidth * 2.2));
   }
 
   /**
-   * Get minimum game container width from CSS.
+   * Get minimum game container width based on flyout width.
    */
   private getMinGameWidth(): number {
-    const computed = getComputedStyle(this.gameContainer);
-    return parseFloat(computed.minWidth) || 450;
+    const flyout = this.workspace.getFlyout();
+    const flyoutWidth = flyout ? flyout.getWidth() : 120;
+    // Maze can be narrower than blockly — 1.5× flyout is enough
+    return Math.max(150, Math.ceil(flyoutWidth * 1.5));
   }
 
   /**
@@ -298,14 +301,21 @@ export class PanelResizer {
     if (!hasCustomWidths) return;
 
     const containerWidth = this.container.offsetWidth;
+    if (containerWidth <= 0) return;
+
     const availableWidth = containerWidth - RESIZER_WIDTH - SIDEBAR_TOGGLE_WIDTH;
+
+    const minBlocklyWidth = this.getMinBlocklyWidth();
+    const minGameWidth = this.getMinGameWidth();
+
+    // If the viewport is too narrow to honour both minimums, do nothing —
+    // computeFitZoom / enforceFitZoom will reduce the page zoom so there is
+    // enough virtual space.
+    if (availableWidth < minBlocklyWidth + minGameWidth) return;
 
     const currentBlocklyWidth = this.blocklyContainer.offsetWidth;
     const currentGameWidth = this.gameContainer.offsetWidth;
     const currentTotal = currentBlocklyWidth + currentGameWidth;
-
-    const minBlocklyWidth = this.getMinBlocklyWidth();
-    const minGameWidth = this.getMinGameWidth();
 
     // If panels exceed available space, scale proportionally
     if (currentTotal > availableWidth) {
@@ -313,7 +323,7 @@ export class PanelResizer {
       let newBlocklyWidth = Math.floor(currentBlocklyWidth * ratio);
       let newGameWidth = Math.floor(currentGameWidth * ratio);
 
-      // Respect minimums
+      // Respect minimums (availableWidth >= both mins so these can't go negative)
       if (newBlocklyWidth < minBlocklyWidth) {
         newBlocklyWidth = minBlocklyWidth;
         newGameWidth = availableWidth - minBlocklyWidth;
@@ -372,37 +382,71 @@ export class PanelResizer {
   }
 
   /**
-   * Restore saved widths from localStorage.
+   * Apply a default 50/50 width split, clamped to min constraints.
+   * Called when no saved widths exist so the game panel isn't collapsed.
+   */
+  private applyDefaultWidths(): void {
+    const containerWidth = this.container.offsetWidth;
+    if (containerWidth === 0) return;
+
+    const availableWidth = containerWidth - RESIZER_WIDTH - SIDEBAR_TOGGLE_WIDTH;
+    const minBlocklyWidth = this.getMinBlocklyWidth();
+    const minGameWidth = this.getMinGameWidth();
+
+    // Start with 50/50 split then enforce minimums
+    let gameWidth = Math.round(availableWidth * 0.5);
+    let blocklyWidth = availableWidth - gameWidth;
+
+    if (blocklyWidth < minBlocklyWidth) {
+      blocklyWidth = minBlocklyWidth;
+      gameWidth = availableWidth - blocklyWidth;
+    }
+    if (gameWidth < minGameWidth) {
+      gameWidth = minGameWidth;
+      blocklyWidth = availableWidth - gameWidth;
+    }
+
+    this.applyWidths(blocklyWidth, gameWidth, true);
+  }
+
+  /**
+   * Restore saved widths from localStorage, or apply defaults if none are saved.
    */
   public restoreSavedWidths(onComplete?: () => void): void {
     try {
       const savedBlocklyWidth = localStorage.getItem(BLOCKLY_WIDTH_KEY);
       const savedGameWidth = localStorage.getItem(GAME_WIDTH_KEY);
 
-      if (!savedBlocklyWidth || !savedGameWidth) return;
+      let applied = false;
 
-      const blocklyWidth = parseInt(savedBlocklyWidth, 10);
-      const gameWidth = parseInt(savedGameWidth, 10);
+      if (savedBlocklyWidth && savedGameWidth) {
+        const blocklyWidth = parseInt(savedBlocklyWidth, 10);
+        const gameWidth = parseInt(savedGameWidth, 10);
 
-      if (isNaN(blocklyWidth) || isNaN(gameWidth)) return;
+        if (!isNaN(blocklyWidth) && !isNaN(gameWidth)) {
+          // Validate against current constraints
+          const containerWidth = this.container.offsetWidth;
+          const availableWidth = containerWidth - RESIZER_WIDTH - SIDEBAR_TOGGLE_WIDTH;
 
-      // Validate against current constraints
-      const containerWidth = this.container.offsetWidth;
-      const availableWidth = containerWidth - RESIZER_WIDTH - SIDEBAR_TOGGLE_WIDTH;
+          const minBlocklyWidth = this.getMinBlocklyWidth();
+          const minGameWidth = this.getMinGameWidth();
+          const { maxBlocklyWidth, maxGameWidth } = this.getMaxWidths(containerWidth);
 
-      const minBlocklyWidth = this.getMinBlocklyWidth();
-      const minGameWidth = this.getMinGameWidth();
-      const { maxBlocklyWidth, maxGameWidth } = this.getMaxWidths(containerWidth);
+          if (blocklyWidth >= minBlocklyWidth && blocklyWidth <= maxBlocklyWidth &&
+              gameWidth >= minGameWidth && gameWidth <= maxGameWidth &&
+              blocklyWidth + gameWidth <= availableWidth + 10) { // 10px tolerance
+            this.applyWidths(blocklyWidth, gameWidth, true);
+            applied = true;
+          }
+        }
+      }
 
-      // Only apply if valid
-      if (blocklyWidth >= minBlocklyWidth && blocklyWidth <= maxBlocklyWidth &&
-          gameWidth >= minGameWidth && gameWidth <= maxGameWidth &&
-          blocklyWidth + gameWidth <= availableWidth + 10) { // 10px tolerance
-
-        this.applyWidths(blocklyWidth, gameWidth, true);
+      if (!applied) {
+        this.applyDefaultWidths();
       }
     } catch (err) {
       console.warn('Failed to restore panel widths:', err);
+      this.applyDefaultWidths();
     }
 
     // Call completion callback if provided, after resize operations complete
@@ -413,6 +457,14 @@ export class PanelResizer {
         }, 100); // Wait for all resize operations to settle
       });
     }
+  }
+
+  /**
+   * Re-run window resize width computation.
+   * Call after a page-zoom change so panels fill the updated virtual container.
+   */
+  public recomputeWidths(): void {
+    this.handleWindowResize();
   }
 
   /**

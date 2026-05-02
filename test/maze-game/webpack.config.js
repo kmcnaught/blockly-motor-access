@@ -46,5 +46,13 @@ module.exports = {
     open: true,
     hot: false, // Disable HMR to prevent re-initialization issues
     liveReload: false, // Disable live reload for stability
+    client: {
+      overlay: {
+        // ResizeObserver loop errors have event.error === undefined which crashes
+        // the overlay's own error.stack access. Suppress them — they're harmless
+        // browser bookkeeping errors, not real application errors.
+        runtimeErrors: (error) => !!error,
+      },
+    },
   },
 };

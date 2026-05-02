@@ -3128,16 +3128,6 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     }
   }
 
-  // G: Toggle game panel/sidebar (no modifiers)
-  if (e.key === 'g' || e.key === 'G') {
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleSidebar();
-      return;
-    }
-  }
-
   // ,: Previous character (no modifiers)
   if (e.key === ',') {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -3476,8 +3466,29 @@ const ZOOM_STEP = 0.1;
 
 let pageZoom = parseFloat(localStorage.getItem(ZOOM_KEY) ?? '1');
 
+function computeFitZoom(): number {
+  const flyout = workspace.getFlyout();
+  const flyoutWidth = flyout ? flyout.getWidth() : 120;
+  // Blockly min + resizer + maze min (in layout/virtual pixels — independent of page zoom)
+  const minBlockly = Math.ceil(flyoutWidth * 2.2);
+  const minMaze = Math.ceil(flyoutWidth * 1.5);
+  const minTotal = minBlockly + 12 + minMaze; // 12 = RESIZER_WIDTH
+  // Max zoom that fits minimum layout in current viewport
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, window.innerWidth / minTotal));
+}
+
+function updateZoomButtons() {
+  const fitZoom = Math.floor(computeFitZoom() / ZOOM_STEP) * ZOOM_STEP;
+  const zoomOutBtn = document.getElementById('zoomOutBtn') as HTMLButtonElement;
+  const zoomInBtn = document.getElementById('zoomInBtn') as HTMLButtonElement;
+  if (zoomOutBtn) zoomOutBtn.disabled = pageZoom <= ZOOM_MIN;
+  if (zoomInBtn) zoomInBtn.disabled = pageZoom >= Math.min(ZOOM_MAX, fitZoom);
+}
+
 function applyPageZoom(zoom: number) {
-  pageZoom = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom)) * 10) / 10;
+  // Floor fit to nearest step so pageZoom never exceeds the fit ceiling after rounding
+  const fitZoom = Math.floor(computeFitZoom() / ZOOM_STEP) * ZOOM_STEP;
+  pageZoom = Math.round(Math.max(ZOOM_MIN, Math.min(fitZoom, Math.min(ZOOM_MAX, zoom))) * 10) / 10;
 
   const wrapper = document.getElementById('page-scale-wrapper')!;
   const size = 100 / pageZoom;
@@ -3496,17 +3507,14 @@ function applyPageZoom(zoom: number) {
   localStorage.setItem(ZOOM_KEY, String(pageZoom));
   const label = document.getElementById('zoomLabel');
   if (label) label.textContent = `${Math.round(pageZoom * 100)}%`;
-  const zoomOutBtn = document.getElementById('zoomOutBtn') as HTMLButtonElement;
-  const zoomInBtn = document.getElementById('zoomInBtn') as HTMLButtonElement;
-  if (zoomOutBtn) zoomOutBtn.disabled = pageZoom <= ZOOM_MIN;
-  if (zoomInBtn) zoomInBtn.disabled = pageZoom >= ZOOM_MAX;
+  updateZoomButtons();
 }
 
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => applyPageZoom(pageZoom - ZOOM_STEP));
 document.getElementById('zoomInBtn')?.addEventListener('click', () => applyPageZoom(pageZoom + ZOOM_STEP));
 
-// Apply saved zoom on load
-applyPageZoom(pageZoom);
+// Apply saved zoom on load, clamped to fit viewport
+applyPageZoom(Math.min(pageZoom, Math.floor(computeFitZoom() / ZOOM_STEP) * ZOOM_STEP));
 
 // ========== NARROW BLOCKLY DETECTION ==========
 
@@ -3590,9 +3598,30 @@ function updateGridCodingMinHeight() {
  * Handle size changes detected by ResizeObserver.
  * More efficient than polling - only runs when sizes actually change.
  */
+function enforceFitZoom(): void {
+  // Floor to nearest step — same rounding applyPageZoom uses for the ceiling
+  const fit = Math.floor(computeFitZoom() / ZOOM_STEP) * ZOOM_STEP;
+  if (pageZoom > fit) {
+    applyPageZoom(fit); // silently reduce zoom to fit
+  }
+  // Always refresh button state: zoom-in may have become available if viewport grew
+  updateZoomButtons();
+  // After the zoom change resizes the virtual viewport, re-distribute panel widths.
+  // One rAF lets the browser apply the new wrapper dimensions before we measure.
+  requestAnimationFrame(() => panelResizer?.recomputeWidths());
+}
+
+// Debounced via rAF so rapid resize events coalesce into one call per frame,
+// preventing "ResizeObserver loop limit exceeded" browser errors during snap-resize.
+let sizeChangePending = false;
 function handleSizeChange() {
-  checkBlocklyWidth();
-  updateGridCodingMinHeight();
+  if (sizeChangePending) return;
+  sizeChangePending = true;
+  requestAnimationFrame(() => {
+    sizeChangePending = false;
+    checkBlocklyWidth();
+    updateGridCodingMinHeight();
+  });
 }
 
 // Use ResizeObserver for efficient size change detection
@@ -3603,6 +3632,11 @@ const resizeObserver = new ResizeObserver(handleSizeChange);
 if (mainContainer) {
   resizeObserver.observe(mainContainer);
 }
+
+// Enforce fit zoom on viewport resize only (not on every DOM layout change)
+// Using window.resize avoids the ResizeObserver cascade where applyPageZoom changes
+// the wrapper size which re-fires the ResizeObserver on mainContainer.
+window.addEventListener('resize', enforceFitZoom);
 
 // Check on load
 checkBlocklyWidth();
