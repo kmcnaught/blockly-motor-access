@@ -203,6 +203,11 @@ function updateUIText() {
     resetButton.textContent = msg('MAZE_RESET_PROGRAM');
   }
 
+  const deleteBlockBtn = document.getElementById('deleteBlockBtn');
+  if (deleteBlockBtn) {
+    deleteBlockBtn.textContent = msg('MAZE_DELETE_BLOCK');
+  }
+
   const clearWorkspaceBtn = document.getElementById('clearWorkspaceBtn');
   if (clearWorkspaceBtn) {
     clearWorkspaceBtn.textContent = msg('MAZE_CLEAR_WORKSPACE');
@@ -1484,6 +1489,18 @@ document.getElementById('runButton')?.addEventListener('click', runProgram);
 
 // Reset button handler
 document.getElementById('resetButton')?.addEventListener('click', resetProgram);
+
+// Delete focused block button handler
+// Prevent mousedown from stealing focus away from the workspace/block
+document.getElementById('deleteBlockBtn')?.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+});
+document.getElementById('deleteBlockBtn')?.addEventListener('click', () => {
+  const node = Blockly.getFocusManager().getFocusedNode();
+  if (node instanceof Blockly.BlockSvg) {
+    node.dispose(true);
+  }
+});
 
 // Clear workspace button handler
 document.getElementById('clearWorkspaceBtn')?.addEventListener('click', () => {

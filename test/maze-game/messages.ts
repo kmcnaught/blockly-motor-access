@@ -149,7 +149,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_PRACTICE_INTRO_LINE3: 'Master the controls in practice mode before trying coding mode!',
 
     // Workspace controls
-    MAZE_CLEAR_WORKSPACE: 'Delete all blocks',
+    MAZE_DELETE_BLOCK: 'Delete block',
+    MAZE_CLEAR_WORKSPACE: 'Delete all',
 
     // ===========================================
     // Reusable Level Instructions
@@ -373,7 +374,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_GRID_PRACTICE_INTRO_LINE3: 'Maîtrisez les contrôles en mode pratique avant d\'essayer le mode programmation !',
 
     // Workspace controls
-    MAZE_CLEAR_WORKSPACE: 'Supprimer tous les blocs',
+    MAZE_DELETE_BLOCK: 'Supprimer le bloc',
+    MAZE_CLEAR_WORKSPACE: 'Tout supprimer',
 
     // ===========================================
     // Reusable Level Instructions

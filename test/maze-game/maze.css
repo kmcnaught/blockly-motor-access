@@ -86,17 +86,21 @@ h1 {
   display: none;
 }
 
-/* Clear workspace button - positioned over blockly in top right */
-.clear-workspace-btn {
+/* Floating button group over the blockly workspace */
+.workspace-btns {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 50;
+  display: flex;
+  gap: 6px;
+}
+
+.clear-workspace-btn {
   padding: 10px 24px;
   font-size: 14px;
   font-weight: 500;
-  --element-color: #757575;
-  background: var(--element-color);
+  background: #757575;
   color: white;
   border: none;
   border-radius: 4px;
@@ -115,10 +119,11 @@ h1 {
   transform: translateY(1px);
 }
 
-/* Hide clear button when blockly is hidden (immediate mode) */
-#blocklyDiv.hidden ~ .clear-workspace-btn {
+/* Hide buttons when blockly is hidden (immediate mode) */
+#blocklyDiv.hidden ~ .workspace-btns {
   display: none;
 }
+
 
 /* Make editable fields (dropdowns, inputs) visually distinct from block background */
 .blocklyFieldRect {
