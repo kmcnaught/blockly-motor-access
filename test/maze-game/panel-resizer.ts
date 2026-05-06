@@ -322,8 +322,8 @@ export class PanelResizer {
     // If panels exceed available space, scale proportionally
     if (currentTotal > availableWidth) {
       const ratio = availableWidth / currentTotal;
-      let newBlocklyWidth = Math.floor(currentBlocklyWidth * ratio);
-      let newGameWidth = Math.floor(currentGameWidth * ratio);
+      let newBlocklyWidth = Math.round(currentBlocklyWidth * ratio);
+      let newGameWidth = availableWidth - newBlocklyWidth;
 
       // Respect minimums (availableWidth >= both mins so these can't go negative)
       if (newBlocklyWidth < minBlocklyWidth) {
@@ -336,10 +336,21 @@ export class PanelResizer {
 
       this.applyWidths(newBlocklyWidth, newGameWidth);
     } else if (currentTotal < availableWidth - 10) {
-      // Give extra space to Blockly
+      // Distribute extra space proportionally (symmetric with shrink path)
       const extraSpace = availableWidth - currentTotal;
-      const newBlocklyWidth = currentBlocklyWidth + extraSpace;
-      this.applyWidths(newBlocklyWidth, currentGameWidth);
+      const blocklyRatio = currentBlocklyWidth / currentTotal;
+      let newBlocklyWidth = Math.round(currentBlocklyWidth + extraSpace * blocklyRatio);
+      let newGameWidth = availableWidth - newBlocklyWidth;
+      const minB = this.getMinBlocklyWidth();
+      const minG = this.getMinGameWidth();
+      if (newBlocklyWidth < minB) {
+        newBlocklyWidth = minB;
+        newGameWidth = availableWidth - minB;
+      } else if (newGameWidth < minG) {
+        newGameWidth = minG;
+        newBlocklyWidth = availableWidth - minG;
+      }
+      this.applyWidths(newBlocklyWidth, newGameWidth);
     }
   }
 
