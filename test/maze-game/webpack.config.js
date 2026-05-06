@@ -6,6 +6,17 @@
 
 const path = require('path');
 const webpack = require('webpack');
+const { execSync } = require('child_process');
+
+function getBuildSha() {
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+    const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
+    return sha + (dirty ? '*' : '');
+  } catch (e) {
+    return 'unknown';
+  }
+}
 
 module.exports = {
   mode: 'development',
@@ -35,6 +46,7 @@ module.exports = {
   plugins: [
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('development'),
+      '__BUILD_SHA__': JSON.stringify(getBuildSha()),
     }),
   ],
   devServer: {

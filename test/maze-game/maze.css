@@ -4,6 +4,18 @@ html {
   overscroll-behavior: none;
 }
 
+#build-sha {
+  position: fixed;
+  top: 4px;
+  right: 6px;
+  font-family: monospace;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  z-index: 9999;
+  user-select: none;
+}
+
 body {
   font-family: 'Roboto', Arial, sans-serif;
   margin: 0;

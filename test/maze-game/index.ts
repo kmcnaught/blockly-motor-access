@@ -9,6 +9,9 @@
  * Simple maze game adapted from blockly-games.
  */
 
+declare const __BUILD_SHA__: string;
+(document.getElementById('build-sha') as HTMLElement).textContent = __BUILD_SHA__;
+
 // Suppress "ResizeObserver loop limit exceeded" — a benign browser notification
 // (it retries automatically next frame) that webpack-dev-server's overlay mishandles
 // because the global error event has no .error object, only a message string.
