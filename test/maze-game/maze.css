@@ -144,6 +144,7 @@ h1 {
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 #capacityBubble {
@@ -289,6 +290,7 @@ button:active {
   background: white;
   flex-shrink: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .level-selector {
@@ -366,9 +368,10 @@ button:active {
   justify-content: center;
   align-items: center;
   min-width: 150px;
-  min-height: 150px;
+  min-height: 0;
   flex: 1;
   align-self: stretch;
+  overflow: hidden;
 }
 
 #mazeCanvas {
