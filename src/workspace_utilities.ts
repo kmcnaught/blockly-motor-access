@@ -28,6 +28,7 @@ export function getNonShadowBlock(block: Blockly.BlockSvg | null): Blockly.Block
 }
 
 const SCROLL_PADDING = 10;
+const SCROLL_TOP_BUFFER = 60;
 const SCROLL_BOTTOM_BUFFER = 60;
 
 /**
@@ -45,7 +46,7 @@ function getScrollContext(
     rawViewport.left + rawViewport.width,
   );
   bounds = bounds.clone();
-  bounds.top -= SCROLL_PADDING;
+  bounds.top -= SCROLL_TOP_BUFFER;
   bounds.bottom += SCROLL_PADDING;
   bounds.left -= SCROLL_PADDING;
   bounds.right += SCROLL_PADDING;
@@ -83,12 +84,17 @@ export function scrollBoundsIntoView(
 
   const {bounds: paddedBounds, viewport} = getScrollContext(bounds, workspace);
 
+  console.log('[scrollBoundsIntoView] raw bounds:', {top: bounds.top, bottom: bounds.bottom});
+  console.log('[scrollBoundsIntoView] padded bounds:', {top: paddedBounds.top, bottom: paddedBounds.bottom});
+  console.log('[scrollBoundsIntoView] viewport:', {top: viewport.top, bottom: viewport.bottom});
+
   if (
     paddedBounds.left >= viewport.left &&
     paddedBounds.top >= viewport.top &&
     paddedBounds.right <= viewport.right &&
     paddedBounds.bottom <= viewport.bottom
   ) {
+    console.log('[scrollBoundsIntoView] already in view, skipping');
     return;
   }
 
@@ -101,6 +107,7 @@ export function scrollBoundsIntoView(
   }
 
   const scale = workspace.getScale();
+  console.log('[scrollBoundsIntoView] scrolling deltaY:', deltaY, 'scale:', scale);
   workspace.scroll(
     workspace.scrollX + deltaX * scale,
     workspace.scrollY + deltaY * scale,
@@ -129,6 +136,11 @@ export function centerBoundsInView(
   const rawViewport = workspace.getMetricsManager().getViewMetrics(true);
   const rawContent = workspace.getMetricsManager().getContentMetrics(true);
 
+  console.log('[centerBoundsInView] raw bounds:', {top: bounds.top, bottom: bounds.bottom});
+  console.log('[centerBoundsInView] padded bounds:', {top: paddedBounds.top, bottom: paddedBounds.bottom});
+  console.log('[centerBoundsInView] viewport:', {top: viewport.top, bottom: viewport.bottom});
+  console.log('[centerBoundsInView] content height:', rawContent.height, 'viewport height:', rawViewport.height);
+
   const deltaX = horizontalDelta(paddedBounds, viewport);
   let deltaY = 0;
 
@@ -136,14 +148,16 @@ export function centerBoundsInView(
     // Stack taller than viewport: center bounds.top in the viewport.
     const viewportCenterY = rawViewport.top + rawViewport.height / 2;
     deltaY = viewportCenterY - paddedBounds.top;
+    console.log('[centerBoundsInView] tall stack, centering. viewportCenterY:', viewportCenterY, 'pre-clamp deltaY:', deltaY);
 
-    // Clamp: don't scroll above content top.
-    const maxDeltaY = viewport.top - rawContent.top + SCROLL_PADDING;
+    // Clamp: don't scroll above content top (allow top buffer space above first block).
+    const maxDeltaY = viewport.top - rawContent.top + SCROLL_TOP_BUFFER;
     if (deltaY > maxDeltaY) deltaY = maxDeltaY;
 
     // Clamp: don't scroll below content bottom (buffer so last block isn't flush with edge).
     const minDeltaY = viewport.bottom - (rawContent.top + rawContent.height) - SCROLL_BOTTOM_BUFFER;
     if (deltaY < minDeltaY) deltaY = minDeltaY;
+    console.log('[centerBoundsInView] post-clamp deltaY:', deltaY, 'maxDeltaY:', maxDeltaY, 'minDeltaY:', minDeltaY);
   } else {
     // Content fits: minimal scroll, skip if already in view.
     if (
@@ -152,6 +166,7 @@ export function centerBoundsInView(
       paddedBounds.right <= viewport.right &&
       paddedBounds.bottom <= viewport.bottom
     ) {
+      console.log('[centerBoundsInView] content fits and already in view, skipping');
       return;
     }
     if (paddedBounds.top < viewport.top) {
@@ -159,11 +174,13 @@ export function centerBoundsInView(
     } else if (paddedBounds.bottom > viewport.bottom) {
       deltaY = viewport.bottom - paddedBounds.bottom;
     }
+    console.log('[centerBoundsInView] content fits, minimal scroll deltaY:', deltaY);
   }
 
   if (deltaX === 0 && deltaY === 0) return;
 
   const scale = workspace.getScale();
+  console.log('[centerBoundsInView] scrolling deltaY:', deltaY, 'scale:', scale);
   workspace.scroll(
     workspace.scrollX + deltaX * scale,
     workspace.scrollY + deltaY * scale,
