@@ -246,7 +246,7 @@ export class EnterAction {
     newBlock: BlockSvg,
   ) {
     const initialY = 10;
-    const initialX = 10;
+    const initialX = 0;
     const xSpacing = 80;
 
     const filteredTopBlocks = workspace

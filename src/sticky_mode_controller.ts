@@ -85,6 +85,9 @@ export class StickyModeController {
   /** Whether the block should follow the mouse cursor during sticky move (default: true). */
   private keepBlockOnMouse: boolean = true;
 
+  /** Whether clicking on empty workspace moves the block there (default: true). */
+  private allowDropOnEmptyWorkspace: boolean = true;
+
   /** The flyout block that is pending placement (for "preview then place" mode). */
   private pendingFlyoutBlock: Blockly.BlockSvg | null = null;
 
@@ -112,6 +115,16 @@ export class StickyModeController {
    */
   setKeepBlockOnMouse(enabled: boolean): void {
     this.keepBlockOnMouse = enabled;
+  }
+
+  /**
+   * Enable or disable moving the block to the clicked location when clicking on empty workspace.
+   * When disabled, clicking empty workspace drops the block in place instead.
+   *
+   * @param enabled Whether clicking empty workspace should move the block there.
+   */
+  setAllowDropOnEmptyWorkspace(enabled: boolean): void {
+    this.allowDropOnEmptyWorkspace = enabled;
   }
 
   /**

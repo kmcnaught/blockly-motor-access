@@ -296,6 +296,16 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Enable or disable moving the block to the clicked location when clicking on empty workspace.
+   * When disabled, clicking empty workspace drops the block in place instead.
+   *
+   * @param enabled Whether clicking empty workspace should move the block there.
+   */
+  setAllowDropOnEmptyWorkspace(enabled: boolean): void {
+    this.stickyModeController.setAllowDropOnEmptyWorkspace(enabled);
+  }
+
+  /**
    * Enable or disable click-to-move (sticky mode).
    *
    * @param enabled Whether to allow click-to-move functionality.
