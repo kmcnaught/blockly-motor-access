@@ -10,6 +10,7 @@ import {enableBlocksOnDrag, reenableBlocksOnDelete} from './disabled_blocks';
 import {registerHtmlToast} from './html_toast';
 import {StickyModeController, TriggerMode} from './sticky_mode_controller';
 import {MouseDragStrategy} from './mouse_drag_strategy';
+import {scrollBoundsIntoView, centerBoundsInView} from './workspace_utilities';
 
 // Re-export TriggerMode for external use
 export {TriggerMode};
@@ -44,6 +45,16 @@ export class KeyboardNavigation {
   private oldWorkspaceResize:
     | InstanceType<typeof Blockly.WorkspaceSvg>['resize']
     | null = null;
+
+  /**
+   * Used to restore monkey patch.
+   */
+  private oldScrollBoundsIntoView:
+    | InstanceType<typeof Blockly.WorkspaceSvg>['scrollBoundsIntoView']
+    | null = null;
+
+  /** Listener that centers the viewport when a block is clicked. */
+  private blockClickScrollListener: ((e: Blockly.Events.Abstract) => void) | null = null;
 
   /**
    * Returns whether the plugin is currently in sticky mode (click-and-stick).
@@ -155,6 +166,24 @@ export class KeyboardNavigation {
       this.oldWorkspaceResize?.call(this.workspace);
       this.resizeWorkspaceRings();
     };
+
+    this.oldScrollBoundsIntoView = workspace.scrollBoundsIntoView.bind(workspace);
+    workspace.scrollBoundsIntoView = (bounds: Blockly.utils.Rect, _padding?: number) => {
+      scrollBoundsIntoView(bounds, workspace);
+    };
+
+    // Clicking a block doesn't go through onNodeFocus→scrollBoundsIntoView
+    // (the gesture guard blocks it). Listen for CLICK events which fire after
+    // the gesture completes, and center the clicked block then.
+    this.blockClickScrollListener = (event: Blockly.Events.Abstract) => {
+      if (event.type !== Blockly.Events.CLICK) return;
+      const clickEvent = event as Blockly.Events.Click;
+      if (clickEvent.targetType !== Blockly.Events.ClickTarget.BLOCK) return;
+      const block = workspace.getBlockById(clickEvent.blockId!);
+      if (!(block instanceof Blockly.BlockSvg)) return;
+      centerBoundsInView(block.getBoundingRectangle(), workspace);
+    };
+    workspace.addChangeListener(this.blockClickScrollListener);
     this.workspaceSelectionRing = Blockly.utils.dom.createSvgElement('rect', {
       fill: 'none',
       class: 'blocklyWorkspaceSelectionRing',
@@ -198,6 +227,12 @@ export class KeyboardNavigation {
     this.workspaceSelectionRing?.remove();
     if (this.oldWorkspaceResize) {
       this.workspace.resize = this.oldWorkspaceResize;
+    }
+    if (this.oldScrollBoundsIntoView) {
+      this.workspace.scrollBoundsIntoView = this.oldScrollBoundsIntoView;
+    }
+    if (this.blockClickScrollListener) {
+      this.workspace.removeChangeListener(this.blockClickScrollListener);
     }
 
     // Remove the event listener that enables blocks on drag

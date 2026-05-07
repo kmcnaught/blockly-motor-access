@@ -447,8 +447,11 @@ workspace.addChangeListener((event) => {
   }
 });
 
-// Reset scroll when workspace becomes empty or first block is added
-// This ensures blocks appear at a predictable location for assistive tech users
+// Reset scroll when workspace becomes empty or the very first block is added.
+// This ensures blocks appear at a predictable location for assistive tech users.
+// NOTE: topBlocks.length is always 1 in the maze (single connected stack is enforced),
+// so we track wasEmpty to distinguish "first block ever added" from "block added to stack".
+let workspaceWasEmpty = true;
 workspace.addChangeListener((event) => {
   if (event.type !== Blockly.Events.BLOCK_CREATE &&
       event.type !== Blockly.Events.BLOCK_DELETE) {
@@ -456,15 +459,19 @@ workspace.addChangeListener((event) => {
   }
 
   const topBlocks = workspace.getTopBlocks(false);
+  const isEmpty = topBlocks.length === 0;
 
-  // If workspace just became empty, reset scroll
-  if (topBlocks.length === 0) {
+  // If workspace just became empty, reset scroll and record empty state.
+  if (isEmpty) {
     workspace.scroll(getGridCodingModeScrollX(), 0);
+    workspaceWasEmpty = true;
+    return;
   }
 
-  // If first block was just added, reset scroll so it appears at predictable location
-  if (event.type === Blockly.Events.BLOCK_CREATE && topBlocks.length === 1) {
+  // If the first block was just added from an empty workspace, reset scroll.
+  if (event.type === Blockly.Events.BLOCK_CREATE && workspaceWasEmpty) {
     workspace.scroll(getGridCodingModeScrollX(), 0);
+    workspaceWasEmpty = false;
   }
 });
 

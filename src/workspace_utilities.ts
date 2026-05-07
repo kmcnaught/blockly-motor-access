@@ -27,6 +27,41 @@ export function getNonShadowBlock(block: Blockly.BlockSvg | null): Blockly.Block
   return block;
 }
 
+const SCROLL_PADDING = 10;
+const SCROLL_BOTTOM_BUFFER = 60;
+
+/**
+ * Returns a padded clone of bounds and the current viewport as a Rect.
+ */
+function getScrollContext(
+  bounds: Blockly.utils.Rect,
+  workspace: Blockly.WorkspaceSvg,
+): {bounds: Blockly.utils.Rect; viewport: Blockly.utils.Rect} {
+  const rawViewport = workspace.getMetricsManager().getViewMetrics(true);
+  const viewport = new Blockly.utils.Rect(
+    rawViewport.top,
+    rawViewport.top + rawViewport.height,
+    rawViewport.left,
+    rawViewport.left + rawViewport.width,
+  );
+  bounds = bounds.clone();
+  bounds.top -= SCROLL_PADDING;
+  bounds.bottom += SCROLL_PADDING;
+  bounds.left -= SCROLL_PADDING;
+  bounds.right += SCROLL_PADDING;
+  return {bounds, viewport};
+}
+
+/** Returns the horizontal delta needed to bring bounds into the viewport. */
+function horizontalDelta(
+  bounds: Blockly.utils.Rect,
+  viewport: Blockly.utils.Rect,
+): number {
+  if (bounds.left < viewport.left) return viewport.left - bounds.left;
+  if (bounds.right > viewport.right) return viewport.right - bounds.right;
+  return 0;
+}
+
 /**
  * Scrolls the provided bounds into view.
  *
@@ -45,50 +80,92 @@ export function scrollBoundsIntoView(
     // This can cause jumps during a drag and it only suited for keyboard nav.
     return;
   }
-  const scale = workspace.getScale();
 
-  const rawViewport = workspace.getMetricsManager().getViewMetrics(true);
-  const viewport = new Blockly.utils.Rect(
-    rawViewport.top,
-    rawViewport.top + rawViewport.height,
-    rawViewport.left,
-    rawViewport.left + rawViewport.width,
-  );
+  const {bounds: paddedBounds, viewport} = getScrollContext(bounds, workspace);
 
   if (
-    bounds.left >= viewport.left &&
-    bounds.top >= viewport.top &&
-    bounds.right <= viewport.right &&
-    bounds.bottom <= viewport.bottom
+    paddedBounds.left >= viewport.left &&
+    paddedBounds.top >= viewport.top &&
+    paddedBounds.right <= viewport.right &&
+    paddedBounds.bottom <= viewport.bottom
   ) {
-    // Do nothing if the block is fully inside the viewport.
     return;
   }
 
-  // Add some padding to the bounds so the element is scrolled comfortably
-  // into view.
-  bounds = bounds.clone();
-  bounds.top -= 10;
-  bounds.bottom += 10;
-  bounds.left -= 10;
-  bounds.right += 10;
+  const deltaX = horizontalDelta(paddedBounds, viewport);
+  let deltaY = 0;
+  if (paddedBounds.top < viewport.top) {
+    deltaY = viewport.top - paddedBounds.top;
+  } else if (paddedBounds.bottom > viewport.bottom) {
+    deltaY = viewport.bottom - paddedBounds.bottom;
+  }
 
-  let deltaX = 0;
+  const scale = workspace.getScale();
+  workspace.scroll(
+    workspace.scrollX + deltaX * scale,
+    workspace.scrollY + deltaY * scale,
+  );
+}
+
+/**
+ * Centers the provided bounds vertically in the viewport when the stack is
+ * taller than the viewport (the "scroll by clicking" model). Falls back to
+ * minimal scroll when the content fits.
+ *
+ * Uses bounds.top as the focal point because getBoundingRectangle() includes
+ * all child blocks, so bounds.bottom is not a reliable reference for the
+ * actual focused element.
+ *
+ * @param bounds A rectangle to center in view.
+ * @param workspace The workspace to scroll.
+ */
+export function centerBoundsInView(
+  bounds: Blockly.utils.Rect,
+  workspace: Blockly.WorkspaceSvg,
+) {
+  if (Blockly.Gesture.inProgress()) return;
+
+  const {bounds: paddedBounds, viewport} = getScrollContext(bounds, workspace);
+  const rawViewport = workspace.getMetricsManager().getViewMetrics(true);
+  const rawContent = workspace.getMetricsManager().getContentMetrics(true);
+
+  const deltaX = horizontalDelta(paddedBounds, viewport);
   let deltaY = 0;
 
-  if (bounds.left < viewport.left) {
-    deltaX = viewport.left - bounds.left;
-  } else if (bounds.right > viewport.right) {
-    deltaX = viewport.right - bounds.right;
+  if (rawContent.height > rawViewport.height) {
+    // Stack taller than viewport: center bounds.top in the viewport.
+    const viewportCenterY = rawViewport.top + rawViewport.height / 2;
+    deltaY = viewportCenterY - paddedBounds.top;
+
+    // Clamp: don't scroll above content top.
+    const maxDeltaY = viewport.top - rawContent.top + SCROLL_PADDING;
+    if (deltaY > maxDeltaY) deltaY = maxDeltaY;
+
+    // Clamp: don't scroll below content bottom (buffer so last block isn't flush with edge).
+    const minDeltaY = viewport.bottom - (rawContent.top + rawContent.height) - SCROLL_BOTTOM_BUFFER;
+    if (deltaY < minDeltaY) deltaY = minDeltaY;
+  } else {
+    // Content fits: minimal scroll, skip if already in view.
+    if (
+      paddedBounds.left >= viewport.left &&
+      paddedBounds.top >= viewport.top &&
+      paddedBounds.right <= viewport.right &&
+      paddedBounds.bottom <= viewport.bottom
+    ) {
+      return;
+    }
+    if (paddedBounds.top < viewport.top) {
+      deltaY = viewport.top - paddedBounds.top;
+    } else if (paddedBounds.bottom > viewport.bottom) {
+      deltaY = viewport.bottom - paddedBounds.bottom;
+    }
   }
 
-  if (bounds.top < viewport.top) {
-    deltaY = viewport.top - bounds.top;
-  } else if (bounds.bottom > viewport.bottom) {
-    deltaY = viewport.bottom - bounds.bottom;
-  }
+  if (deltaX === 0 && deltaY === 0) return;
 
-  deltaX *= scale;
-  deltaY *= scale;
-  workspace.scroll(workspace.scrollX + deltaX, workspace.scrollY + deltaY);
+  const scale = workspace.getScale();
+  workspace.scroll(
+    workspace.scrollX + deltaX * scale,
+    workspace.scrollY + deltaY * scale,
+  );
 }
