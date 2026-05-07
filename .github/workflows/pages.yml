@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - games
       - release/demo-15-oct-25
     tags:
       - '*demo*'  # Any tag containing 'demo'
@@ -62,8 +63,12 @@ jobs:
           npm run ghpages
           cp -r build/* ../ghpages/
 
-          # Build maze game from main
-          echo "Building maze game from main..."
+          # Build maze game from games branch
+          echo "Building maze game from games branch..."
+          git checkout -- .
+          git checkout games
+          npm ci
+          npm link blockly
           npm run build:maze
           mkdir -p ../ghpages/accessible-maze
           cp test/maze-game/index.html ../ghpages/accessible-maze/
