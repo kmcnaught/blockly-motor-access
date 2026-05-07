@@ -368,6 +368,29 @@ const workspace = Blockly.inject('blocklyDiv', {
   },
 });
 
+// Patch Blockly's Field.getScaledBBox to use getBoundingClientRect() for the full bounds.
+// The default implementation uses offsetWidth/offsetHeight which are not affected by CSS
+// transforms, causing dropdowns to open offset when page zoom != 1.
+// Using getBoundingClientRect() correctly accounts for the CSS scale on #page-scale-wrapper.
+{
+  const origGetScaledBBox = (Blockly.Field.prototype as any).getScaledBBox;
+  (Blockly.Field.prototype as any).getScaledBBox = function() {
+    const clickTarget: Element | null = (this as any).getClickTarget_?.() ?? null;
+    if (clickTarget) {
+      const rect = clickTarget.getBoundingClientRect();
+      const sx = window.pageXOffset || 0;
+      const sy = window.pageYOffset || 0;
+      return new Blockly.utils.Rect(
+        rect.top + sy,
+        rect.bottom + sy,
+        rect.left + sx,
+        rect.right + sx,
+      );
+    }
+    return origGetScaledBBox.call(this);
+  };
+}
+
 // Load saved program for initial level (coding mode only)
 if (currentExecutionMode !== 'practice') {
   const savedXml = loadProgram(initialLevel);
@@ -3537,6 +3560,10 @@ function applyPageZoom(zoom: number) {
   (document.body.style as any)['zoom'] = '';
   document.body.style.width = '';
   document.body.style.height = '';
+
+  // Expose zoom level as a CSS variable so overlay divs outside the scale wrapper
+  // (e.g. .blocklyDropDownDiv, .blocklyWidgetDiv) can apply a matching transform.
+  document.documentElement.style.setProperty('--page-zoom', String(pageZoom));
 
   localStorage.setItem(ZOOM_KEY, String(pageZoom));
   const label = document.getElementById('zoomLabel');

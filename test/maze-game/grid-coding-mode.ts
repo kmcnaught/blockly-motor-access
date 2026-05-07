@@ -392,7 +392,7 @@ export class GridCodingModeController {
       const blockSvg = block as Blockly.BlockSvg;
       if (!connectionTarget) {
         // First block - position it nicely
-        blockSvg.moveBy(50, 50);
+        blockSvg.moveBy(25, 60);
       }
 
       // Render the block

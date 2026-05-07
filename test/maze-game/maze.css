@@ -1285,6 +1285,16 @@ body.resizing .blocklyToolboxDiv {
   pointer-events: none;
 }
 
+/* Scale Blockly overlay divs to match the page zoom.
+   These elements are appended to document.body outside #page-scale-wrapper,
+   so they don't inherit the wrapper's CSS transform. We compensate here.
+   The --page-zoom variable is set by applyPageZoom() in JS. */
+.blocklyDropDownDiv,
+.blocklyWidgetDiv {
+  transform: scale(var(--page-zoom, 1));
+  transform-origin: top left;
+}
+
 /* ============================================================
    Immediate Mode Panel Styles
    Used for levels 1-2 before introducing programming concepts
@@ -2093,7 +2103,7 @@ body.grid-coding-mode #mazeCanvas {
   background: rgba(100, 100, 100, 0.1);
   border: 2px dashed rgba(100, 100, 100, 0.3);
   transition: width 0.3s ease;
-  height: 100vh;
+  height: 100%; /* Fill the full logical height of the scale wrapper, not just 100vh */
 }
 
 .screen-padding.left-padding {
