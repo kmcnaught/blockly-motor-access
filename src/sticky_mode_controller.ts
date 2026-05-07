@@ -942,8 +942,14 @@ export class StickyModeController {
       // Click is inside the source block - don't move it
       this.exitStickyModeAndDrop();
     } else {
-      // Click is outside the source block - move to click location
-      this.exitStickyModeAndDrop(clientX, clientY);
+      // Click is outside the source block
+      if (this.allowDropOnEmptyWorkspace) {
+        // Move to click location
+        this.exitStickyModeAndDrop(clientX, clientY);
+      } else {
+        // No connection candidate - return block to original position
+        this.exitStickyModeAndDropToStart();
+      }
     }
   }
 
@@ -1576,6 +1582,26 @@ export class StickyModeController {
     } catch (e) {
       // Silently fail
     }
+  }
+
+  /**
+   * Exits sticky mode by returning the block to its original start position.
+   * Used when clicking on empty workspace with no connection candidate.
+   */
+  private exitStickyModeAndDropToStart() {
+    const info = this.stickyModes.get(this.workspace);
+    if (!info) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const moveInfo = (this.mover as any)?.moves?.get(this.workspace);
+    if (moveInfo && info.block && !info.block.isDisposed()) {
+      // Move block back to its original position
+      info.block.moveBy(-moveInfo.totalDelta.x, -moveInfo.totalDelta.y);
+      moveInfo.totalDelta.x = 0;
+      moveInfo.totalDelta.y = 0;
+    }
+
+    this.exitStickyModeAndDrop(); // Drop in place (now at original position)
   }
 
   /**
