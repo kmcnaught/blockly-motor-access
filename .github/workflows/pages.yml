@@ -62,6 +62,15 @@ jobs:
           npm run ghpages
           cp -r build/* ../ghpages/
 
+          # Build maze game from main
+          echo "Building maze game from main..."
+          npm run build:maze
+          mkdir -p ../ghpages/accessible-maze
+          cp test/maze-game/index.html ../ghpages/accessible-maze/
+          cp test/maze-game/bundle.js ../ghpages/accessible-maze/
+          cp test/maze-game/maze.css ../ghpages/accessible-maze/
+          cp -r test/maze-game/assets ../ghpages/accessible-maze/
+
           # Build release/demo-15-oct-25 branch
           echo "Building release/demo-15-oct-25 branch..."
           git checkout -- .  # Clean up generated files before switching
