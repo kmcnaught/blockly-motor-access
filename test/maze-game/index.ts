@@ -351,11 +351,10 @@ const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecution
 const workspace = Blockly.inject('blocklyDiv', {
   renderer: 'zelos',
   toolbox: getToolboxForLevel(initialLevel),
-  trashcan: true,
-  maxTrashcanContents: 0,  // Keep trashcan icon for deleting, but disable the sidebar
+  trashcan: false,
   maxBlocks: initialMaxBlocks === Infinity ? undefined : initialMaxBlocks,
   zoom: {
-    controls: true,
+    controls: false,
     wheel: true,
     startScale: 1.2,
     maxScale: 3,
@@ -544,6 +543,7 @@ let singleBlockDragEnabled = savedSingleBlockDrag !== null ? savedSingleBlockDra
 // Apply saved block movement preferences
 // Mouse drag is always enabled
 keyboardNavigation.setKeepBlockOnMouse(true);
+keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
 keyboardNavigation.setSingleBlockDragMode(singleBlockDragEnabled);
 
