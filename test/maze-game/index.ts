@@ -559,11 +559,14 @@ keyboardNavigation.setConnectionSize('large');
 const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
 const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
 
+const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
+const mouseDragEnabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : true;
+
 // Apply saved block movement preferences
-// Mouse drag is always enabled
-keyboardNavigation.setKeepBlockOnMouse(true);
+keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
 keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
+keyboardNavigation.setMouseDragEnabled(mouseDragEnabled);
 keyboardNavigation.setSingleBlockDragMode(true);
 
 // Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
@@ -2127,6 +2130,15 @@ clickToMoveCheckbox.addEventListener('change', () => {
   const enabled = clickToMoveCheckbox.checked;
   localStorage.setItem('mazeClickToMoveEnabled', String(enabled));
   keyboardNavigation.setClickToMoveEnabled(enabled);
+});
+
+const mouseDragCheckbox = document.getElementById('mouseDragCheckbox') as HTMLInputElement;
+mouseDragCheckbox.checked = mouseDragEnabled;
+mouseDragCheckbox.addEventListener('change', () => {
+  const enabled = mouseDragCheckbox.checked;
+  localStorage.setItem('mazeMouseDragEnabled', String(enabled));
+  keyboardNavigation.setMouseDragEnabled(enabled);
+  keyboardNavigation.setKeepBlockOnMouse(enabled);
 });
 
 // ========== CONFIRMATION MODAL ==========
