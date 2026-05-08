@@ -897,17 +897,28 @@ header.christmas h1::after {
 
 /* Settings section in shortcuts modal */
 .settings-section {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  margin-bottom: 20px;
 }
 
 .settings-heading {
-  font-size: 1.1em;
+  font-size: 1em;
   font-weight: 600;
-  color: #333;
-  margin: 0 0 12px 0;
+  color: #555;
+  margin: 0 0 10px 0;
   text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1em;
+  color: #333;
 }
 
 .settings-group {
@@ -974,23 +985,27 @@ header.christmas h1::after {
 }
 
 .shortcuts-modal .delete-data-btn {
-  margin-top: 20px;
-  padding: 8px 16px;
-  font-size: 0.85em;
-  color: #c62828;
-  background: transparent;
-  border: 1px solid #c62828;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
 }
 
 .shortcuts-modal .delete-data-btn:hover {
-  background: #ffebee;
+  background: #b71c1c;
+  border-color: #b71c1c;
 }
 
-.shortcuts-modal .delete-data-btn:active {
-  background: #ffcdd2;
+.shortcuts-modal .about-link {
+  display: block;
+  margin-top: 12px;
+  font-size: 0.85em;
+  color: #666;
+  text-align: center;
+  text-decoration: none;
+}
+
+.shortcuts-modal .about-link:hover {
+  text-decoration: underline;
 }
 
 /* Sidebar toggle button */

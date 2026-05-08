@@ -2119,23 +2119,19 @@ infoBtn.addEventListener('click', () => shortcutsDialog.show());
 // Close button handler
 shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 
-// ========== BLOCK MOVEMENT MODE RADIO BUTTONS ==========
+// ========== BLOCK MOVEMENT MODE DROPDOWN ==========
 
-const blockMovementRadios = document.querySelectorAll<HTMLInputElement>('input[name="blockMovementMode"]');
-const selectedRadio = document.querySelector<HTMLInputElement>(`input[name="blockMovementMode"][value="${blockMovementMode}"]`);
-if (selectedRadio) selectedRadio.checked = true;
+const blockMovementSelect = document.querySelector<HTMLSelectElement>('#blockMovementSelect')!;
+blockMovementSelect.value = blockMovementMode;
 
-blockMovementRadios.forEach(radio => {
-  radio.addEventListener('change', () => {
-    if (!radio.checked) return;
-    const mode = radio.value as BlockMovementMode;
-    localStorage.setItem('mazeBlockMovementMode', mode);
-    const ctm = mode !== 'drag';
-    const drag = mode !== 'click-to-move';
-    keyboardNavigation.setClickToMoveEnabled(ctm);
-    keyboardNavigation.setMouseDragEnabled(drag);
-    keyboardNavigation.setKeepBlockOnMouse(drag);
-  });
+blockMovementSelect.addEventListener('change', () => {
+  const mode = blockMovementSelect.value as BlockMovementMode;
+  localStorage.setItem('mazeBlockMovementMode', mode);
+  const ctm = mode !== 'drag';
+  const drag = mode !== 'click-to-move';
+  keyboardNavigation.setClickToMoveEnabled(ctm);
+  keyboardNavigation.setMouseDragEnabled(drag);
+  keyboardNavigation.setKeepBlockOnMouse(drag);
 });
 
 // ========== CONFIRMATION MODAL ==========
@@ -2221,7 +2217,6 @@ deleteUserDataBtn.addEventListener('click', () => {
     'Delete All Data',
     'Delete all saved programs and settings? This cannot be undone.',
     () => {
-      // Clear all maze-related localStorage keys
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -2230,8 +2225,6 @@ deleteUserDataBtn.addEventListener('click', () => {
         }
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
-
-      // Reload the page to reset state
       window.location.reload();
     }
   );

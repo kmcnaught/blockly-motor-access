@@ -228,23 +228,6 @@
     <!-- Shortcuts Info Modal -->
     <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle">
       <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
-      <div class="settings-section">
-        <h3 class="settings-heading">Block Movement</h3>
-        <div class="settings-group">
-          <label class="setting-item">
-            <input type="radio" name="blockMovementMode" id="blockMovementBoth" value="both">
-            <span>Both</span>
-          </label>
-          <label class="setting-item">
-            <input type="radio" name="blockMovementMode" id="blockMovementClickToMove" value="click-to-move">
-            <span>Click-to-move</span>
-          </label>
-          <label class="setting-item">
-            <input type="radio" name="blockMovementMode" id="blockMovementDrag" value="drag">
-            <span>Drag</span>
-          </label>
-        </div>
-      </div>
       <div class="shortcuts-list">
         <div class="shortcut-item"><kbd>R</kbd> Run program</div>
         <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
@@ -254,13 +237,25 @@
         <div class="shortcut-item"><kbd>L</kbd> Change language</div>
         <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
       </div>
+      <div class="settings-section">
+        <h3 class="settings-heading">Settings</h3>
+        <div class="setting-row">
+          <label for="blockMovementSelect">Rearrange blocks using</label>
+          <select id="blockMovementSelect">
+            <option value="both">Both</option>
+            <option value="click-to-move">Click-to-move</option>
+            <option value="drag">Drag</option>
+          </select>
+        </div>
+      </div>
       <div class="result-modal-buttons">
+        <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn">Delete all saved data</button>
         <button id="shortcutsModalClose" class="result-modal-ok">
           <span class="ok-text">Close</span>
           <span class="ok-hint">[Esc]</span>
         </button>
       </div>
-      <button id="deleteUserDataBtn" class="delete-data-btn">Delete all saved data</button>
+      <a href="https://kmcnaught.co.uk/block-coding/new-curriculum" target="_blank" rel="noopener" class="about-link">About</a>
     </dialog>
 
     <!-- Build SHA label -->
