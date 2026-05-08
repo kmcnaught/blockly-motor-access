@@ -445,6 +445,7 @@ export class StickyModeController {
         MoveType.Move,
         null,
         onMoveFinished,
+        true, // isClickAndStick - must be set before onDragStart is called
       );
 
       if (success) {
@@ -453,7 +454,6 @@ export class StickyModeController {
           new StickyModeInfo(block, clientX, clientY),
         );
         block.getSvgRoot().classList.add('blockly-sticky-mode');
-        this.setClickAndStickMode(block, true);
         this.onEnterCallback?.(block);
         return true;
       }

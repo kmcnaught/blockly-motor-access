@@ -219,6 +219,7 @@ export class Mover {
    *     location if any.
    * @returns True iff a move has successfully begun.
    * @param onMoveFinished Optional callback when move finishes.
+   * @param isClickAndStick Whether this move is a click-and-stick operation.
    */
   startMove(
     workspace: WorkspaceSvg,
@@ -226,9 +227,10 @@ export class Mover {
     moveType: MoveType,
     startPoint: RenderedConnection | null,
     onMoveFinished?: () => void,
+    isClickAndStick = false,
   ) {
     if (draggable instanceof BlockSvg) {
-      this.patchDragStrategy(draggable, moveType, startPoint, onMoveFinished);
+      this.patchDragStrategy(draggable, moveType, startPoint, onMoveFinished, isClickAndStick);
     } else if (draggable instanceof comments.RenderedWorkspaceComment) {
       this.moveIndicator = new MoveIndicatorBubble(draggable);
     }
@@ -568,6 +570,7 @@ export class Mover {
     moveType: MoveType,
     startPoint: RenderedConnection | null,
     onMoveFinished?: () => void,
+    isClickAndStick = false,
   ) {
     // @ts-expect-error block.dragStrategy is private.
     const currentStrategy = block.dragStrategy;
@@ -590,6 +593,9 @@ export class Mover {
     keyboardDragStrategy.setFatterConnections(this.fatterConnections);
     keyboardDragStrategy.setConnectionSize(this.connectionSize);
     keyboardDragStrategy.setSingleBlockDragMode(this.singleBlockDragMode);
+    if (isClickAndStick) {
+      keyboardDragStrategy.setClickAndStickMode(true);
+    }
     block.setDragStrategy(keyboardDragStrategy);
   }
 

@@ -562,29 +562,26 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
   }
 
   override shouldHealStack(e: PointerEvent | undefined): boolean {
-    // If block has no previous connection, can't heal to stack (always single-block)
+    // NOTE: healStack=true means children reconnect to parent = single-block drag.
+    //       healStack=false means children move with the dragged block = stack drag.
     if (!this.block.previousConnection) {
       return false;
     }
 
     // Sticky click always operates on a single block, never a stack.
     if (this.isClickAndStick) {
-      return false;
+      return true;
     }
 
     // Check if Ctrl/Cmd key is pressed (toggle behavior)
     const isCtrlPressed = e?.ctrlKey || e?.metaKey || false;
 
     if (this.singleBlockDragMode) {
-      // When single-block drag mode is enabled:
-      // - Default (no Ctrl): single-block drag (don't heal)
-      // - With Ctrl: stack drag (heal)
-      return isCtrlPressed;
-    } else {
-      // When single-block drag mode is disabled (current behavior):
-      // - Default (no Ctrl): stack drag (heal)
-      // - With Ctrl: single-block drag (don't heal)
+      // Single-block drag mode: default = single-block (heal), Ctrl = stack (don't heal)
       return !isCtrlPressed;
+    } else {
+      // Stack drag mode (default): default = stack (don't heal), Ctrl = single-block (heal)
+      return isCtrlPressed;
     }
   }
 
