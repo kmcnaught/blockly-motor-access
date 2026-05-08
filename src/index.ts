@@ -315,6 +315,15 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Enables or disables standard mouse drag of blocks.
+   *
+   * @param enabled Whether to allow mouse dragging of blocks.
+   */
+  setMouseDragEnabled(enabled: boolean): void {
+    MouseDragStrategy.setDragEnabled(enabled);
+  }
+
+  /**
    * Enable or disable single-block drag mode.
    * When enabled: single-block drag by default, Ctrl/Cmd for stack drag.
    * When disabled: stack drag by default (current behavior), Ctrl/Cmd for single-block.
