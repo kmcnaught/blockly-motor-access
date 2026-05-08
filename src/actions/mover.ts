@@ -375,14 +375,57 @@ export class Mover {
 
     const info = this.preDragEndCleanup(workspace);
 
-    const targetPos = new utils.Coordinate(
-      info.startLocation.x + info.totalDelta.x,
-      info.startLocation.y + info.totalDelta.y,
-    );
+    // Compute the target position for the block before calling onDragEnd.
+    //
+    // For click-and-stick with a connection candidate: position the block so that
+    // its local connection aligns exactly with the neighbour connection. This prevents
+    // the target block from jumping (e.g. when inserting at the top of a stack, the
+    // target stack stays put and the dragged block slides into place above it).
+    //
+    // Without this, moveDuringDrag would place the block at the mouse position
+    // (startLoc + totalDelta), which may be far from the snap position, causing
+    // Blockly to reposition the target block to compensate.
+    //
+    // For keyboard moves (non-click-stick) or drops with no candidate: use the
+    // standard startLoc + totalDelta to undo any forceShowPreview offset.
+    let targetPos: utils.Coordinate;
+    if (info.draggable instanceof BlockSvg) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dragStrategy = (info.draggable as any).dragStrategy;
+      // Note: don't check isClickAndStickMode() — it's already been set to false
+      // by StickyModeController.exit() before finishMove() is called. Instead,
+      // check for a connection candidate directly.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const candidate = (dragStrategy as any)?.connectionCandidate;
+
+      if (candidate) {
+        // Align block so local connection lands exactly on neighbour connection.
+        //
+        // We use startLocation (not the drift position after forceShowPreview) because
+        // connection positions (local.x/y) are not updated for the forceShowPreview drift
+        // that happens during onDragStart. They reflect the block at startLocation.
+        // Using the post-drift position would carry a permanent offset equal to the drift.
+        //
+        // targetPos = startLocation + (neighbour - local)
+        const {local, neighbour} = candidate;
+        targetPos = new utils.Coordinate(
+          info.startLocation.x + neighbour.x - local.x,
+          info.startLocation.y + neighbour.y - local.y,
+        );
+      } else {
+        targetPos = new utils.Coordinate(
+          info.startLocation.x + info.totalDelta.x,
+          info.startLocation.y + info.totalDelta.y,
+        );
+      }
+    } else {
+      targetPos = new utils.Coordinate(
+        info.startLocation.x + info.totalDelta.x,
+        info.startLocation.y + info.totalDelta.y,
+      );
+    }
 
     // Move the block to the correct position before calling onDragEnd.
-    // This is necessary because the block may be at a preview offset position
-    // (from forceShowPreview) which is just temporary visual feedback.
     if (info.draggable instanceof BlockSvg) {
       info.draggable.moveDuringDrag(targetPos);
     }
