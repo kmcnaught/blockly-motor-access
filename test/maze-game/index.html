@@ -239,13 +239,23 @@
       </div>
       <div class="settings-section">
         <h3 class="settings-heading">Settings</h3>
-        <div class="setting-row">
-          <label for="blockMovementSelect">Rearrange blocks using</label>
-          <select id="blockMovementSelect">
-            <option value="both">Drag or click</option>
-            <option value="click-to-move">Click-to-move</option>
-            <option value="drag">Drag</option>
-          </select>
+        <div class="settings-group">
+          <div class="setting-row">
+            <label for="blockMovementSelect">Rearrange blocks using</label>
+            <select id="blockMovementSelect">
+              <option value="both">Drag or click</option>
+              <option value="click-to-move">Click-to-move</option>
+              <option value="drag">Drag</option>
+            </select>
+          </div>
+          <div class="setting-row" id="highlightSizeRow">
+            <label for="highlightSizeSelect">Connection highlight size</label>
+            <select id="highlightSizeSelect">
+              <option value="minimal">Minimal</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="result-modal-buttons">

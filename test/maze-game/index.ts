@@ -550,9 +550,7 @@ const keyboardNavigation = new KeyboardNavigation(workspace, {
 
 // Configure for "click n stick" style:
 // - FOCUSED_CLICK: click a focused block to enter move mode
-// - Large connections: bigger click targets for accessibility
 keyboardNavigation.setTriggerMode(TriggerMode.FOCUSED_CLICK);
-keyboardNavigation.setConnectionSize('large');
 
 // Load saved block movement preferences from localStorage
 type BlockMovementMode = 'both' | 'click-to-move' | 'drag';
@@ -561,12 +559,18 @@ const blockMovementMode: BlockMovementMode = savedMovementMode ?? 'both';
 const clickToMoveEnabled = blockMovementMode !== 'drag';
 const mouseDragEnabled = blockMovementMode !== 'click-to-move';
 
+// Load saved highlight size preference from localStorage
+type HighlightSize = 'minimal' | 'medium' | 'large';
+const savedHighlightSize = localStorage.getItem('mazeHighlightSize') as HighlightSize | null;
+const highlightSize: HighlightSize = savedHighlightSize ?? 'large';
+
 // Apply saved block movement preferences
 keyboardNavigation.setKeepBlockOnMouse(false);
 keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
 keyboardNavigation.setMouseDragEnabled(mouseDragEnabled);
 keyboardNavigation.setSingleBlockDragMode(true);
+keyboardNavigation.setConnectionSize(highlightSize);
 
 // Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
 // This makes the setting work for both mouse drags and keyboard drags
@@ -2124,6 +2128,16 @@ shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 const blockMovementSelect = document.querySelector<HTMLSelectElement>('#blockMovementSelect')!;
 blockMovementSelect.value = blockMovementMode;
 
+const highlightSizeRow = document.getElementById('highlightSizeRow')!;
+const highlightSizeSelect = document.querySelector<HTMLSelectElement>('#highlightSizeSelect')!;
+highlightSizeSelect.value = highlightSize;
+
+function updateHighlightSizeRowVisibility(mode: BlockMovementMode) {
+  highlightSizeRow.style.display = mode === 'drag' ? 'none' : '';
+}
+
+updateHighlightSizeRowVisibility(blockMovementMode);
+
 blockMovementSelect.addEventListener('change', () => {
   const mode = blockMovementSelect.value as BlockMovementMode;
   localStorage.setItem('mazeBlockMovementMode', mode);
@@ -2132,6 +2146,13 @@ blockMovementSelect.addEventListener('change', () => {
   keyboardNavigation.setClickToMoveEnabled(ctm);
   keyboardNavigation.setMouseDragEnabled(drag);
   keyboardNavigation.setKeepBlockOnMouse(false);
+  updateHighlightSizeRowVisibility(mode);
+});
+
+highlightSizeSelect.addEventListener('change', () => {
+  const size = highlightSizeSelect.value as HighlightSize;
+  localStorage.setItem('mazeHighlightSize', size);
+  keyboardNavigation.setConnectionSize(size);
 });
 
 // ========== CONFIRMATION MODAL ==========

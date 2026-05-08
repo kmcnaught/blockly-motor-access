@@ -364,18 +364,17 @@ export class ConnectionHighlighter {
       );
     } else {
       // Medium/Large: flat-top, notched-bottom shape for larger click target
-      const topPadding = this.connectionSize === 'large' ? 6 : 4;
-      const bottomPadding = this.connectionSize === 'large' ? 6 : 4;
+      const verticalPadding = this.connectionSize === 'large' ? 10 : 5;
 
       highlightPath = (
-        `M ${-xLen} ${-topPadding} ` +           // Start top-left
-        `v ${topPadding + bottomPadding} ` +     // Go down left side
-        `h ${xLen} ` +                           // Go right to notch start (x=0)
-        pathLeft +                               // Draw notch at bottom
-        `h ${xLen} ` +                           // Go right from notch end
-        `v ${-(topPadding + bottomPadding)} ` +  // Go up right side
-        `h ${-(notchWidth + xLen * 2)} ` +       // Go left across top back to start
-        `Z`                                      // Close path
+        `M ${-xLen} ${-verticalPadding} ` +           // Start top-left
+        `v ${verticalPadding * 2} ` +                 // Go down left side
+        `h ${xLen} ` +                                // Go right to notch start (x=0)
+        pathLeft +                                    // Draw notch at bottom
+        `h ${xLen} ` +                                // Go right from notch end
+        `v ${-(verticalPadding * 2)} ` +              // Go up right side
+        `h ${-(notchWidth + xLen * 2)} ` +            // Go left across top back to start
+        `Z`                                           // Close path
       );
     }
 
