@@ -562,7 +562,7 @@ const clickToMoveEnabled = blockMovementMode !== 'drag';
 const mouseDragEnabled = blockMovementMode !== 'click-to-move';
 
 // Apply saved block movement preferences
-keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
+keyboardNavigation.setKeepBlockOnMouse(false);
 keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
 keyboardNavigation.setMouseDragEnabled(mouseDragEnabled);
@@ -2131,7 +2131,7 @@ blockMovementSelect.addEventListener('change', () => {
   const drag = mode !== 'click-to-move';
   keyboardNavigation.setClickToMoveEnabled(ctm);
   keyboardNavigation.setMouseDragEnabled(drag);
-  keyboardNavigation.setKeepBlockOnMouse(drag);
+  keyboardNavigation.setKeepBlockOnMouse(false);
 });
 
 // ========== CONFIRMATION MODAL ==========
