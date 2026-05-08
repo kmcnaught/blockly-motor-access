@@ -559,16 +559,12 @@ keyboardNavigation.setConnectionSize('large');
 const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
 const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
 
-// Single-block drag defaults to false (stack drag is default)
-const savedSingleBlockDrag = localStorage.getItem('mazeSingleBlockDragEnabled');
-let singleBlockDragEnabled = savedSingleBlockDrag !== null ? savedSingleBlockDrag === 'true' : false;
-
 // Apply saved block movement preferences
 // Mouse drag is always enabled
 keyboardNavigation.setKeepBlockOnMouse(true);
 keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
-keyboardNavigation.setSingleBlockDragMode(singleBlockDragEnabled);
+keyboardNavigation.setSingleBlockDragMode(true);
 
 // Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
 // This makes the setting work for both mouse drags and keyboard drags
@@ -581,23 +577,9 @@ keyboardNavigation.setSingleBlockDragMode(singleBlockDragEnabled);
     return false;
   }
 
-  // Use the module-level variable (kept in sync by the checkbox handler)
-  const singleBlockDragMode = singleBlockDragEnabled;
-
-  // Check if Ctrl/Cmd key is pressed (toggle behavior)
+  // Single-block drag is always on; Ctrl/Cmd toggles to stack drag
   const isCtrlPressed = e?.ctrlKey || e?.metaKey || false;
-
-  if (singleBlockDragMode) {
-    // When single-block mode is enabled:
-    // - Default (no Ctrl): single-block drag (don't heal) = return false
-    // - With Ctrl: stack drag (heal) = return true
-    return !isCtrlPressed;
-  } else {
-    // When single-block mode is disabled (default behavior):
-    // - Default (no Ctrl): stack drag (heal) = return true
-    // - With Ctrl: single-block drag (don't heal) = return false
-    return isCtrlPressed;
-  }
+  return !isCtrlPressed;
 };
 
 // Enable keyboard navigation mode from the start so focus indicators show on tab
@@ -1034,11 +1016,6 @@ mazeGame.onExecutionStateChange((isExecuting) => {
   const runButton = document.getElementById('runButton') as HTMLButtonElement;
   if (runButton) {
     runButton.disabled = isExecuting;
-  }
-  // Also update fullscreen Run button if present
-  const fsRunButton = document.querySelector('.fullscreen-run') as HTMLButtonElement;
-  if (fsRunButton) {
-    fsRunButton.disabled = isExecuting;
   }
 });
 
@@ -2143,22 +2120,13 @@ shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 // ========== BLOCK MOVEMENT SETTINGS CHECKBOXES ==========
 
 const clickToMoveCheckbox = document.getElementById('clickToMoveCheckbox') as HTMLInputElement;
-const singleBlockDragCheckbox = document.getElementById('singleBlockDragCheckbox') as HTMLInputElement;
 
 clickToMoveCheckbox.checked = clickToMoveEnabled;
-singleBlockDragCheckbox.checked = singleBlockDragEnabled;
 
 clickToMoveCheckbox.addEventListener('change', () => {
   const enabled = clickToMoveCheckbox.checked;
   localStorage.setItem('mazeClickToMoveEnabled', String(enabled));
   keyboardNavigation.setClickToMoveEnabled(enabled);
-});
-
-singleBlockDragCheckbox.addEventListener('change', () => {
-  const enabled = singleBlockDragCheckbox.checked;
-  singleBlockDragEnabled = enabled;
-  localStorage.setItem('mazeSingleBlockDragEnabled', String(enabled));
-  keyboardNavigation.setSingleBlockDragMode(enabled);
 });
 
 // ========== CONFIRMATION MODAL ==========
@@ -3040,12 +3008,9 @@ function goToNextStage() {
  * - ]: Next level
  * - R: Run the program
  * - Shift+R: Reset maze position
- * - F: Toggle fullscreen mode
- * - G: Toggle game panel/sidebar
  * - ,: Previous character
  * - .: Next character
  * - L: Cycle language
- * - Esc: Exit fullscreen mode
  */
 // Use capture phase (true) to handle shortcuts before Blockly intercepts them
 document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -3169,16 +3134,6 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     }
   }
 
-  // F: Toggle fullscreen mode (no modifiers)
-  if (e.key === 'f' || e.key === 'F') {
-    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleFullscreen();
-      return;
-    }
-  }
-
   // ,: Previous character (no modifiers)
   if (e.key === ',') {
     if (!e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -3223,170 +3178,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     return;
   }
 
-  // Escape: Exit fullscreen mode
-  if (e.key === 'Escape') {
-    if (isFullscreenActive()) {
-      e.preventDefault();
-      e.stopPropagation();
-      exitFullscreen();
-      return;
-    }
-  }
 }, true); // Use capture phase to handle before Blockly
-
-// ========== FULLSCREEN MODE ==========
-
-let fullscreenActive = false;
-const fullscreenOverlay = document.getElementById('fullscreenOverlay');
-const canvasWrapper = document.querySelector('.canvas-wrapper') as HTMLElement;
-const mazeCanvas = document.getElementById('mazeCanvas') as HTMLCanvasElement;
-const fullscreenCanvasContainer = document.querySelector('.fullscreen-canvas-container') as HTMLElement;
-
-// Store focusable elements for focus trap
-let previouslyFocusedElement: HTMLElement | null = null;
-
-/**
- * Check if fullscreen mode is active.
- */
-function isFullscreenActive(): boolean {
-  return fullscreenActive;
-}
-
-/**
- * Toggle fullscreen mode.
- */
-function toggleFullscreen() {
-  if (fullscreenActive) {
-    exitFullscreen();
-  } else {
-    enterFullscreen();
-  }
-}
-
-/**
- * Enter fullscreen mode.
- */
-function enterFullscreen() {
-  if (!fullscreenOverlay || !mazeCanvas || !fullscreenCanvasContainer || !canvasWrapper) return;
-
-  // Store the currently focused element to restore later
-  previouslyFocusedElement = document.activeElement as HTMLElement;
-
-  // Move the canvas to the fullscreen overlay
-  fullscreenCanvasContainer.appendChild(mazeCanvas);
-
-  // Show the overlay
-  fullscreenOverlay.classList.add('active');
-  document.body.classList.add('fullscreen-active');
-  fullscreenActive = true;
-
-  // Set inert on all background content for proper modal behavior
-  document.querySelectorAll('body > *:not(#fullscreenOverlay):not(#snowContainer)').forEach(el => {
-    (el as HTMLElement).inert = true;
-  });
-
-  // Update button states
-  updateFullscreenLevelButtons();
-
-  // Focus the close button for accessibility
-  const closeButton = fullscreenOverlay.querySelector('.fullscreen-close') as HTMLElement;
-  if (closeButton) {
-    closeButton.focus();
-  }
-}
-
-/**
- * Exit fullscreen mode.
- */
-function exitFullscreen() {
-  if (!fullscreenOverlay || !mazeCanvas || !canvasWrapper) return;
-
-  // Move the canvas back to the original location
-  canvasWrapper.appendChild(mazeCanvas);
-
-  // Hide the overlay
-  fullscreenOverlay.classList.remove('active');
-  document.body.classList.remove('fullscreen-active');
-  fullscreenActive = false;
-
-  // Remove inert from background content
-  document.querySelectorAll('body > *:not(#fullscreenOverlay):not(#snowContainer)').forEach(el => {
-    (el as HTMLElement).inert = false;
-  });
-
-  // Restore focus to the previously focused element
-  if (previouslyFocusedElement) {
-    previouslyFocusedElement.focus();
-  }
-}
-
-/**
- * Update fullscreen level navigation button states.
- */
-function updateFullscreenLevelButtons() {
-  const currentLevel = mazeGame.getLevel();
-  const maxLevel = MazeGame.getMaxLevel();
-
-  const prevButton = fullscreenOverlay?.querySelector('.fullscreen-prev') as HTMLButtonElement;
-  const nextButton = fullscreenOverlay?.querySelector('.fullscreen-next') as HTMLButtonElement;
-
-  if (prevButton) {
-    prevButton.disabled = currentLevel <= 1;
-  }
-  if (nextButton) {
-    // In practice mode, keep enabled on last level to show graduation modal
-    nextButton.disabled = currentLevel >= maxLevel && !MazeGame.isPracticeModeEnabled();
-  }
-}
-
-// Wire up fullscreen overlay buttons
-if (fullscreenOverlay) {
-  // Close button
-  const closeButton = fullscreenOverlay.querySelector('.fullscreen-close');
-  closeButton?.addEventListener('click', exitFullscreen);
-
-  // Run button - uses shared runProgram()
-  const fsRunButton = fullscreenOverlay.querySelector('.fullscreen-run');
-  fsRunButton?.addEventListener('click', runProgram);
-
-  // Reset button - uses shared resetProgram()
-  const fsResetButton = fullscreenOverlay.querySelector('.fullscreen-reset');
-  fsResetButton?.addEventListener('click', resetProgram);
-
-  // Previous level button
-  const prevButton = fullscreenOverlay.querySelector('.fullscreen-prev');
-  prevButton?.addEventListener('click', () => {
-    goToPreviousLevel();
-    updateFullscreenLevelButtons();
-  });
-
-  // Next level button
-  const nextButton = fullscreenOverlay.querySelector('.fullscreen-next');
-  nextButton?.addEventListener('click', () => {
-    goToNextLevel();
-    updateFullscreenLevelButtons();
-  });
-
-  // Focus trap - keep focus within the overlay
-  fullscreenOverlay.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Tab') {
-      const focusableElements = fullscreenOverlay.querySelectorAll(
-        'button:not(:disabled), [tabindex]:not([tabindex="-1"])'
-      ) as NodeListOf<HTMLElement>;
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey && document.activeElement === firstElement) {
-        e.preventDefault();
-        lastElement.focus();
-      } else if (!e.shiftKey && document.activeElement === lastElement) {
-        e.preventDefault();
-        firstElement.focus();
-      }
-    }
-  });
-}
 
 // ========== COMPACT MODE ==========
 

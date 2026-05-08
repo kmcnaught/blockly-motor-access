@@ -235,10 +235,6 @@
             <input type="checkbox" id="clickToMoveCheckbox" checked>
             <span>Enable click-to-move</span>
           </label>
-          <label class="setting-item">
-            <input type="checkbox" id="singleBlockDragCheckbox">
-            <span>Single-block drag by default</span>
-          </label>
         </div>
       </div>
       <div class="shortcuts-list">
@@ -246,8 +242,6 @@
         <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
         <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
         <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
-        <div class="shortcut-item"><kbd>F</kbd> Fullscreen maze</div>
-        <div class="shortcut-item"><kbd>G</kbd> Toggle panel</div>
         <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
         <div class="shortcut-item"><kbd>L</kbd> Change language</div>
         <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
@@ -266,21 +260,6 @@
 
     <!-- Christmas Snow Effect Container -->
     <div id="snowContainer"></div>
-
-    <!-- Fullscreen Overlay -->
-    <div id="fullscreenOverlay" aria-modal="true" role="dialog" aria-label="Fullscreen maze view">
-      <button class="fullscreen-close" aria-label="Close fullscreen">&times;</button>
-      <div class="fullscreen-maze-wrapper">
-        <button class="fullscreen-level-nav fullscreen-prev" aria-label="Previous level">&lt; Back</button>
-        <div class="fullscreen-canvas-container"></div>
-        <button class="fullscreen-level-nav fullscreen-next" aria-label="Next level">Next &gt;</button>
-      </div>
-      <div class="fullscreen-controls">
-        <button class="fullscreen-run">Run Program</button>
-        <button class="fullscreen-reset">Reset</button>
-      </div>
-      <div class="fullscreen-hint">Press <kbd>Esc</kbd> or <kbd>F</kbd> to exit fullscreen</div>
-    </div>
 
   </div><!-- close page-scale-wrapper -->
   <!-- Blockly appends .blocklyDropDownDiv / .blocklyTooltipDiv / .blocklyWidgetDiv
