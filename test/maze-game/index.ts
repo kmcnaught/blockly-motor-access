@@ -555,12 +555,11 @@ keyboardNavigation.setTriggerMode(TriggerMode.FOCUSED_CLICK);
 keyboardNavigation.setConnectionSize('large');
 
 // Load saved block movement preferences from localStorage
-// Click-to-move defaults to true (enabled)
-const savedClickToMove = localStorage.getItem('mazeClickToMoveEnabled');
-const clickToMoveEnabled = savedClickToMove !== null ? savedClickToMove === 'true' : true;
-
-const savedMouseDrag = localStorage.getItem('mazeMouseDragEnabled');
-const mouseDragEnabled = savedMouseDrag !== null ? savedMouseDrag === 'true' : true;
+type BlockMovementMode = 'both' | 'click-to-move' | 'drag';
+const savedMovementMode = localStorage.getItem('mazeBlockMovementMode') as BlockMovementMode | null;
+const blockMovementMode: BlockMovementMode = savedMovementMode ?? 'both';
+const clickToMoveEnabled = blockMovementMode !== 'drag';
+const mouseDragEnabled = blockMovementMode !== 'click-to-move';
 
 // Apply saved block movement preferences
 keyboardNavigation.setKeepBlockOnMouse(mouseDragEnabled);
@@ -2120,25 +2119,23 @@ infoBtn.addEventListener('click', () => shortcutsDialog.show());
 // Close button handler
 shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 
-// ========== BLOCK MOVEMENT SETTINGS CHECKBOXES ==========
+// ========== BLOCK MOVEMENT MODE RADIO BUTTONS ==========
 
-const clickToMoveCheckbox = document.getElementById('clickToMoveCheckbox') as HTMLInputElement;
+const blockMovementRadios = document.querySelectorAll<HTMLInputElement>('input[name="blockMovementMode"]');
+const selectedRadio = document.querySelector<HTMLInputElement>(`input[name="blockMovementMode"][value="${blockMovementMode}"]`);
+if (selectedRadio) selectedRadio.checked = true;
 
-clickToMoveCheckbox.checked = clickToMoveEnabled;
-
-clickToMoveCheckbox.addEventListener('change', () => {
-  const enabled = clickToMoveCheckbox.checked;
-  localStorage.setItem('mazeClickToMoveEnabled', String(enabled));
-  keyboardNavigation.setClickToMoveEnabled(enabled);
-});
-
-const mouseDragCheckbox = document.getElementById('mouseDragCheckbox') as HTMLInputElement;
-mouseDragCheckbox.checked = mouseDragEnabled;
-mouseDragCheckbox.addEventListener('change', () => {
-  const enabled = mouseDragCheckbox.checked;
-  localStorage.setItem('mazeMouseDragEnabled', String(enabled));
-  keyboardNavigation.setMouseDragEnabled(enabled);
-  keyboardNavigation.setKeepBlockOnMouse(enabled);
+blockMovementRadios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    if (!radio.checked) return;
+    const mode = radio.value as BlockMovementMode;
+    localStorage.setItem('mazeBlockMovementMode', mode);
+    const ctm = mode !== 'drag';
+    const drag = mode !== 'click-to-move';
+    keyboardNavigation.setClickToMoveEnabled(ctm);
+    keyboardNavigation.setMouseDragEnabled(drag);
+    keyboardNavigation.setKeepBlockOnMouse(drag);
+  });
 });
 
 // ========== CONFIRMATION MODAL ==========

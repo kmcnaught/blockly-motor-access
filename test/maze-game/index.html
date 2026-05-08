@@ -232,8 +232,16 @@
         <h3 class="settings-heading">Block Movement</h3>
         <div class="settings-group">
           <label class="setting-item">
-            <input type="checkbox" id="clickToMoveCheckbox" checked>
-            <span>Enable click-to-move</span>
+            <input type="radio" name="blockMovementMode" id="blockMovementBoth" value="both">
+            <span>Both</span>
+          </label>
+          <label class="setting-item">
+            <input type="radio" name="blockMovementMode" id="blockMovementClickToMove" value="click-to-move">
+            <span>Click-to-move</span>
+          </label>
+          <label class="setting-item">
+            <input type="radio" name="blockMovementMode" id="blockMovementDrag" value="drag">
+            <span>Drag</span>
           </label>
         </div>
       </div>
