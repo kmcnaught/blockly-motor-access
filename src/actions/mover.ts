@@ -430,10 +430,17 @@ export class Mover {
       info.draggable.moveDuringDrag(targetPos);
     }
 
+    const savedScrollX = workspace.scrollX;
+    const savedScrollY = workspace.scrollY;
+
     info.dragger.onDragEnd(
       info.fakePointerEvent('pointerup'),
       new utils.Coordinate(0, 0),
     );
+
+    if (workspace.scrollX !== savedScrollX || workspace.scrollY !== savedScrollY) {
+      workspace.scroll(savedScrollX, savedScrollY);
+    }
 
     this.postDragEndCleanup(workspace, info);
     return true;
@@ -538,7 +545,13 @@ export class Mover {
       }
 
       workspace.render();
-      this.scrollCurrentElementIntoView(workspace);
+
+      // scrollCurrentElementIntoView looks up this.moves.get(workspace) which is
+      // already cleared at this point — call scrollBoundsIntoView directly.
+      if (info.draggable instanceof BlockSvg && !this.shouldDisableAutoScroll?.()) {
+        workspace.scrollBoundsIntoView(info.draggable.getBoundingRectangleWithoutChildren());
+      }
+
       getFocusManager().focusNode(info.draggable);
     });
   }

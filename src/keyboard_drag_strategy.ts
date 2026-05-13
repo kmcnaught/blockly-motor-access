@@ -478,6 +478,11 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
     } else {
       previewer.previewConnection(local, neighbour);
     }
+    // In click-and-stick mode, the block should stay at its current visual
+    // position when the user enters move mode — not jump to the nearest
+    // connection. The block will follow the mouse on the next pointer move.
+    if (this.isClickAndStick) return;
+
     // The moving block will be positioned slightly down and to the
     // right of the connection it found.
     block.moveDuringDrag(

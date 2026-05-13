@@ -915,7 +915,27 @@ export class StickyModeController {
       return;
     }
 
-    const connectionInfo = this.findConnectionAtPoint(clientX, clientY);
+    // Only resolve a connection if the click landed on a connection highlight
+    // element itself. Without this guard, clicking on the block body just below
+    // the selected block can hit the highlight's geometric search radius and
+    // trigger an unintended connect rather than a fallback.
+    const clickTarget = event.target as Element;
+    let isOnConnectionHighlight = false;
+    let el: Element | null = clickTarget;
+    while (el) {
+      if (
+        el.classList?.contains('blocklyPotentialConnection') ||
+        el.classList?.contains('blocklyConnectionHighlightLayer')
+      ) {
+        isOnConnectionHighlight = true;
+        break;
+      }
+      el = el.parentElement;
+    }
+    const connectionInfo = isOnConnectionHighlight
+      ? this.findConnectionAtPoint(clientX, clientY)
+      : null;
+
     if (connectionInfo) {
       this.connectToClickedConnection(connectionInfo, clientX, clientY);
       return;
@@ -943,27 +963,23 @@ export class StickyModeController {
       }
     }
 
-    // No connection preview to accept
-    // Check if click is inside the source block - if so, drop in place
-    const blockBounds = info.block.getBoundingRectangle();
-    const clickWorkspaceCoords = Blockly.utils.svgMath.screenToWsCoordinates(
-      this.workspace,
-      new Blockly.utils.Coordinate(clientX, clientY),
-    );
-
-    if (blockBounds.contains(clickWorkspaceCoords.x, clickWorkspaceCoords.y)) {
-      // Click is inside the source block - don't move it
-      this.exitStickyModeAndDrop();
-    } else {
-      // Click is outside the source block
-      if (this.allowDropOnEmptyWorkspace) {
-        // Move to click location
+    // No connection was made. If allowDropOnEmptyWorkspace is enabled and the
+    // click landed outside the source block, move the block to the click position.
+    // In all other cases (click on source block, or no empty-workspace drop
+    // allowed), abort and return the block to its original position.
+    if (this.allowDropOnEmptyWorkspace) {
+      const blockBounds = info.block.getBoundingRectangle();
+      const clickWorkspaceCoords = Blockly.utils.svgMath.screenToWsCoordinates(
+        this.workspace,
+        new Blockly.utils.Coordinate(clientX, clientY),
+      );
+      if (!blockBounds.contains(clickWorkspaceCoords.x, clickWorkspaceCoords.y)) {
         this.exitStickyModeAndDrop(clientX, clientY);
-      } else {
-        // No connection candidate - return block to original position
-        this.exitStickyModeAndDropToStart();
+        return;
       }
     }
+
+    this.exitStickyModeAndDropToStart();
   }
 
   /**
@@ -1581,10 +1597,9 @@ export class StickyModeController {
     this.stickyModes.delete(this.workspace);
     this.ignoreNextClick = false;
 
-    // Focus the workspace root to properly blur the block
-    // This ensures subsequent clicks can re-focus and select the block correctly
-    const focusManager = Blockly.getFocusManager();
-    focusManager.focusNode(this.workspace);
+    // Do NOT call focusNode(workspace) here: it triggers Blockly's scroll-to-cursor
+    // via a deferred rAF that runs before postDragEndCleanup's rAF, causing an
+    // unwanted scroll jump on fallback. focusNode(block) in that rAF restores focus.
 
     // Clear touch identifier to prevent stuck gestures
     try {
@@ -1605,16 +1620,25 @@ export class StickyModeController {
     const info = this.stickyModes.get(this.workspace);
     if (!info) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const moveInfo = (this.mover as any)?.moves?.get(this.workspace);
-    if (moveInfo && info.block && !info.block.isDisposed()) {
-      // Move block back to its original position
-      info.block.moveBy(-moveInfo.totalDelta.x, -moveInfo.totalDelta.y);
-      moveInfo.totalDelta.x = 0;
-      moveInfo.totalDelta.y = 0;
+    // Save scroll position before the fallback so we can restore it afterwards.
+    const savedScrollX = this.workspace.scrollX;
+    const savedScrollY = this.workspace.scrollY;
+
+    // Use abortMove (not finishMove) so Blockly triggers revertDrag, which
+    // properly reconnects the block to its original parent connection. finishMove
+    // leaves the block floating with parent=none because it drops without revert.
+    // setClickAndStickMode is handled inside abortMove → unpatchDragStrategy.
+    if (this.mover.isMoving(this.workspace)) {
+      this.mover.abortMove(this.workspace);
     }
 
-    this.exitStickyModeAndDrop(); // Drop in place (now at original position)
+    this.resetStickyState();
+
+    // Restore scroll after the mover's rAF (both rAFs are queued from the same
+    // event handler so they run FIFO in the same animation frame — ours last).
+    requestAnimationFrame(() => {
+      this.workspace.scroll(savedScrollX, savedScrollY);
+    });
   }
 
   /**
