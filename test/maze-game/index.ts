@@ -127,6 +127,13 @@ registerMazeBlocks();
 
 const PROGRAM_STORAGE_PREFIX = 'mazeProgram';
 
+// The workspace position the block stack is always anchored to after a drag.
+// Keeps the stack at a consistent, predictable location in both grid coding
+// mode and regular coding mode. Values chosen to give comfortable padding from
+// the top-left of the visible canvas area.
+const STACK_ANCHOR_X = 25;
+const STACK_ANCHOR_Y = 60;
+
 /**
  * Save the current workspace program to localStorage for a specific level.
  * Only used in coding mode.
@@ -499,6 +506,11 @@ workspace.addChangeListener((event) => {
 
 // Enforce: blocks must always remain in one connected stack.
 // If a drag ends with >1 top-level block, the drop was invalid — undo it.
+// If a drag ends with 1 top-level block, snap it back to the preferred position.
+// This handles two cases:
+//   1. Dragging the top block (whole stack moves with it) — stack ends up at wrong position.
+//   2. Moving the top block into the middle of the stack — a previously-child block becomes
+//      the new top at an unexpected workspace coordinate.
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.BLOCK_DRAG) {
     const dragEvent = event as Blockly.Events.BlockDrag;
@@ -507,6 +519,14 @@ workspace.addChangeListener((event) => {
       if (topBlocks.length > 1) {
         // Block was dropped floating — undo the whole drag (including any heal)
         workspace.undo(false);
+      } else if (topBlocks.length === 1) {
+        // Snap the stack back to the preferred starting position and reset scroll,
+        // so the top of the stack is always at a predictable location.
+        // Applies in all modes (grid coding and regular) — the maze invariant
+        // is always one connected stack, so a fixed anchor position is safe.
+        const topBlock = topBlocks[0] as Blockly.BlockSvg;
+        topBlock.moveTo(new Blockly.utils.Coordinate(STACK_ANCHOR_X, STACK_ANCHOR_Y));
+        workspace.scroll(getGridCodingModeScrollX(), 0);
       }
     }
   }
