@@ -3316,6 +3316,9 @@ function doLayout(): void {
   Blockly.svgResize(workspace);             // exactly once per layout cycle
   checkBlocklyWidth();                      // narrow class toggle
   updateGridCodingMinHeight();              // no-op in normal mode (guards on isGridCodingMode internally)
+  // Defer redraw to next frame so CSS transitions (e.g. panel width change) have
+  // settled and wrapper.clientWidth/clientHeight return final values.
+  requestAnimationFrame(() => mazeGame.redraw());
 }
 
 // ========== PANEL RESIZER ==========
@@ -3364,7 +3367,9 @@ function computeFitZoom(): number {
   const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 120;
   const minBlockly = Math.ceil(flyoutWidth * MIN_BLOCKLY_FLYOUT_MULTIPLIER);
   const minMaze    = Math.ceil(flyoutWidth * MIN_GAME_FLYOUT_MULTIPLIER);
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, window.innerWidth / (minBlockly + RESIZER_WIDTH + minMaze)));
+  // Use outerWidth (physical window size) rather than innerWidth (CSS pixels) so
+  // that browser zoom doesn't shrink the fit ceiling and force app zoom down.
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, window.outerWidth / (minBlockly + RESIZER_WIDTH + minMaze)));
 }
 
 /** Fit zoom floored to the nearest ZOOM_STEP — the ceiling used by applyPageZoom. */

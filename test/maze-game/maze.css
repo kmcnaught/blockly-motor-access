@@ -1769,11 +1769,7 @@ body.grid-mode {
   background: white;
 }
 
-/* Ensure canvas fits within its container */
-body.grid-mode #mazeCanvas {
-  max-width: calc(100vw - 32px);
-  max-height: 100%;
-}
+/* Canvas size is set dynamically by JS (getCanvasSize); no CSS constraints needed. */
 
 /* ============================================================
    Grid Coding Mode Styles
@@ -1941,13 +1937,7 @@ body.grid-coding-mode .container.sidebar-collapsed .blockly-container {
   opacity: 1;
 }
 
-/* Maze canvas sizing in grid coding mode - scale to fill wrapper */
-body.grid-coding-mode #mazeCanvas {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-}
+/* Canvas size is set dynamically by JS (getCanvasSize); no CSS constraints needed. */
 
 /* ============================================================
    Screen Padding Controls for Eye Gaze Accessibility
