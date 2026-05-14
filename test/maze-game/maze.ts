@@ -1306,12 +1306,10 @@ export class MazeGame {
     const containerWidth = wrapper.clientWidth || MazeGame.CANVAS_SIZE;
     const containerHeight = wrapper.clientHeight || MazeGame.CANVAS_SIZE;
 
-    // Use the smaller dimension to keep canvas square
-    // No longer cap at CANVAS_SIZE to allow expansion beyond 400px
-    const size = Math.min(containerWidth, containerHeight);
-
-    // Ensure minimum size for usability
-    return Math.max(200, size);
+    // Use the smaller dimension to keep canvas square and never exceed the
+    // wrapper bounds. Enforcing a minimum larger than available space would
+    // cause the canvas to overflow (be cut off at the bottom of the panel).
+    return Math.min(containerWidth, containerHeight);
   }
 
   private calculateScale(): void {
