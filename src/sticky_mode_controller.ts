@@ -1572,6 +1572,14 @@ export class StickyModeController {
 
     const {connection, stickyConnection} = connectionInfo;
 
+    // Save references before exit() clears sticky state.
+    const block = info.block;
+    // If the clicked connection is currently occupied (e.g. A.next→C.prev after
+    // heal), connecting B.prev there will orphan C. Save C.prev now so we can
+    // reconnect it to B.next after applyConnections runs.
+    const orphanConn =
+      connection.targetConnection as Blockly.RenderedConnection | null;
+
     const dragStrategy = this.getDragStrategy(info.block);
     if (dragStrategy) {
       dragStrategy.connectionCandidate = {
@@ -1582,6 +1590,20 @@ export class StickyModeController {
     }
 
     this.exit('finish');
+
+    // Blockly's applyConnections only makes ONE connection. When inserting B
+    // between A→C (healed stack), connecting B.prev→A.next displaces C.prev,
+    // leaving two top-level blocks. Reconnect B.next→C.prev synchronously,
+    // before the async BLOCK_DRAG end event fires (and the maze undo runs).
+    if (
+      orphanConn &&
+      !orphanConn.isConnected() &&
+      !block.isDisposed() &&
+      block.nextConnection &&
+      !block.nextConnection.isConnected()
+    ) {
+      block.nextConnection.connect(orphanConn);
+    }
   }
 
   /**
