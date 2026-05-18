@@ -20,6 +20,7 @@
     "start:maze": "webpack serve --config test/maze-game/webpack.config.js",
     "start:turtle": "webpack serve --config test/turtle-game/webpack.config.js",
     "build:minimal": "cd test && webpack --config webpack.minimal.config.js",
+    "prebuild:maze": "node scripts/generate-build-info.js",
     "build:maze": "webpack --config test/maze-game/webpack.config.js",
     "build:turtle": "webpack --config test/turtle-game/webpack.config.js",
     "test": "npm run test:mocha && npm run test:wdio",
