@@ -3312,6 +3312,12 @@ function scheduleLayout(): void {
 }
 
 function doLayout(): void {
+  // Enforce the fit-zoom ceiling before distributing panels. This covers cases
+  // where enforceFitZoom isn't triggered by a window resize — e.g. the user
+  // increases screen padding, or a level change widens the Blockly flyout.
+  const fit = fitZoomStep();
+  if (pageZoom > fit) applyPageZoom(fit);
+
   panelResizer?.recomputeWidths();          // re-distribute panels for current viewport
   Blockly.svgResize(workspace);             // exactly once per layout cycle
   checkBlocklyWidth();                      // narrow class toggle
@@ -3367,9 +3373,17 @@ function computeFitZoom(): number {
   const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 120;
   const minBlockly = Math.ceil(flyoutWidth * MIN_BLOCKLY_FLYOUT_MULTIPLIER);
   const minMaze    = Math.ceil(flyoutWidth * MIN_GAME_FLYOUT_MULTIPLIER);
-  // Use outerWidth (physical window size) rather than innerWidth (CSS pixels) so
-  // that browser zoom doesn't shrink the fit ceiling and force app zoom down.
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, window.outerWidth / (minBlockly + RESIZER_WIDTH + minMaze)));
+  const minTotal   = minBlockly + RESIZER_WIDTH + minMaze;
+  // Screen padding elements (vw-based) consume layout space and reduce the
+  // content area available for the two panels. Their offsetWidth is in real CSS
+  // pixels (transforms don't affect layout), which is the same coordinate space
+  // as innerWidth, so we can subtract them directly.
+  const leftPad  = document.getElementById('leftPadding') as HTMLElement | null;
+  const rightPad = document.getElementById('rightPadding') as HTMLElement | null;
+  const paddingPx = (leftPad?.offsetWidth ?? 0) + (rightPad?.offsetWidth ?? 0);
+  // Use innerWidth (CSS pixels) — the same unit as vw-based padding and layout.
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN,
+      window.innerWidth / (minTotal + paddingPx)));
 }
 
 /** Fit zoom floored to the nearest ZOOM_STEP — the ceiling used by applyPageZoom. */

@@ -310,9 +310,9 @@ export class PanelResizer {
     const minBlocklyWidth = this.getMinBlocklyWidth();
     const minGameWidth = this.getMinGameWidth();
 
-    // If the viewport is too narrow to honour both minimums, do nothing —
-    // computeFitZoom / enforceFitZoom will reduce the page zoom so there is
-    // enough virtual space.
+    // If the virtual content area is still too narrow to honour both minimums
+    // (shouldn't happen after doLayout enforces the fit zoom, but kept as a
+    // safety net), do nothing — the next doLayout pass will correct the zoom.
     if (availableWidth < minBlocklyWidth + minGameWidth) return;
 
     const currentBlocklyWidth = this.blocklyContainer.offsetWidth;
