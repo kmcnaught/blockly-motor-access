@@ -288,6 +288,20 @@ button:active {
   background: #45a049;
 }
 
+#ghostRunButton {
+  --element-color: #7c4dff;
+  background: var(--element-color);
+  color: white;
+}
+
+#ghostRunButton.hidden {
+  display: none;
+}
+
+#ghostRunButton:hover {
+  background: #6c3de0;
+}
+
 #resetButton {
   --element-color: #ff9800;
   background: var(--element-color);
@@ -1675,6 +1689,7 @@ body.grid-mode .blockly-container,
 body.grid-mode .sidebar-toggle,
 body.grid-mode .level-selector,
 body.grid-mode #runButton,
+body.grid-mode #ghostRunButton,
 body.grid-mode #resetButton,
 body.grid-mode .info-btn {
   display: none !important;
@@ -1783,6 +1798,7 @@ body.grid-coding-mode .mode-toggle,
 body.grid-coding-mode .sidebar-toggle,
 body.grid-coding-mode .level-selector,
 body.grid-coding-mode #runButton,
+body.grid-coding-mode #ghostRunButton,
 body.grid-coding-mode #resetButton,
 body.grid-coding-mode .info-btn,
 body.grid-coding-mode #capacityBubble,

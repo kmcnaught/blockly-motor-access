@@ -989,6 +989,7 @@ function updateModeToggleButton(): void {
 function updateModeUI(): void {
   const blocklyDiv = document.getElementById('blocklyDiv');
   const runButton = document.getElementById('runButton');
+  const ghostRunButton = document.getElementById('ghostRunButton');
   const capacityBubble = document.getElementById('capacityBubble');
   const gridCodingControls = document.getElementById('gridCodingControls');
 
@@ -996,6 +997,7 @@ function updateModeUI(): void {
     // Practice mode: Hide Blockly, show command buttons
     blocklyDiv?.classList.add('hidden');
     runButton?.classList.add('hidden');
+    ghostRunButton?.classList.add('hidden');
     capacityBubble?.classList.add('hidden');
     gridCodingControls?.classList.add('hidden');
     immediateModeController.setMazeGame(mazeGame);
@@ -1007,6 +1009,7 @@ function updateModeUI(): void {
     // Grid coding mode: Show Blockly workspace, hide other controls
     blocklyDiv?.classList.remove('hidden');
     runButton?.classList.add('hidden'); // Use keyboard R instead
+    ghostRunButton?.classList.add('hidden');
     capacityBubble?.classList.add('hidden'); // No block limits in Grid coding
     gridCodingControls?.classList.remove('hidden');
     immediateModeController.disable();
@@ -1021,6 +1024,7 @@ function updateModeUI(): void {
     // Normal coding mode: Show Blockly, hide command buttons
     blocklyDiv?.classList.remove('hidden');
     runButton?.classList.remove('hidden');
+    ghostRunButton?.classList.add('hidden'); // Shown only after a wall-crash result
     gridCodingControls?.classList.add('hidden');
     immediateModeController.disable();
     gridCodingModeController?.disable();
@@ -1042,6 +1046,10 @@ mazeGame.onExecutionStateChange((isExecuting) => {
   const runButton = document.getElementById('runButton') as HTMLButtonElement;
   if (runButton) {
     runButton.disabled = isExecuting;
+  }
+  const ghostRunButton = document.getElementById('ghostRunButton') as HTMLButtonElement;
+  if (ghostRunButton) {
+    ghostRunButton.disabled = isExecuting;
   }
 });
 
@@ -1504,21 +1512,48 @@ function runProgram() {
     }
   }
 
+  executeProgram();
+}
+
+function setGhostRunButtonVisible(visible: boolean): void {
+  const btn = document.getElementById('ghostRunButton');
+  if (visible) {
+    btn?.classList.remove('hidden');
+  } else {
+    btn?.classList.add('hidden');
+  }
+}
+
+/**
+ * Ghost run - execute program ignoring wall collisions, to let users see
+ * whether their overall logic is correct even if directions need fixing.
+ */
+function runGhostProgram() {
+  executeProgram({ ghostRun: true });
+}
+
+function executeProgram(options?: { ghostRun?: boolean }): void {
+  if (mazeGame.isExecuting()) return;
+  setGhostRunButtonVisible(false);
   hasRun = true;
   hideHint();
   const code = javascriptGenerator.workspaceToCode(workspace);
-  mazeGame.execute(code);
+  mazeGame.execute(code, options);
 }
 
 /**
  * Reset the maze - shared by main button and fullscreen button.
  */
 function resetProgram() {
+  setGhostRunButtonVisible(false);
   mazeGame.reset();
 }
 
 // Run button handler
 document.getElementById('runButton')?.addEventListener('click', runProgram);
+
+// Ghost Run button handler
+document.getElementById('ghostRunButton')?.addEventListener('click', runGhostProgram);
 
 // Reset button handler
 document.getElementById('resetButton')?.addEventListener('click', resetProgram);
@@ -1867,16 +1902,20 @@ const resultDialog = new AutoCloseDialog('resultModal', {
  * For success on non-final levels, shows a "next level" prompt with Cancel/OK.
  */
 function showResultModal(type: ResultType): void {
+  const isGhost = mazeGame.isGhostRun();
+
   // Set styling class (success = green accent, failure/timeout = gray)
   resultModal.className = 'result-modal ' + (type === 'success' ? 'success' : 'failure');
 
-  // Check if this is a success on a non-final level (show next level prompt)
+  // Ghost runs never advance to next level - they're informational only
   const currentLevel = mazeGame.getLevel();
   const maxLevel = MazeGame.getMaxLevel();
-  isNextLevelPrompt = type === 'success' && currentLevel < maxLevel;
+  isNextLevelPrompt = !isGhost && type === 'success' && currentLevel < maxLevel;
 
   // Set title (short phrase)
-  if (type === 'success') {
+  if (isGhost) {
+    resultModalTitle.textContent = msg('MAZE_GHOST_RUN_TITLE');
+  } else if (type === 'success') {
     resultModalTitle.textContent = msg('MAZE_CONGRATULATIONS');
   } else if (type === 'failure') {
     resultModalTitle.textContent = msg('MAZE_FAILURE_TITLE');
@@ -1887,7 +1926,13 @@ function showResultModal(type: ResultType): void {
   }
 
   // Set message (detailed explanation)
-  if (type === 'success') {
+  if (isGhost) {
+    if (type === 'success') {
+      resultModalMessage.textContent = msg('MAZE_GHOST_RUN_SUCCESS');
+    } else {
+      resultModalMessage.textContent = msg('MAZE_GHOST_RUN_FAILURE');
+    }
+  } else if (type === 'success') {
     if (isNextLevelPrompt) {
       // Not the last level - ask about next level
       resultModalMessage.textContent = msg('MAZE_NEXT_LEVEL_PROMPT');
@@ -1951,6 +1996,10 @@ mazeGame.onResult((result: ResultType) => {
   // Save program on successful completion in coding mode
   if (result === 'success' && !MazeGame.isPracticeModeEnabled()) {
     saveProgram(mazeGame.getLevel(), workspace);
+  }
+  // Show ghost run button after a wall crash so user can see if their logic is right
+  if (result === 'error' && !mazeGame.isGhostRun()) {
+    setGhostRunButtonVisible(true);
   }
   showResultModal(result);
 });

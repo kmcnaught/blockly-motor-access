@@ -63,6 +63,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_TIMEOUT_TITLE: 'Too slow!',
     MAZE_ERROR_TITLE: 'Oops!',
     MAZE_ERROR_MESSAGE: 'That didn\'t work. Try a different path!',
+    MAZE_GHOST_RUN_BUTTON: 'Ghost Run',
+    MAZE_GHOST_RUN_TITLE: 'Ghost run complete!',
+    MAZE_GHOST_RUN_SUCCESS: 'Your program reached the goal — try it for real now!',
+    MAZE_GHOST_RUN_FAILURE: 'Your program missed the goal. Check your moves and try again.',
     MAZE_NEXT_LEVEL_PROMPT: 'Are you ready for the next level?',
     MAZE_ALL_LEVELS_COMPLETE: 'You completed all levels!',
 
@@ -288,6 +292,10 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_TIMEOUT_TITLE: 'Trop lent !',
     MAZE_ERROR_TITLE: 'Oups !',
     MAZE_ERROR_MESSAGE: 'Ça n\'a pas marché. Essayez un autre chemin !',
+    MAZE_GHOST_RUN_BUTTON: 'Mode fantôme',
+    MAZE_GHOST_RUN_TITLE: 'Mode fantôme terminé !',
+    MAZE_GHOST_RUN_SUCCESS: 'Votre programme a atteint l\'objectif — essayez pour de vrai maintenant !',
+    MAZE_GHOST_RUN_FAILURE: 'Votre programme n\'a pas atteint l\'objectif. Vérifiez vos mouvements et réessayez.',
     MAZE_NEXT_LEVEL_PROMPT: 'Êtes-vous prêt pour le niveau suivant ?',
     MAZE_ALL_LEVELS_COMPLETE: 'Vous avez terminé tous les niveaux !',
 

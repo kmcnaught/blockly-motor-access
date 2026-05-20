@@ -924,6 +924,7 @@ export class MazeGame {
   private finishPos: Position;
   private squareSize = 50;
   private executing = false;
+  private ghostRun = false;
 
   // Fixed canvas size for consistent display
   private static readonly CANVAS_SIZE = 400;
@@ -1372,6 +1373,11 @@ export class MazeGame {
         const py = y * this.squareSize;
 
         // Draw tiles for all squares (both paths and walls)
+        const isWall = square === SquareType.WALL;
+        if (this.ghostRun && isWall) {
+          this.ctx.save();
+          this.ctx.globalAlpha = 0.25;
+        }
         if (this.tilesImage && this.imagesLoaded) {
           // Get the pre-computed tile shape from cache
           const finalShape = this.tileShapeCache[y][x];
@@ -1403,6 +1409,9 @@ export class MazeGame {
           this.ctx.strokeStyle = '#AAA';
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(px, py, this.squareSize, this.squareSize);
+        }
+        if (this.ghostRun && isWall) {
+          this.ctx.restore();
         }
 
         // Draw colored shape for RED/BLUE squares
@@ -1513,6 +1522,10 @@ export class MazeGame {
       this.ctx.translate(centerX, centerY);
       this.ctx.scale(this.PEGMAN_SCALE, this.PEGMAN_SCALE);
       this.ctx.translate(-centerX, -centerY);
+      if (this.ghostRun) {
+        this.ctx.globalAlpha = 0.55;
+        this.ctx.filter = 'grayscale(60%) brightness(1.4)';
+      }
 
       this.ctx.drawImage(
         this.pegmanImage,
@@ -1835,8 +1848,11 @@ export class MazeGame {
   private move(direction: number, blockId?: string): void {
     // Check for wall collision
     if (!this.isPath(direction, undefined)) {
-      this.log.push([direction === 0 ? 'fail_forward' : 'fail_backward', blockId]);
-      throw false; // Wall collision - stops execution
+      if (!this.ghostRun) {
+        this.log.push([direction === 0 ? 'fail_forward' : 'fail_backward', blockId]);
+        throw false; // Wall collision - stops execution
+      }
+      // Ghost mode: pass through walls silently — move animation below handles it
     }
 
     const effectiveDirection = this.constrainDirection4(this.pegmanD + direction);
@@ -2132,6 +2148,7 @@ export class MazeGame {
     const wasExecuting = this.executing;
     this.animationCancelled = true;
     this.executing = false;
+    this.ghostRun = false;
 
     // Cancel any pending result dialog timeout
     if (this.resultDelayTimeoutId !== null) {
@@ -2424,13 +2441,18 @@ export class MazeGame {
   // Result type enum matching original
   private result: 'unset' | 'success' | 'failure' | 'timeout' | 'error' = 'unset';
 
-  public execute(code: string) {
+  public isGhostRun(): boolean { return this.ghostRun; }
+
+  public execute(code: string, options?: { ghostRun?: boolean }): void {
     if (this.executing) {
       return;
     }
 
     // Reset visual state first (this also cancels any prior animation)
     this.reset();
+
+    // Set ghost run mode AFTER reset() since reset() clears this flag
+    this.ghostRun = options?.ghostRun ?? false;
 
     // Now mark as executing - must be after reset() since reset() clears this flag
     this.executing = true;
