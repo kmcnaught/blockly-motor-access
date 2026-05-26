@@ -31,9 +31,10 @@ import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForS
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
-import {PanelResizer, RESIZER_WIDTH, MIN_BLOCKLY_FLYOUT_MULTIPLIER, MIN_GAME_FLYOUT_MULTIPLIER} from './panel-resizer';
 import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
+import {launchConfetti} from './confetti';
+import {MODE_SPECS, getCurrentLayoutMode, initLayout, scheduleLayout} from './layout';
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -811,9 +812,6 @@ const immediateModeController = new ImmediateModeController(
 // Initialize Grid coding mode controller (only created if in Grid coding mode)
 let gridCodingModeController: GridCodingModeController | null = null;
 
-// Panel resizer for adjusting workspace/game panel widths (initialized later)
-let panelResizer: PanelResizer | null = null;
-
 if (isGridCodingMode) {
   gridCodingModeController = new GridCodingModeController(workspace, mazeGame);
 
@@ -981,59 +979,35 @@ function updateModeToggleButton(): void {
 }
 
 /**
- * Update the UI based on current execution mode.
- * Practice mode: Shows command buttons, hides Blockly workspace
- * Coding mode: Shows Blockly workspace, hides command buttons
- * Grid coding mode: Shows Blockly workspace (for blocks), hides normal controls
+ * Apply UI visibility rules for the current layout mode.
+ * Reads from MODE_SPECS — add new mode behaviour there, not here.
  */
 function updateModeUI(): void {
-  const blocklyDiv = document.getElementById('blocklyDiv');
-  const runButton = document.getElementById('runButton');
-  const ghostRunButton = document.getElementById('ghostRunButton');
-  const capacityBubble = document.getElementById('capacityBubble');
-  const gridCodingControls = document.getElementById('gridCodingControls');
+  const spec = MODE_SPECS[getCurrentLayoutMode()];
 
-  if (currentExecutionMode === 'practice') {
-    // Practice mode: Hide Blockly, show command buttons
-    blocklyDiv?.classList.add('hidden');
-    runButton?.classList.add('hidden');
-    ghostRunButton?.classList.add('hidden');
-    capacityBubble?.classList.add('hidden');
-    gridCodingControls?.classList.add('hidden');
+  document.getElementById('blocklyDiv')?.classList.toggle('hidden', !spec.blocklyDiv);
+  document.getElementById('runButton')?.classList.toggle('hidden', !spec.runButton);
+  document.getElementById('ghostRunButton')?.classList.add('hidden');     // shown by result handler only
+  document.getElementById('capacityBubble')?.classList.add('hidden');     // managed by updateCapacityBubble
+  document.getElementById('gridCodingControls')?.classList.toggle('hidden', !spec.gridCodingControls);
+
+  if (spec.immediateController === 'enable') {
     immediateModeController.setMazeGame(mazeGame);
     immediateModeController.enable();
-    gridCodingModeController?.disable();
-    // Reset to flex layout when Blockly hidden
-    panelResizer?.resetToFlexLayout();
-  } else if (isGridCodingMode) {
-    // Grid coding mode: Show Blockly workspace, hide other controls
-    blocklyDiv?.classList.remove('hidden');
-    runButton?.classList.add('hidden'); // Use keyboard R instead
-    ghostRunButton?.classList.add('hidden');
-    capacityBubble?.classList.add('hidden'); // No block limits in Grid coding
-    gridCodingControls?.classList.remove('hidden');
-    immediateModeController.disable();
-    if (gridCodingModeController) {
-      gridCodingModeController.setMazeGame(mazeGame);
-      gridCodingModeController.enable();
-    }
-    // Update mode and restore saved widths, then schedule layout
-    panelResizer?.setGridCodingMode(true);
-    panelResizer?.restoreSavedWidths(() => scheduleLayout());
   } else {
-    // Normal coding mode: Show Blockly, hide command buttons
-    blocklyDiv?.classList.remove('hidden');
-    runButton?.classList.remove('hidden');
-    ghostRunButton?.classList.add('hidden'); // Shown only after a wall-crash result
-    gridCodingControls?.classList.add('hidden');
     immediateModeController.disable();
-    gridCodingModeController?.disable();
-    // Update capacity bubble
-    updateCapacityBubble();
-    // Update mode and restore saved widths, then schedule layout
-    panelResizer?.setGridCodingMode(false);
-    panelResizer?.restoreSavedWidths(() => scheduleLayout());
   }
+
+  if (spec.gridCodingController === 'enable' && gridCodingModeController) {
+    gridCodingModeController.setMazeGame(mazeGame);
+    gridCodingModeController.enable();
+  } else {
+    gridCodingModeController?.disable();
+  }
+
+  if (spec.runButton) updateCapacityBubble();
+
+  scheduleLayout();
 }
 
 // Register block highlighting callback for code execution visualization
@@ -1301,82 +1275,6 @@ function createSnowflakes() {
   snowflakesCreated = true;
 }
 
-// ========== CONFETTI EFFECT ==========
-
-const confettiColors = [
-  '#ff6b6b', // red
-  '#ffd93d', // yellow
-  '#6bcb77', // green
-  '#4d96ff', // blue
-  '#ff8cc8', // pink
-  '#a855f7', // purple
-  '#f97316', // orange
-];
-
-const confettiShapes = ['circle', 'square', 'ribbon'];
-const confettiSwings = ['', 'swing-left', 'swing-right'];
-
-/**
- * Launch confetti particles for level completion celebration.
- */
-function launchConfetti() {
-  const container = document.getElementById('confettiContainer');
-  if (!container) return;
-
-  // Clear any existing confetti
-  container.innerHTML = '';
-
-  // Create 80 confetti particles
-  const particleCount = 80;
-
-  for (let i = 0; i < particleCount; i++) {
-    const confetti = document.createElement('div');
-    confetti.className = 'confetti';
-
-    // Random shape
-    const shape = confettiShapes[Math.floor(Math.random() * confettiShapes.length)];
-    confetti.classList.add(shape);
-
-    // Random swing pattern
-    const swing = confettiSwings[Math.floor(Math.random() * confettiSwings.length)];
-    if (swing) confetti.classList.add(swing);
-
-    // Random color
-    const color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
-    confetti.style.backgroundColor = color;
-
-    // Random horizontal position (spread across the screen)
-    confetti.style.left = `${Math.random() * 100}%`;
-
-    // Start from top with some variation
-    confetti.style.top = `${-10 + Math.random() * 20}px`;
-
-    // Random size variation
-    const size = 4 + Math.random() * 5;
-    if (shape !== 'ribbon') {
-      confetti.style.width = `${size}px`;
-      confetti.style.height = `${size}px`;
-    } else {
-      confetti.style.width = `${size * 0.5}px`;
-      confetti.style.height = `${size * 1.5}px`;
-    }
-
-    // Random animation duration (2-4 seconds)
-    const duration = 2 + Math.random() * 2;
-    confetti.style.animationDuration = `${duration}s`;
-
-    // Stagger the start of each confetti
-    confetti.style.animationDelay = `${Math.random() * 0.5}s`;
-
-    container.appendChild(confetti);
-  }
-
-  // Clean up confetti after animation completes
-  setTimeout(() => {
-    container.innerHTML = '';
-  }, 4500);
-}
-
 /**
  * Enable or disable Christmas theme effects.
  */
@@ -1586,6 +1484,23 @@ populateStageDropdown();
 
 // Initial level display update
 updateLevelDisplay();
+
+// Initialize padding controls manager for eye gaze accessibility
+const paddingManager = new PaddingControlsManager({
+  isGridMode,
+  isGridCodingMode
+});
+paddingManager.init();
+
+// Initialize layout pipeline (queries DOM, wires resize/zoom events, applies initial zoom).
+// Must be called before updateModeUI() so getCurrentLayoutMode() has valid deps.
+initLayout({
+  workspace,
+  redraw: () => mazeGame.redraw(),
+  isGridMode,
+  isGridCodingMode,
+  getExecutionMode: () => currentExecutionMode,
+});
 
 // Initialize execution mode UI based on URL param or saved preference
 updateModeUI();
@@ -2770,28 +2685,6 @@ function initializeGridCodingMode(): void {
 // Initialize Grid coding mode if active
 initializeGridCodingMode();
 
-// Hide level label when viewport is too small (works regardless of zoom level)
-function checkGridModeLevelVisibility(): void {
-  if (!isGridMode) return;
-
-  const gridModeLevel = document.getElementById('gridModeLevel');
-  if (!gridModeLevel) return;
-
-  // Hide level label when viewport height is under threshold
-  // This handles zoom, small screens, or any situation where space is limited
-  const hideThreshold = 600; // pixels
-
-  if (window.innerHeight < hideThreshold) {
-    gridModeLevel.style.display = 'none';
-  } else {
-    gridModeLevel.style.display = '';
-  }
-}
-
-// Check on load and when window resizes
-checkGridModeLevelVisibility();
-window.addEventListener('resize', checkGridModeLevelVisibility);
-
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)
 workspace.addChangeListener((event) => {
   if (event.type === Blockly.Events.BLOCK_CREATE ||
@@ -3272,320 +3165,5 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 
 }, true); // Use capture phase to handle before Blockly
 
-// ========== COMPACT MODE ==========
 
-const gameContainer = document.querySelector('.game-container') as HTMLElement;
-
-/**
- * Check if compact mode should be enabled based on available space.
- * Compact mode overlays the level navigation buttons on the canvas
- * instead of showing them above it, saving vertical space.
- */
-function checkCompactMode() {
-  if (!gameContainer) return;
-
-  // Enable compact mode when window height is limited.
-  // 700px accommodates: header (~60px) + instruction bar (~40px) + canvas (~400px) +
-  // controls (~80px) + level selector (~50px) + padding (~70px) = ~700px minimum
-  const windowHeight = window.innerHeight;
-  const compactThreshold = 700;
-
-  if (windowHeight < compactThreshold) {
-    gameContainer.classList.add('compact');
-  } else {
-    gameContainer.classList.remove('compact');
-  }
-}
-
-// Check compact mode on load and resize
-checkCompactMode();
-window.addEventListener('resize', checkCompactMode);
-
-// ========== COLLAPSIBLE SIDEBAR ==========
-
-const mainContainer = document.querySelector('.container') as HTMLElement;
-const sidebarToggle = document.getElementById('sidebarToggle');
-let sidebarCollapsed = false;
-
-/**
- * Collapse the sidebar (game panel).
- */
-function collapseSidebar() {
-  if (!mainContainer) return;
-  mainContainer.classList.add('sidebar-collapsed');
-  sidebarCollapsed = true;
-  // Reset to flex layout when sidebar collapsed
-  panelResizer?.resetToFlexLayout();
-  // Trigger layout after CSS transition completes
-  setTimeout(() => scheduleLayout(), 400);
-}
-
-/**
- * Expand the sidebar (game panel).
- */
-function expandSidebar() {
-  if (!mainContainer) return;
-  mainContainer.classList.remove('sidebar-collapsed');
-  sidebarCollapsed = false;
-  // Restore panel widths and schedule layout after CSS transition completes
-  setTimeout(() => panelResizer?.restoreSavedWidths(() => scheduleLayout()), 400);
-}
-
-/**
- * Toggle the sidebar collapsed state.
- */
-function toggleSidebar() {
-  if (sidebarCollapsed) {
-    expandSidebar();
-  } else {
-    collapseSidebar();
-  }
-}
-
-// Wire up toggle button
-sidebarToggle?.addEventListener('click', toggleSidebar);
-
-// ========== LAYOUT PIPELINE ==========
-// scheduleLayout/doLayout coalesce all layout work (panel reflow, Blockly SVG
-// resize, narrow-class toggle, grid min-height) into a single rAF per frame.
-
-let layoutPending = false;
-
-function scheduleLayout(): void {
-  if (layoutPending) return;
-  layoutPending = true;
-  requestAnimationFrame(() => {
-    layoutPending = false;
-    doLayout();
-  });
-}
-
-function doLayout(): void {
-  // Enforce the fit-zoom ceiling before distributing panels. This covers cases
-  // where enforceFitZoom isn't triggered by a window resize — e.g. the user
-  // increases screen padding, or a level change widens the Blockly flyout.
-  const fit = fitZoomStep();
-  if (pageZoom > fit) applyPageZoom(fit);
-
-  panelResizer?.recomputeWidths();          // re-distribute panels for current viewport
-  Blockly.svgResize(workspace);             // exactly once per layout cycle
-  checkBlocklyWidth();                      // narrow class toggle
-  updateGridCodingMinHeight();              // no-op in normal mode (guards on isGridCodingMode internally)
-  // Defer redraw to next frame so CSS transitions (e.g. panel width change) have
-  // settled and wrapper.clientWidth/clientHeight return final values.
-  requestAnimationFrame(() => mazeGame.redraw());
-}
-
-// ========== PANEL RESIZER ==========
-
-const blocklyContainer = document.querySelector('.blockly-container') as HTMLElement;
-const panelResizerElement = document.getElementById('panelResizer') as HTMLElement;
-
-// Initialize panel resizer if applicable (not in grid practice mode)
-if (panelResizerElement && blocklyContainer && gameContainer && !isGridMode) {
-  panelResizer = new PanelResizer(
-    workspace,
-    mainContainer,
-    blocklyContainer,
-    gameContainer,
-    panelResizerElement,
-    isGridCodingMode,
-    () => {
-      // Trigger maze redraw when panels are resized
-      mazeGame.redraw();
-    }
-  );
-
-  // Restore saved widths after initialization
-  panelResizer?.restoreSavedWidths(() => scheduleLayout());
-}
-
-// ========== PADDING CONTROLS ==========
-
-// Initialize padding controls manager for eye gaze accessibility
-const paddingManager = new PaddingControlsManager({
-  isGridMode,
-  isGridCodingMode
-});
-paddingManager.init();
-
-// ========== PAGE ZOOM CONTROLS ==========
-
-const ZOOM_KEY = 'mazePageZoom';
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 2.0;
-const ZOOM_STEP = 0.1;
-
-let pageZoom = parseFloat(localStorage.getItem(ZOOM_KEY) ?? '1');
-
-function computeFitZoom(): number {
-  const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 120;
-  const minBlockly = Math.ceil(flyoutWidth * MIN_BLOCKLY_FLYOUT_MULTIPLIER);
-  const minMaze    = Math.ceil(flyoutWidth * MIN_GAME_FLYOUT_MULTIPLIER);
-  const minTotal   = minBlockly + RESIZER_WIDTH + minMaze;
-  // Screen padding elements (vw-based) consume layout space and reduce the
-  // content area available for the two panels. Their offsetWidth is in real CSS
-  // pixels (transforms don't affect layout), which is the same coordinate space
-  // as innerWidth, so we can subtract them directly.
-  const leftPad  = document.getElementById('leftPadding') as HTMLElement | null;
-  const rightPad = document.getElementById('rightPadding') as HTMLElement | null;
-  const paddingPx = (leftPad?.offsetWidth ?? 0) + (rightPad?.offsetWidth ?? 0);
-  // Use innerWidth (CSS pixels) — the same unit as vw-based padding and layout.
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN,
-      window.innerWidth / (minTotal + paddingPx)));
-}
-
-/** Fit zoom floored to the nearest ZOOM_STEP — the ceiling used by applyPageZoom. */
-function fitZoomStep(): number {
-  return Math.floor(computeFitZoom() / ZOOM_STEP) * ZOOM_STEP;
-}
-
-function updateZoomButtons() {
-  const fitZoom = fitZoomStep();
-  const zoomOutBtn = document.getElementById('zoomOutBtn') as HTMLButtonElement;
-  const zoomInBtn = document.getElementById('zoomInBtn') as HTMLButtonElement;
-  if (zoomOutBtn) zoomOutBtn.disabled = pageZoom <= ZOOM_MIN;
-  if (zoomInBtn) zoomInBtn.disabled = pageZoom >= Math.min(ZOOM_MAX, fitZoom);
-}
-
-function applyPageZoom(zoom: number) {
-  // Clamp to the fit ceiling (floored to nearest step) so pageZoom never causes overflow after rounding.
-  // ZOOM_MAX is already enforced inside computeFitZoom, so fitZoomStep() never exceeds it.
-  pageZoom = Math.round(Math.max(ZOOM_MIN, Math.min(fitZoomStep(), zoom)) * 10) / 10;
-
-  const wrapper = document.getElementById('page-scale-wrapper')!;
-  const size = 100 / pageZoom;
-  wrapper.style.width = `${size}vw`;
-  wrapper.style.height = `${size}vh`;
-  wrapper.style.transform = `scale(${pageZoom})`;
-
-  // Remove any body zoom/size styles left over from previous approach
-  (document.body.style as any)['zoom'] = '';
-  document.body.style.width = '';
-  document.body.style.height = '';
-
-  // Expose zoom level as a CSS variable so overlay divs outside the scale wrapper
-  // (e.g. .blocklyDropDownDiv, .blocklyWidgetDiv) can apply a matching transform.
-  document.documentElement.style.setProperty('--page-zoom', String(pageZoom));
-
-  localStorage.setItem(ZOOM_KEY, String(pageZoom));
-  const label = document.getElementById('zoomLabel');
-  if (label) label.textContent = `${Math.round(pageZoom * 100)}%`;
-  updateZoomButtons();
-}
-
-document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
-  applyPageZoom(pageZoom - ZOOM_STEP);
-  scheduleLayout();
-});
-document.getElementById('zoomInBtn')?.addEventListener('click', () => {
-  applyPageZoom(pageZoom + ZOOM_STEP);
-  scheduleLayout();
-});
-
-// Apply saved zoom on load, clamped to fit viewport
-applyPageZoom(Math.min(pageZoom, fitZoomStep()));
-scheduleLayout();
-
-// ========== NARROW BLOCKLY DETECTION ==========
-
-/**
- * Check if Blockly workspace is narrow and hide controls if so.
- * When the workspace is too narrow, the trash can and zoom controls
- * overlap with blocks, so we hide them.
- */
-function checkBlocklyWidth() {
-  if (!blocklyContainer) return;
-
-  // 500px is roughly the minimum width where Blockly's built-in controls
-  // (trashcan, zoom buttons) don't overlap with the flyout and workspace blocks
-  const narrowThreshold = 500;
-  const width = blocklyContainer.offsetWidth;
-
-  if (width < narrowThreshold) {
-    blocklyContainer.classList.add('narrow');
-  } else {
-    blocklyContainer.classList.remove('narrow');
-  }
-}
-
-/**
- * In grid coding mode, manage layout based on available space.
- * - Sets min-height based on width to maintain aspect ratio
- * - Toggles compact mode when content doesn't fit vertically
- * - Hides instruction bar when even more space is needed
- */
-function updateGridCodingMinHeight() {
-  if (!isGridCodingMode || !gameContainer) return;
-
-  // Set min-height to 40% of width - allows vertical shrinking while maintaining proportion.
-  // Guard the write so ResizeObserver doesn't fire when the value hasn't changed.
-  const minHeight = gameContainer.offsetWidth * 0.4;
-  const minHeightPx = `${minHeight}px`;
-  if (gameContainer.style.minHeight !== minHeightPx) {
-    gameContainer.style.minHeight = minHeightPx;
-  }
-
-  // Check if content overflows - if so, enable compact mode
-  const canvas = document.getElementById('mazeCanvas');
-  const instructionBar = document.getElementById('instructionBar');
-  if (!canvas) return;
-
-  // clientHeight forces a synchronous reflow, so the minHeight write above is
-  // already reflected in this read — no extra rAF needed.
-  const availableHeight = gameContainer.clientHeight;
-  const canvasHeight = canvas.offsetHeight;
-  const controlsHeight = 40; // approximate height of controls
-  const gaps = gameContainer.classList.contains('compact') ? 8 : 16;
-
-  // Calculate needed height based on current state (without label if compact)
-  const neededHeight = canvasHeight + controlsHeight + gaps;
-  const isCompact = gameContainer.classList.contains('compact');
-  const isInstructionBarHidden = instructionBar?.classList.contains('hidden');
-
-  // Use hysteresis: collapseAt > expandBelow creates a 20px dead zone to prevent oscillation
-  const collapseAt = availableHeight;
-  const expandBelow = availableHeight - 20;
-
-  if (neededHeight > collapseAt && !isCompact) {
-    gameContainer.classList.add('compact');
-  } else if (neededHeight < expandBelow && isCompact) {
-    gameContainer.classList.remove('compact');
-    // Restore instruction bar when expanding
-    if (instructionBar && isInstructionBarHidden) {
-      instructionBar.classList.remove('hidden');
-    }
-  }
-
-  // Second level: hide instruction bar if still too tight even in compact mode
-  if (isCompact && neededHeight > availableHeight && instructionBar && !isInstructionBarHidden) {
-    instructionBar.classList.add('hidden');
-  }
-}
-
-function enforceFitZoom(): void {
-  const fit = fitZoomStep();
-  if (pageZoom > fit) {
-    applyPageZoom(fit);
-  }
-  updateZoomButtons();
-  scheduleLayout();
-}
-
-// ResizeObserver drives the layout cycle: any container size change (browser
-// zoom, window resize, panel drag) fires scheduleLayout, which runs doLayout
-// once per animation frame.  doLayout calls panelResizer.recomputeWidths(),
-// which only adjusts widths when panels have drifted outside their constraints,
-// so the observer does not create a feedback loop.
-// (layoutPending replaces the old sizeChangePending flag for deduplication.)
-const resizeObserver = new ResizeObserver(scheduleLayout);
-
-if (mainContainer) {
-  resizeObserver.observe(mainContainer);
-}
-
-// enforceFitZoom is wired to window 'resize' rather than the ResizeObserver
-// because applyPageZoom changes the wrapper dimensions, which would re-fire
-// the ResizeObserver and cause a cascade.
-window.addEventListener('resize', enforceFitZoom);
 
