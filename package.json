@@ -33,7 +33,11 @@
     "wdio:build:tests": "tsc -p ./test/webdriverio/test/tsconfig.json",
     "wdio:clean": "cd test/webdriverio/test && rm -rf dist",
     "wdio:run": "npm run wdio:build && cd test/webdriverio/test && npx mocha dist",
-    "wdio:run:ci": "npm run wdio:build && cd test/webdriverio/test && npx mocha --timeout 30000 dist"
+    "wdio:run:ci": "npm run wdio:build && cd test/webdriverio/test && npx mocha --timeout 30000 dist",
+    "test:maze": "npm run wdio:maze:build && cd test/maze-game/test && npx mocha dist",
+    "test:maze:ci": "npm run wdio:maze:build && cd test/maze-game/test && npx mocha --timeout 30000 dist",
+    "wdio:maze:build": "tsc -p ./test/maze-game/test/tsconfig.json",
+    "wdio:maze:clean": "cd test/maze-game/test && rm -rf dist"
   },
   "main": "./dist/index.js",
   "module": "./src/index.js",
