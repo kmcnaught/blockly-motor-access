@@ -1242,8 +1242,11 @@ export class MazeGame {
   // Callback for block highlighting during execution
   private highlightCallback: ((blockId: string | null) => void) | null = null;
 
-  // Callback for execution state changes (for UI updates like disabling Run button)
-  private executionStateCallback: ((isExecuting: boolean) => void) | null = null;
+  // Callbacks for execution state changes (for UI updates like disabling
+  // the Run button, and for switch-scan to pause its highlight cycle).
+  // Multiple subscribers — list, not slot — so independent consumers
+  // (Run-button disable in index.ts + SwitchScanController) coexist.
+  private executionStateCallbacks: Array<(isExecuting: boolean) => void> = [];
 
   /**
    * Register a callback to be called when execution completes.
@@ -1263,11 +1266,23 @@ export class MazeGame {
 
   /**
    * Register a callback to be called when execution state changes.
-   * Used for UI updates like disabling the Run button during execution.
+   * Used for UI updates like disabling the Run button during execution,
+   * and for the switch-scan controller to pause its highlight cycle.
+   * Multiple subscribers are supported and fire in registration order.
    * @param callback Function called with true when execution starts, false when it ends.
    */
   public onExecutionStateChange(callback: (isExecuting: boolean) => void): void {
-    this.executionStateCallback = callback;
+    this.executionStateCallbacks.push(callback);
+  }
+
+  /**
+   * Notify all execution-state callbacks. Wrapped in a helper so the
+   * three transition sites (start in `execute()`, cancel in `animate()`,
+   * finish in `showResult()`, plus reset()) stay consistent and easy to
+   * grep for.
+   */
+  private notifyExecutionState(isExecuting: boolean): void {
+    this.executionStateCallbacks.forEach((cb) => cb(isExecuting));
   }
 
   /**
@@ -2169,9 +2184,10 @@ export class MazeGame {
       this.highlightCallback(null);
     }
 
-    // Notify UI that execution stopped (e.g., to re-enable Run button)
-    if (wasExecuting && this.executionStateCallback) {
-      this.executionStateCallback(false);
+    // Notify UI that execution stopped (e.g., to re-enable Run button,
+    // and for switch-scan to resume its highlight cycle).
+    if (wasExecuting) {
+      this.notifyExecutionState(false);
     }
 
     this.draw();
@@ -2458,10 +2474,9 @@ export class MazeGame {
     this.executing = true;
     this.animationCancelled = false;
 
-    // Notify UI that execution started (e.g., to disable Run button)
-    if (this.executionStateCallback) {
-      this.executionStateCallback(true);
-    }
+    // Notify UI that execution started (e.g., to disable Run button,
+    // and for switch-scan to pause its highlight cycle).
+    this.notifyExecutionState(true);
 
     // Clear log and reset execution state
     this.log = [];
@@ -2520,9 +2535,7 @@ export class MazeGame {
     // Check if animation was cancelled (e.g., by Reset button)
     if (this.animationCancelled) {
       this.executing = false;
-      if (this.executionStateCallback) {
-        this.executionStateCallback(false);
-      }
+      this.notifyExecutionState(false);
       return;
     }
 
@@ -2635,10 +2648,9 @@ export class MazeGame {
   private async showResult(): Promise<void> {
     this.executing = false;
 
-    // Notify UI that execution stopped (e.g., to re-enable Run button)
-    if (this.executionStateCallback) {
-      this.executionStateCallback(false);
-    }
+    // Notify UI that execution stopped (e.g., to re-enable Run button,
+    // and for switch-scan to resume its highlight cycle).
+    this.notifyExecutionState(false);
 
     // Clear block highlighting
     if (this.highlightCallback) {

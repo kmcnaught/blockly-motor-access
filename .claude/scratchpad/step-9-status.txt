@@ -1,0 +1,3 @@
+Hook mechanism: extended existing MazeGame.onExecutionStateChange callback (refactored single slot to subscriber array so Run-button + switch-scan coexist).
+Hook fire points (unchanged, all already existed): execute() start, animate() cancel, showResult() end, reset() — all routed through new private notifyExecutionState() helper.
+Build status: npm run build:maze succeeds (webpack 5.96.1 compiled successfully).

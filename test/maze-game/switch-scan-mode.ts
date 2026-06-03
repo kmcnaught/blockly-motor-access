@@ -21,22 +21,32 @@
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 8 (current): top-level scan loop across four regions
- * (header / toolbox / workspace / maze-actions) plus a "back to top"
- * sentinel, generic DOM-item sub-scan for header / maze-actions, a
- * Blockly-block sub-scan for the toolbox flyout (selecting inserts a
- * new instance via the shared {@link insertBlockAfterCursor} helper),
- * a Blockly-block sub-scan for the workspace itself in tree order, and
- * — when the user selects a workspace block — an inline ACTION MENU
- * (Select / Edit / Delete) anchored next to the block. Edit opens a
- * nested dropdown-values sub-scan over the FIRST editable
- * `Blockly.FieldDropdown` on the block (v1 limitation — multi-dropdown
- * blocks would need a field-picker step, deferred). All three actions
- * pop straight back to the top-level frame for consistency: even
- * Select/Edit, where the underlying workspace frame is still valid,
- * pops to top so the cursor-commit / value-change reads as a clean
- * transition rather than dropping the user back into the middle of a
- * workspace scan.
+ * Step 9 (current): on top of the Step-8 scan/menu machinery, the
+ * controller now subscribes to `MazeGame.onExecutionStateChange` and
+ * PAUSES while the maze program is executing — clears the highlight,
+ * hides the sentinel chip, tears down any open action / dropdown
+ * overlays, and short-circuits key input — then RESUMES on a clean
+ * top-level frame (header, index 0) when the run finishes (success,
+ * failure, timeout, error, or reset interrupt). The maze's execute /
+ * animate-cancel / showResult / reset paths already all fire the same
+ * callback, so a single subscription covers every termination path.
+ *
+ * Behavior summary (post Step-9): top-level scan loop across four
+ * regions (header / toolbox / workspace / maze-actions) plus a "back
+ * to top" sentinel, generic DOM-item sub-scan for header /
+ * maze-actions, a Blockly-block sub-scan for the toolbox flyout
+ * (selecting inserts a new instance via the shared
+ * {@link insertBlockAfterCursor} helper), a Blockly-block sub-scan
+ * for the workspace itself in tree order, and — when the user selects
+ * a workspace block — an inline ACTION MENU (Select / Edit / Delete)
+ * anchored next to the block. Edit opens a nested dropdown-values
+ * sub-scan over the FIRST editable `Blockly.FieldDropdown` on the
+ * block (v1 limitation — multi-dropdown blocks would need a
+ * field-picker step, deferred). All three actions pop straight back
+ * to the top-level frame for consistency: even Select/Edit, where the
+ * underlying workspace frame is still valid, pops to top so the
+ * cursor-commit / value-change reads as a clean transition rather
+ * than dropping the user back into the middle of a workspace scan.
  */
 
 import * as Blockly from 'blockly/core';
@@ -152,8 +162,24 @@ export class SwitchScanController {
   private workspace: Blockly.WorkspaceSvg;
   private mazeGame: MazeGame;
   private enabled = false;
+  // True while the maze is running a user program. Set by the
+  // execution-state subscription; gates key input and overlay rendering
+  // so the highlight isn't competing with the maze animation for the
+  // user's attention. Independent from `enabled` — a disabled
+  // controller doesn't care about run state, but an enabled controller
+  // that's `executing` ignores advance/select keys and shows no
+  // overlays until the run ends.
+  private executing = false;
   private boundKeyHandler: (e: KeyboardEvent) => void;
   private boundReflow: () => void;
+  // Subscription registered with mazeGame.onExecutionStateChange.
+  // Stored so disable() can null its inner reference (the maze callback
+  // list itself is owned by MazeGame and we don't have an unsubscribe
+  // API; the no-op closure pattern is the cheapest safe equivalent).
+  private boundExecutionStateHandler: (isExecuting: boolean) => void;
+  // Set to true once we've registered the execution-state subscription
+  // so re-enable doesn't double-register on the maze's callback list.
+  private executionStateSubscribed = false;
 
   // Key bindings (KeyboardEvent.key values). Defaults: Space / Enter.
   private switchAdvance = ' ';
@@ -200,6 +226,17 @@ export class SwitchScanController {
     // Bind handlers so add/removeEventListener get matching references.
     this.boundKeyHandler = this.handleKeyDown.bind(this);
     this.boundReflow = this.scheduleReflow.bind(this);
+    // Wrap with an `enabled` guard so a late-firing callback after a
+    // disable() (e.g. user toggled modes mid-run) is a no-op rather
+    // than a crash on torn-down state.
+    this.boundExecutionStateHandler = (isExecuting: boolean) => {
+      if (!this.enabled) return;
+      if (isExecuting) {
+        this.handleRunStart();
+      } else {
+        this.handleRunEnd();
+      }
+    };
   }
 
   /**
@@ -221,8 +258,28 @@ export class SwitchScanController {
     window.addEventListener('resize', this.boundReflow);
     window.addEventListener('scroll', this.boundReflow, true);
 
-    // Initial render so the user sees the highlight immediately.
-    this.renderHighlight();
+    // Subscribe to maze execution state ONCE — MazeGame stores
+    // callbacks in a list with no unsubscribe API, so re-enabling
+    // would otherwise duplicate our handler. The `enabled` guard in
+    // boundExecutionStateHandler makes re-subscription unnecessary
+    // anyway: a no-op fires when disabled, and the handler fires
+    // correctly again on next enable.
+    if (!this.executionStateSubscribed) {
+      this.mazeGame.onExecutionStateChange(this.boundExecutionStateHandler);
+      this.executionStateSubscribed = true;
+    }
+
+    // If a run is somehow already in flight at enable() time (rare —
+    // user toggled into switch-scan during a running program), reflect
+    // that state immediately so we don't render a highlight on top of
+    // the animation.
+    if (this.mazeGame.isExecuting()) {
+      this.executing = true;
+      this.tearDownOverlaysForRun();
+    } else {
+      // Initial render so the user sees the highlight immediately.
+      this.renderHighlight();
+    }
   }
 
   /**
@@ -256,6 +313,12 @@ export class SwitchScanController {
 
     this.regions = [];
     this.frameStack = [];
+    // Clear executing — if we re-enable later we'll resync from
+    // mazeGame.isExecuting() in enable(). NB: we deliberately don't
+    // attempt to unsubscribe the execution-state callback (MazeGame
+    // has no removal API); boundExecutionStateHandler's `enabled`
+    // guard makes any late-firing callback a safe no-op.
+    this.executing = false;
   }
 
   /**
@@ -496,6 +559,60 @@ export class SwitchScanController {
   }
 
   /**
+   * Pause the scanner while a maze run is in flight. Hides every
+   * overlay (highlight, sentinel chip, action menu, dropdown menu) so
+   * the maze animation reads cleanly, and flips `executing` so
+   * `handleKeyDown` early-returns. The {@link frameStack} is left
+   * untouched here — we don't reset until run-end so the bookkeeping
+   * stays simple, and the user can never observe an intermediate state
+   * because we hide everything while paused anyway.
+   *
+   * Note: action / dropdown overlays are torn down (not just hidden)
+   * to match the existing lifecycle — they're recreated on demand by
+   * `renderActionMenu` / `renderDropdownMenu`, and tearing them down
+   * here means we don't have to remember they exist when resetting
+   * the frameStack on run-end.
+   */
+  private handleRunStart(): void {
+    this.executing = true;
+    this.tearDownOverlaysForRun();
+  }
+
+  /**
+   * Resume the scanner after a maze run finishes (success, failure,
+   * timeout, error, or reset interrupt — MazeGame's start/cancel/
+   * showResult/reset paths all fire the same `false` notification).
+   *
+   * Restores the user to a clean top-level frame at index 0 (header)
+   * — chosen over "resume where they were" so it's predictable: after
+   * a run, the highlight is always back at the top, ready for the
+   * next interaction.
+   */
+  private handleRunEnd(): void {
+    this.executing = false;
+    // Fresh top frame so the user always restarts at the header.
+    this.frameStack = [{kind: 'top', index: 0}];
+    this.renderHighlight();
+  }
+
+  /**
+   * Hide overlays during a run. Highlight + sentinel are just set to
+   * `display: none` (kept in the DOM, cheap to re-show); the action
+   * and dropdown menus are removed entirely since their lifecycle is
+   * "exists while the corresponding frame is on top." `handleRunEnd`
+   * resets the frameStack to a fresh top, so any frames that owned
+   * those overlays are gone anyway.
+   */
+  private tearDownOverlaysForRun(): void {
+    if (this.highlightEl) this.highlightEl.style.display = 'none';
+    if (this.sentinelChip) this.sentinelChip.style.display = 'none';
+    this.actionMenuEl?.remove();
+    this.actionMenuEl = null;
+    this.dropdownMenuEl?.remove();
+    this.dropdownMenuEl = null;
+  }
+
+  /**
    * Coalesce resize/scroll bursts into a single rAF-paced re-render so
    * we don't thrash layout while the user drags the window or scrolls.
    */
@@ -503,6 +620,10 @@ export class SwitchScanController {
     if (this.reflowRafHandle !== null) return;
     this.reflowRafHandle = requestAnimationFrame(() => {
       this.reflowRafHandle = null;
+      // Don't re-show overlays during a run: the run-end handler will
+      // re-render on a clean top-frame anyway, and resizing mid-run
+      // shouldn't pop the scanner back on top of the animation.
+      if (this.executing) return;
       this.renderHighlight();
     });
   }
@@ -530,6 +651,10 @@ export class SwitchScanController {
    */
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.enabled) return;
+    // While the maze is running a program, advance/select are dead.
+    // The user should be watching the animation, not driving the
+    // scanner; resuming happens automatically via handleRunEnd.
+    if (this.executing) return;
 
     // Ignore if user is typing in an input field.
     if (

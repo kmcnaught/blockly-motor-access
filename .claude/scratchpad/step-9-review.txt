@@ -1,0 +1,4 @@
+APPROVED. All 4 transition sites routed through notifyExecutionState (lines 2190/2479/2538/2653); existing Run-button subscriber in index.ts preserved; enable() idempotent + resyncs from isExecuting(); disable() leaves a no-op via enabled guard; reset path still fires false; no scope creep; no any abuse.
+No issues found.
+Files modified: test/maze-game/maze.ts, test/maze-game/switch-scan-mode.ts, test/maze-game/bundle.js.
+Build: npm run build:maze succeeds (webpack 5.96.1 compiled successfully).
