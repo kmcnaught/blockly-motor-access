@@ -2004,3 +2004,26 @@ body.grid-coding-mode .screen-padding {
   z-index: 10000;
   pointer-events: none;
 }
+.switch-scan-action-menu,
+.switch-scan-dropdown-menu {
+  position: fixed;
+  background: #fff;
+  border: 2px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 9999;
+  pointer-events: none; /* Switch user navigates; clicks would bypass scan order */
+  min-width: 120px;
+  font-family: sans-serif;
+  font-size: 14px;
+}
+.switch-scan-menu-item {
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #222;
+}

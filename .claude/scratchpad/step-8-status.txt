@@ -1,0 +1,3 @@
+Action menu wired: workspace-block select opens inline Select/Edit/Delete menu (Edit only when block has an editable FieldDropdown), uses Blockly.getFocusManager().focusNode for Select, grouped dispose(true,true) for Delete, nested dropdown-values frame for Edit calling field.setValue.
+Design choices: edit only the FIRST editable dropdown for v1 (documented in findFirstEditableDropdown); after Edit (or any action-menu action) we pop straight to the top frame rather than back to the workspace blocks frame, both for consistency and to dodge stale-block-list issues after Delete.
+Build: npm run build:maze passes cleanly (webpack 5.96.1 compiled successfully).

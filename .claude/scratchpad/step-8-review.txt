@@ -1,0 +1,4 @@
+APPROVE WITH FIX: action menu (Select/Edit/Delete + sentinel) wired correctly; Edit gated on Blockly.FieldDropdown; setValue + grouped dispose + focusNode all routed; menu overlay anchored next to block with viewport-bottom fallback, pointer-events:none, z-index 9999 below 10000 highlight; popSubScan loops all non-top frames so post-delete workspace staleness is handled; disable() tears down action/dropdown overlays; CSS classes uniquely prefixed.
+Issue fixed: HTMLElement dropdown labels previously stringified to "[object HTMLDivElement]"; now mirror Blockly's getText_ (title/ariaLabel/innerText/textContent, falling back to the language-neutral value).
+Files modified: test/maze-game/switch-scan-mode.ts.
+Build: npm run build:maze passes cleanly (webpack 5.96.1, no TS warnings).

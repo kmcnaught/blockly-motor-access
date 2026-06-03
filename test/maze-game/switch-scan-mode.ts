@@ -21,19 +21,22 @@
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 7 (current): top-level scan loop across four regions
+ * Step 8 (current): top-level scan loop across four regions
  * (header / toolbox / workspace / maze-actions) plus a "back to top"
  * sentinel, generic DOM-item sub-scan for header / maze-actions, a
  * Blockly-block sub-scan for the toolbox flyout (selecting inserts a
  * new instance via the shared {@link insertBlockAfterCursor} helper),
- * and a Blockly-block sub-scan for the workspace itself. Workspace
- * blocks are enumerated in tree order — descending into statement
- * inputs before continuing along `nextConnection` siblings — which
- * matches how a programmer reads code top-to-bottom. Selecting a
- * workspace block currently just logs its type and id (the block
- * action menu lands in Step 8); the user keeps scanning workspace
- * blocks rather than popping, which is handy interim behavior for
- * testing the enumeration.
+ * a Blockly-block sub-scan for the workspace itself in tree order, and
+ * — when the user selects a workspace block — an inline ACTION MENU
+ * (Select / Edit / Delete) anchored next to the block. Edit opens a
+ * nested dropdown-values sub-scan over the FIRST editable
+ * `Blockly.FieldDropdown` on the block (v1 limitation — multi-dropdown
+ * blocks would need a field-picker step, deferred). All three actions
+ * pop straight back to the top-level frame for consistency: even
+ * Select/Edit, where the underlying workspace frame is still valid,
+ * pops to top so the cursor-commit / value-change reads as a clean
+ * transition rather than dropping the user back into the middle of a
+ * workspace scan.
  */
 
 import * as Blockly from 'blockly/core';
@@ -112,7 +115,34 @@ type ScanFrame =
       blocks: Blockly.BlockSvg[];
       index: number;
       popToTopIndex: number;
+    }
+  | {
+      kind: 'action-menu';
+      block: Blockly.BlockSvg;
+      items: ActionItem[];
+      index: number;
+      popToTopIndex: number;
+    }
+  | {
+      kind: 'dropdown-values';
+      block: Blockly.BlockSvg;
+      field: Blockly.FieldDropdown;
+      options: Array<
+        [string | {src: string; width: number; height: number; alt: string}, string]
+      >;
+      index: number;
+      popToTopIndex: number;
     };
+
+/**
+ * One row in the inline action menu shown when the user selects a
+ * workspace block. `key` drives behavior in {@link handleSelect}; the
+ * human-readable `label` is what we render in the overlay.
+ */
+interface ActionItem {
+  key: 'select' | 'edit' | 'delete';
+  label: string;
+}
 
 /**
  * Controller for two-switch step-scanning input mode.
@@ -141,6 +171,12 @@ export class SwitchScanController {
   // DOM overlay elements; created once per enable, removed on disable.
   private highlightEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
+
+  // Inline action / dropdown menus shown next to a workspace block when
+  // the user enters the action sub-scan. Lazily created on first use and
+  // removed when the corresponding frame is popped.
+  private actionMenuEl: HTMLDivElement | null = null;
+  private dropdownMenuEl: HTMLDivElement | null = null;
 
   // rAF handle for throttled reflow on resize/scroll, so we don't
   // re-render on every wheel tick.
@@ -211,8 +247,12 @@ export class SwitchScanController {
     // Tear down overlay DOM.
     this.highlightEl?.remove();
     this.sentinelChip?.remove();
+    this.actionMenuEl?.remove();
+    this.dropdownMenuEl?.remove();
     this.highlightEl = null;
     this.sentinelChip = null;
+    this.actionMenuEl = null;
+    this.dropdownMenuEl = null;
 
     this.regions = [];
     this.frameStack = [];
@@ -367,7 +407,9 @@ export class SwitchScanController {
   private cycleLen(frame: ScanFrame): number {
     if (frame.kind === 'top') return this.regions.length + 1;
     if (frame.kind === 'dom-items') return frame.items.length + 1;
-    return frame.blocks.length + 1;
+    if (frame.kind === 'blocks') return frame.blocks.length + 1;
+    if (frame.kind === 'action-menu') return frame.items.length + 1;
+    return frame.options.length + 1;
   }
 
   /**
@@ -376,7 +418,9 @@ export class SwitchScanController {
   private atSentinel(frame: ScanFrame): boolean {
     if (frame.kind === 'top') return frame.index === this.regions.length;
     if (frame.kind === 'dom-items') return frame.index === frame.items.length;
-    return frame.index === frame.blocks.length;
+    if (frame.kind === 'blocks') return frame.index === frame.blocks.length;
+    if (frame.kind === 'action-menu') return frame.index === frame.items.length;
+    return frame.index === frame.options.length;
   }
 
   /**
@@ -416,9 +460,24 @@ export class SwitchScanController {
       rect = this.regions[frame.index]?.getRect() ?? null;
     } else if (frame.kind === 'dom-items') {
       rect = frame.items[frame.index]?.getBoundingClientRect() ?? null;
-    } else {
+    } else if (frame.kind === 'blocks') {
       const svgRoot = frame.blocks[frame.index]?.getSvgRoot();
       rect = svgRoot?.getBoundingClientRect() ?? null;
+    } else if (frame.kind === 'action-menu') {
+      // Highlight the currently-focused menu row inside the overlay.
+      // The block underneath is implicitly the subject of every action,
+      // identifiable by the menu's anchor position next to it — so we
+      // intentionally don't outline the block here.
+      const itemEl = this.actionMenuEl?.querySelector<HTMLElement>(
+        `[data-scan-action-item="${frame.index}"]`,
+      );
+      rect = itemEl?.getBoundingClientRect() ?? null;
+    } else {
+      // dropdown-values
+      const itemEl = this.dropdownMenuEl?.querySelector<HTMLElement>(
+        `[data-scan-dropdown-item="${frame.index}"]`,
+      );
+      rect = itemEl?.getBoundingClientRect() ?? null;
     }
 
     if (!rect || rect.width === 0 || rect.height === 0) {
@@ -545,38 +604,121 @@ export class SwitchScanController {
       return;
     }
 
-    // blocks frame (toolbox in Step 6; workspace in Step 7).
-    if (this.atSentinel(frame)) {
-      this.popSubScan(frame.popToTopIndex);
-      return;
-    }
-    const block = frame.blocks[frame.index];
-    if (frame.regionName === 'toolbox') {
-      // Insert a new block of the same type into the MAIN workspace
-      // (not the flyout workspace) via the shared heuristic. We do not
-      // clone or move the flyout block itself — `block.type` plus the
-      // insertion helper produces a fresh, properly-connected instance.
-      try {
-        if (block) {
-          insertBlockAfterCursor(this.workspace, block.type);
-        }
-      } finally {
+    if (frame.kind === 'blocks') {
+      if (this.atSentinel(frame)) {
         this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      const block = frame.blocks[frame.index];
+      if (frame.regionName === 'toolbox') {
+        // Insert a new block of the same type into the MAIN workspace
+        // (not the flyout workspace) via the shared heuristic. We do
+        // not clone or move the flyout block itself — `block.type` plus
+        // the insertion helper produces a fresh, properly-connected
+        // instance.
+        try {
+          if (block) {
+            insertBlockAfterCursor(this.workspace, block.type);
+          }
+        } finally {
+          this.popSubScan(frame.popToTopIndex);
+        }
+        return;
+      }
+      // Workspace block frame: open the action sub-scan menu anchored
+      // next to this block. `popToTopIndex` matches what the workspace
+      // sub-scan itself would use — after acting on the block we land
+      // straight back at the top, past the workspace region.
+      if (block) {
+        this.enterActionMenu(block, frame.popToTopIndex);
       }
       return;
     }
-    // Workspace block frame — Step 8 will push an action sub-scan
-    // (Select / Edit / Delete) here. For Step 7 we just log the block
-    // type & id and DELIBERATELY do not pop: the user keeps scanning
-    // workspace blocks, which lets us exercise the enumeration order
-    // without the action menu yet existing. The sentinel branch above
-    // still pops normally.
-    if (block) {
-      console.log(
-        '[switch-scan] selected workspace block:',
-        block.type,
-        block.id,
-      );
+
+    if (frame.kind === 'action-menu') {
+      if (this.atSentinel(frame)) {
+        // "Back to top" sentinel — bail out without acting on the block.
+        this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      const item = frame.items[frame.index];
+      const block = frame.block;
+      if (!item) {
+        this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      if (item.key === 'select') {
+        // Commit Blockly's FocusManager to this block so the shared
+        // `insertBlockAfterCursor` heuristic places subsequent toolbox
+        // insertions after it.
+        try {
+          Blockly.getFocusManager().focusNode(block);
+        } catch (err) {
+          // Defensive: focusNode can throw if the block was disposed
+          // out from under us between menu open and selection. Pop
+          // anyway so the user isn't stranded.
+          console.warn('[switch-scan] focusNode failed:', err);
+        }
+        this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      if (item.key === 'delete') {
+        // Group disposal so undo treats it as a single step. Pop to top
+        // unconditionally — even if dispose throws, the workspace frame
+        // beneath us is stale (its block list is built from
+        // pre-disposal state), so returning to it would be incorrect.
+        try {
+          Blockly.Events.setGroup(true);
+          try {
+            block.dispose(true, true);
+          } finally {
+            Blockly.Events.setGroup(false);
+          }
+        } catch (err) {
+          console.warn('[switch-scan] block.dispose failed:', err);
+        }
+        this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      if (item.key === 'edit') {
+        // Push a nested dropdown-values frame. The Edit option is only
+        // present when there's at least one editable FieldDropdown, so
+        // this lookup should succeed; defensively fall back to pop-to-
+        // top if it doesn't.
+        const field = this.findFirstEditableDropdown(block);
+        if (!field) {
+          this.popSubScan(frame.popToTopIndex);
+          return;
+        }
+        this.enterDropdownValues(block, field, frame.popToTopIndex);
+        return;
+      }
+      return;
+    }
+
+    if (frame.kind === 'dropdown-values') {
+      if (this.atSentinel(frame)) {
+        // Bail without changing the field's value. We still pop both
+        // the dropdown-values frame AND the action-menu frame beneath
+        // it, mirroring the design choice that any exit from the
+        // edit-flow lands the user back at the top frame.
+        this.popDropdownToTop(frame.popToTopIndex);
+        return;
+      }
+      const option = frame.options[frame.index];
+      if (option) {
+        try {
+          frame.field.setValue(option[1]);
+        } catch (err) {
+          console.warn('[switch-scan] field.setValue failed:', err);
+        }
+      }
+      // Pop BOTH frames (dropdown-values then action-menu) and land at
+      // the top-level frame's `popToTopIndex`. v1 design choice: pop
+      // straight to top after edit, rather than back to the action menu
+      // — simpler, and treats "Edit" as a single committed action.
+      this.popDropdownToTop(frame.popToTopIndex);
+      return;
     }
   }
 
@@ -636,12 +778,35 @@ export class SwitchScanController {
   }
 
   /**
-   * Pop the current sub-scan frame off the stack and resume the top
-   * frame at `resumeIndex` (already-normalized by the caller, but we
-   * mod again for safety against late region list changes).
+   * Pop sub-scan frames off the stack until only the top-level `top`
+   * frame remains, then set that frame's index to `resumeIndex`.
+   *
+   * Popping all non-`top` frames (rather than just the immediate
+   * caller) matters for the action-menu flow: a Select/Delete/sentinel
+   * from `action-menu` lands us back at top, skipping past the
+   * workspace blocks frame underneath. Post-delete the workspace
+   * frame's `blocks[]` holds a stale reference, so resuming it would be
+   * incorrect; and post-select/edit we deliberately pop to top too, for
+   * consistency. Tear down any owned overlay DOM as we go.
+   *
+   * For the simpler dom-items / blocks-from-toolbox case, this is still
+   * a single pop because there's only one non-top frame on the stack.
    */
   private popSubScan(resumeIndex: number): void {
-    this.frameStack.pop();
+    while (
+      this.frameStack.length > 0 &&
+      this.frameStack[this.frameStack.length - 1].kind !== 'top'
+    ) {
+      const popped = this.frameStack.pop();
+      // Tear down any DOM that belonged to the popped frame.
+      if (popped?.kind === 'action-menu') {
+        this.actionMenuEl?.remove();
+        this.actionMenuEl = null;
+      } else if (popped?.kind === 'dropdown-values') {
+        this.dropdownMenuEl?.remove();
+        this.dropdownMenuEl = null;
+      }
+    }
     const topFrame = this.frameStack[0];
     if (topFrame && topFrame.kind === 'top') {
       const topCycleLen = this.regions.length + 1;
@@ -813,6 +978,256 @@ export class SwitchScanController {
       visit(top);
     }
     return result;
+  }
+
+  /**
+   * Push the action-menu sub-scan for `block`, anchored adjacent to it.
+   *
+   * Item set is determined here, not statically:
+   *  - `Select` and `Delete` are always present.
+   *  - `Edit` is conditional on the block having at least one editable
+   *    `Blockly.FieldDropdown` (v1 limitation: if there are multiple
+   *    editable dropdowns, we'll edit the FIRST one — see
+   *    {@link findFirstEditableDropdown}; multi-field handling is a
+   *    later-phase enhancement).
+   *
+   * `popToTopIndex` is the workspace frame's own `popToTopIndex` — by
+   * design every action (Select / Edit / Delete) and the sentinel pop
+   * straight back to the top-level frame, skipping the workspace
+   * sub-scan beneath. This keeps the "you committed an action" boundary
+   * visually obvious and avoids the staleness problem after Delete.
+   */
+  private enterActionMenu(
+    block: Blockly.BlockSvg,
+    popToTopIndex: number,
+  ): void {
+    const items: ActionItem[] = [{key: 'select', label: 'Select'}];
+    if (this.findFirstEditableDropdown(block)) {
+      items.push({key: 'edit', label: 'Edit'});
+    }
+    items.push({key: 'delete', label: 'Delete'});
+
+    this.frameStack.push({
+      kind: 'action-menu',
+      block,
+      items,
+      index: 0,
+      popToTopIndex,
+    });
+    this.renderActionMenu(block, items);
+    this.renderHighlight();
+  }
+
+  /**
+   * Push the dropdown-values sub-scan for `field` on `block`. Selecting
+   * an option calls `field.setValue(option[1])` and pops all the way to
+   * top. The action-menu overlay is torn down at the same time so the
+   * dropdown menu is the only visible overlay while editing.
+   */
+  private enterDropdownValues(
+    block: Blockly.BlockSvg,
+    field: Blockly.FieldDropdown,
+    popToTopIndex: number,
+  ): void {
+    // FieldDropdown.getOptions returns MenuOption[] where each option
+    // is `[labelOrImage, value]`. We narrow to the subset our renderer
+    // can display (string label OR image-object label) and drop any
+    // 'separator' entries — separators don't appear in the maze game's
+    // own dropdowns but the type allows them in general.
+    const raw = field.getOptions(false);
+    const options: Array<
+      [string | {src: string; width: number; height: number; alt: string}, string]
+    > = [];
+    for (const opt of raw) {
+      if (opt === 'separator') continue;
+      const [label, value] = opt as [unknown, string];
+      if (typeof label === 'string') {
+        options.push([label, value]);
+      } else if (
+        label &&
+        typeof label === 'object' &&
+        'src' in (label as object)
+      ) {
+        const img = label as {
+          src: string;
+          width: number;
+          height: number;
+          alt: string;
+        };
+        options.push([img, value]);
+      } else {
+        // HTMLElement labels (rare): mirror Blockly's own getText_ for
+        // FieldDropdown — prefer title, then ariaLabel, then innerText —
+        // so the menu row shows something readable instead of the
+        // default `[object HTMLDivElement]` you'd get from String(label).
+        let text = '';
+        if (label && typeof label === 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const anyLabel = label as any;
+          text =
+            (typeof anyLabel.title === 'string' && anyLabel.title) ||
+            (typeof anyLabel.ariaLabel === 'string' && anyLabel.ariaLabel) ||
+            (typeof anyLabel.innerText === 'string' && anyLabel.innerText) ||
+            (typeof anyLabel.textContent === 'string' && anyLabel.textContent) ||
+            '';
+        }
+        options.push([text || value, value]);
+      }
+    }
+
+    // Tear down the action menu so only the dropdown overlay is visible
+    // while the user picks a value. The action-menu frame is still on
+    // the stack underneath (so popping the dropdown frame surfaces it
+    // again in code), but visually we replace one overlay with another.
+    this.actionMenuEl?.remove();
+    this.actionMenuEl = null;
+
+    this.frameStack.push({
+      kind: 'dropdown-values',
+      block,
+      field,
+      options,
+      index: 0,
+      popToTopIndex,
+    });
+    this.renderDropdownMenu(block, options);
+    this.renderHighlight();
+  }
+
+  /**
+   * Find the first editable `Blockly.FieldDropdown` on `block`, scanning
+   * inputs in `inputList` order, fields in `fieldRow` order. Returns
+   * `null` if none. v1 limitation: blocks with multiple editable
+   * dropdowns only expose the first to the Edit flow — adequate for the
+   * current maze blocks (`maze_turn`'s `DIR`, `maze_if`'s `DIR`,
+   * `maze_repeatTimes`'s `TIMES`, etc., each have exactly one).
+   */
+  private findFirstEditableDropdown(
+    block: Blockly.BlockSvg,
+  ): Blockly.FieldDropdown | null {
+    for (const input of block.inputList) {
+      for (const field of input.fieldRow) {
+        if (
+          field instanceof Blockly.FieldDropdown &&
+          // EDITABLE is a static-ish boolean Blockly sets per-field
+          // class; cast is needed because the public typing exposes it
+          // as a class-level prop, not an instance-readable one.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (field as any).EDITABLE !== false
+        ) {
+          return field;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * (Re)build the action-menu overlay DOM and anchor it adjacent to
+   * `block`. We rebuild on every entry rather than keeping a long-lived
+   * element so the item list can change per block (Edit is conditional).
+   *
+   * Anchoring heuristic: default below-left of the block; if that would
+   * overflow the viewport bottom, switch to right-of the block. Simple
+   * two-fallback rule is enough for the maze game's compact layout.
+   */
+  private renderActionMenu(
+    block: Blockly.BlockSvg,
+    items: ActionItem[],
+  ): void {
+    this.actionMenuEl?.remove();
+    const el = document.createElement('div');
+    el.className = 'switch-scan-action-menu';
+    for (let i = 0; i < items.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'switch-scan-menu-item';
+      row.setAttribute('data-scan-action-item', String(i));
+      row.textContent = items[i].label;
+      el.appendChild(row);
+    }
+    document.body.appendChild(el);
+    this.actionMenuEl = el;
+    this.anchorMenuToBlock(el, block);
+  }
+
+  /**
+   * (Re)build the dropdown-values overlay DOM and anchor it adjacent to
+   * `block`. Image options render as `<img>` so direction arrows etc.
+   * show pictographically; string options render as text.
+   */
+  private renderDropdownMenu(
+    block: Blockly.BlockSvg,
+    options: Array<
+      [string | {src: string; width: number; height: number; alt: string}, string]
+    >,
+  ): void {
+    this.dropdownMenuEl?.remove();
+    const el = document.createElement('div');
+    el.className = 'switch-scan-dropdown-menu';
+    for (let i = 0; i < options.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'switch-scan-menu-item';
+      row.setAttribute('data-scan-dropdown-item', String(i));
+      const label = options[i][0];
+      if (typeof label === 'string') {
+        row.textContent = label;
+      } else {
+        const img = document.createElement('img');
+        img.src = label.src;
+        img.width = label.width;
+        img.height = label.height;
+        img.alt = label.alt;
+        row.appendChild(img);
+      }
+      el.appendChild(row);
+    }
+    document.body.appendChild(el);
+    this.dropdownMenuEl = el;
+    this.anchorMenuToBlock(el, block);
+  }
+
+  /**
+   * Position `menuEl` (fixed-positioned by CSS) adjacent to `block`.
+   * Default: just below the block, left-aligned. Fallback: if the menu
+   * would overflow the viewport bottom, anchor to the right of the
+   * block instead.
+   */
+  private anchorMenuToBlock(
+    menuEl: HTMLElement,
+    block: Blockly.BlockSvg,
+  ): void {
+    const root = block.getSvgRoot?.();
+    if (!root) return;
+    const r = root.getBoundingClientRect();
+    // Measure menu after appending so the fallback heuristic has real
+    // dimensions to compare against the viewport.
+    const menuRect = menuEl.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const wouldOverflowBottom = r.bottom + 8 + menuRect.height > viewportH;
+    if (wouldOverflowBottom) {
+      menuEl.style.top = `${r.top}px`;
+      menuEl.style.left = `${r.right + 8}px`;
+    } else {
+      menuEl.style.top = `${r.bottom + 8}px`;
+      menuEl.style.left = `${r.left}px`;
+    }
+  }
+
+  /**
+   * Pop the entire edit flow (dropdown-values frame, action-menu frame,
+   * and the workspace blocks frame beneath them) and resume the top
+   * frame at `resumeIndex`. Used after a dropdown value is picked OR
+   * after the dropdown-values sentinel is selected — either way the
+   * edit flow is over and v1 design pops straight to top (rather than
+   * back to the action menu).
+   *
+   * Implemented as a thin wrapper around {@link popSubScan} since that
+   * already pops all non-top frames and tears down our overlays — but
+   * we keep the named entry point so call sites read clearly as "exit
+   * the edit flow", not "pop a sub-scan".
+   */
+  private popDropdownToTop(resumeIndex: number): void {
+    this.popSubScan(resumeIndex);
   }
 
   /**
