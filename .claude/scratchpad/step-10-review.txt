@@ -1,0 +1,5 @@
+APPROVE. Phase 1 scope respected; docstring matches code (defaults ' '/Enter, mutex, out-of-scope list); CSS polish reads as a net improvement; isSwitchScanMode only gates new code paths.
+Lint cleanup: ran `eslint --fix` on switch-scan-mode.ts + block-insertion.ts — all 5 errors auto-fixed (redundant `public` modifiers stripped); 8 residual jsdoc/no-undefined-types warnings in switch-scan-mode.ts are false-positives (method names in {@link}-style refs) and not worth churning the file for.
+Files modified during review: test/maze-game/switch-scan-mode.ts (lint --fix only — removed `public` from enable/disable/isEnabled/setMazeGame/setKeys; no semantic change).
+Build: `npm run build:maze` passes (15.8s). Smoke test on port 8082: switch-scan URL returns 200 HTML, default-mode URL returns 200, no errors in webpack log.
+Caveat for maintainer: MANUAL_VERIFY.md says port 8080 but the dev server here picked 8082 — the doc notes "may pick 8081/8082" so this is fine; just check the webpack log for the actual port before opening the browser.

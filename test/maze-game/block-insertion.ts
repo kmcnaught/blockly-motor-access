@@ -103,14 +103,16 @@ export function insertBlockAfterCursor(
  * Resolve the connection the next inserted block should attach to.
  *
  * Priority:
- *  1. Cursor block's `nextConnection`, if the FocusManager points at a
- *     block on the given workspace and that block exposes one.
- *  2. Cursor block's parent's `nextConnection`, if the cursor block is
- *     a tail-only block (e.g. some control blocks have no next slot).
- *  3. The end of the first top-block's `nextConnection` chain.
+ * 1. Cursor block's `nextConnection`, if the FocusManager points at a
+ * block on the given workspace and that block exposes one.
+ * 2. Cursor block's parent's `nextConnection`, if the cursor block is
+ * a tail-only block (e.g. some control blocks have no next slot).
+ * 3. The end of the first top-block's `nextConnection` chain.
  *
  * Returns `null` when the workspace has no blocks at all (the caller
  * places the new block at the stack anchor in that case).
+ *
+ * @param workspace
  */
 function findInsertionConnection(
   workspace: Blockly.WorkspaceSvg,

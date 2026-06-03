@@ -5,39 +5,39 @@
  */
 
 /**
- * @fileoverview Switch Scan Controller for Maze game.
+ * @fileoverview Switch Scan Controller for Maze game (Phase 1 complete).
  *
- * Phase 1 controller: drives a two-switch step-scanning input mode for
- * users with severe motor impairments who access the page via two
- * physical switches (or two assigned keys). One key advances a visible
- * highlight across scannable regions/items; the other selects the
- * currently highlighted target.
+ * Drives a two-switch step-scanning input mode for users with severe
+ * motor impairments who access the page via two physical switches (or
+ * two assigned keys, e.g. via Grid 3 sending keyboard events). One key
+ * advances a visible highlight across scannable regions/items; the
+ * other selects the currently highlighted target.
  *
- * URL params (read in `index.ts`, passed via `SwitchScanOptions`):
- *  - `inputMode=switch-scan` — enable the controller.
- *  - `switchAdvance` — key name for advance (default `Space`).
- *  - `switchSelect` — key name for select (default `Enter`).
+ * Activation + key bindings come from URL params (read in `index.ts`,
+ * forwarded to the constructor via {@link SwitchScanOptions}):
+ *  - `inputMode=switch-scan` — activate the controller. When unset,
+ *    the controller is NEVER instantiated and binds NO listeners — the
+ *    default-mode page behaves exactly as before.
+ *  - `switchAdvance` — advance key, as either a `KeyboardEvent.key`
+ *    value (`' '`) or the alias `'Space'`. Default `' '` (Space).
+ *  - `switchSelect` — select key, as a `KeyboardEvent.key` value.
+ *    Default `'Enter'`.
+ *
+ * Mutual exclusion: this controller is mutually exclusive with grid
+ * coding mode (`?grid=1`). `index.ts` will not instantiate
+ * `GridCodingModeController` when `inputMode=switch-scan` is set —
+ * only one input-augmentation controller runs at a time.
  *
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 9 (current): on top of the Step-8 scan/menu machinery, the
- * controller now subscribes to `MazeGame.onExecutionStateChange` and
- * PAUSES while the maze program is executing — clears the highlight,
- * hides the sentinel chip, tears down any open action / dropdown
- * overlays, and short-circuits key input — then RESUMES on a clean
- * top-level frame (header, index 0) when the run finishes (success,
- * failure, timeout, error, or reset interrupt). The maze's execute /
- * animate-cancel / showResult / reset paths already all fire the same
- * callback, so a single subscription covers every termination path.
- *
- * Behavior summary (post Step-9): top-level scan loop across four
- * regions (header / toolbox / workspace / maze-actions) plus a "back
- * to top" sentinel, generic DOM-item sub-scan for header /
- * maze-actions, a Blockly-block sub-scan for the toolbox flyout
+ * Behavior summary (Phase 1, completed): top-level scan loop across
+ * four regions (header / toolbox / workspace / maze-actions) plus a
+ * "back to top" sentinel; generic DOM-item sub-scan for header /
+ * maze-actions; a Blockly-block sub-scan for the toolbox flyout
  * (selecting inserts a new instance via the shared
- * {@link insertBlockAfterCursor} helper), a Blockly-block sub-scan
- * for the workspace itself in tree order, and — when the user selects
+ * {@link insertBlockAfterCursor} helper); a Blockly-block sub-scan
+ * for the workspace itself in tree order; and — when the user selects
  * a workspace block — an inline ACTION MENU (Select / Edit / Delete)
  * anchored next to the block. Edit opens a nested dropdown-values
  * sub-scan over the FIRST editable `Blockly.FieldDropdown` on the
@@ -47,6 +47,23 @@
  * underlying workspace frame is still valid, pops to top so the
  * cursor-commit / value-change reads as a clean transition rather
  * than dropping the user back into the middle of a workspace scan.
+ * Scanning is paused while the maze program runs (highlight, sentinel,
+ * and any open menus are torn down; key input short-circuits) and
+ * resumes on a clean top-level frame (header, index 0) when the run
+ * finishes via any path — success, failure, timeout, error, or reset
+ * interrupt — all of which surface through a single
+ * `MazeGame.onExecutionStateChange` subscription.
+ *
+ * Out of scope for Phase 1 (deferred to later phases — see the design
+ * doc for the planned rollout):
+ *  - No in-page settings UI: keys are URL params only.
+ *  - No Move action in the block action menu (Select / Edit / Delete
+ *    only).
+ *  - No header dropdown sub-scans (level picker etc. — the existing
+ *    pegman dropdown is reachable via the header sub-scan but its
+ *    sub-menu items aren't yet scannable as a nested region).
+ *  - No single-switch auto-scan mode — two-switch step scan only.
+ *  - No TTS / audio cue layer.
  */
 
 import * as Blockly from 'blockly/core';
@@ -79,6 +96,8 @@ const KEY_ALIASES: Record<string, string> = {
  * Normalize a configured key string to its `KeyboardEvent.key` form so
  * `event.key === normalized` works regardless of whether the user wrote
  * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
+ *
+ * @param key
  */
 function normalizeKey(key: string): string {
   return KEY_ALIASES[key] ?? key;
@@ -242,7 +261,7 @@ export class SwitchScanController {
   /**
    * Enable switch scan mode.
    */
-  public enable(): void {
+  enable(): void {
     if (this.enabled) return;
 
     this.enabled = true;
@@ -285,7 +304,7 @@ export class SwitchScanController {
   /**
    * Disable switch scan mode.
    */
-  public disable(): void {
+  disable(): void {
     if (!this.enabled) return;
 
     this.enabled = false;
@@ -324,14 +343,16 @@ export class SwitchScanController {
   /**
    * Check if switch scan mode is enabled.
    */
-  public isEnabled(): boolean {
+  isEnabled(): boolean {
     return this.enabled;
   }
 
   /**
    * Update the MazeGame reference (called when level changes).
+   *
+   * @param mazeGame
    */
-  public setMazeGame(mazeGame: MazeGame): void {
+  setMazeGame(mazeGame: MazeGame): void {
     this.mazeGame = mazeGame;
   }
 
@@ -339,8 +360,11 @@ export class SwitchScanController {
    * Update the advance / select key bindings.
    * Keys use `KeyboardEvent.key` string values; aliases like `'Space'`
    * are normalized.
+   *
+   * @param switchAdvance
+   * @param switchSelect
    */
-  public setKeys(switchAdvance: string, switchSelect: string): void {
+  setKeys(switchAdvance: string, switchSelect: string): void {
     this.switchAdvance = normalizeKey(switchAdvance);
     this.switchSelect = normalizeKey(switchSelect);
   }
@@ -466,6 +490,8 @@ export class SwitchScanController {
 
   /**
    * Cycle length for a given frame (real slots + 1 sentinel slot).
+   *
+   * @param frame
    */
   private cycleLen(frame: ScanFrame): number {
     if (frame.kind === 'top') return this.regions.length + 1;
@@ -477,6 +503,8 @@ export class SwitchScanController {
 
   /**
    * `true` iff the frame's index points at its sentinel slot.
+   *
+   * @param frame
    */
   private atSentinel(frame: ScanFrame): boolean {
     if (frame.kind === 'top') return frame.index === this.regions.length;
@@ -636,18 +664,20 @@ export class SwitchScanController {
    * length (real slots + sentinel).
    *
    * Select:
-   *  - `top` at sentinel    → reset to index 0 (wrap).
-   *  - `top` at `header` or `maze-actions` → push a DOM-item sub-scan
-   *    frame for that region. (Toolbox / workspace are still log-only
-   *    — Steps 6-7.)
-   *  - `dom-items` at item  → fire `.click()` on the element, then pop
-   *    the frame and resume the top scan at `popToTopIndex`.
-   *  - `dom-items` at sentinel → pop the frame without firing.
+   * - `top` at sentinel    → reset to index 0 (wrap).
+   * - `top` at `header` or `maze-actions` → push a DOM-item sub-scan
+   * frame for that region. (Toolbox / workspace are still log-only
+   * — Steps 6-7.)
+   * - `dom-items` at item  → fire `.click()` on the element, then pop
+   * the frame and resume the top scan at `popToTopIndex`.
+   * - `dom-items` at sentinel → pop the frame without firing.
    *
    * Defensive: bails if disabled (the listener is removed on disable,
    * but the guard keeps state and listener-binding decoupled) and skips
    * events from text inputs so the keys remain usable in dialogs / form
    * fields once those land in later phases.
+   *
+   * @param e
    */
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.enabled) return;
@@ -686,6 +716,8 @@ export class SwitchScanController {
    * Resolve a select keypress against the active frame.
    * Kept separate from {@link handleKeyDown} so the routing reads as a
    * flat dispatch table rather than nested conditionals.
+   *
+   * @param frame
    */
   private handleSelect(frame: ScanFrame): void {
     if (frame.kind === 'top') {
@@ -916,6 +948,8 @@ export class SwitchScanController {
    *
    * For the simpler dom-items / blocks-from-toolbox case, this is still
    * a single pop because there's only one non-top frame on the stack.
+   *
+   * @param resumeIndex
    */
   private popSubScan(resumeIndex: number): void {
     while (
@@ -1109,18 +1143,21 @@ export class SwitchScanController {
    * Push the action-menu sub-scan for `block`, anchored adjacent to it.
    *
    * Item set is determined here, not statically:
-   *  - `Select` and `Delete` are always present.
-   *  - `Edit` is conditional on the block having at least one editable
-   *    `Blockly.FieldDropdown` (v1 limitation: if there are multiple
-   *    editable dropdowns, we'll edit the FIRST one — see
-   *    {@link findFirstEditableDropdown}; multi-field handling is a
-   *    later-phase enhancement).
+   * - `Select` and `Delete` are always present.
+   * - `Edit` is conditional on the block having at least one editable
+   * `Blockly.FieldDropdown` (v1 limitation: if there are multiple
+   * editable dropdowns, we'll edit the FIRST one — see
+   * {@link findFirstEditableDropdown}; multi-field handling is a
+   * later-phase enhancement).
    *
    * `popToTopIndex` is the workspace frame's own `popToTopIndex` — by
    * design every action (Select / Edit / Delete) and the sentinel pop
    * straight back to the top-level frame, skipping the workspace
    * sub-scan beneath. This keeps the "you committed an action" boundary
    * visually obvious and avoids the staleness problem after Delete.
+   *
+   * @param block
+   * @param popToTopIndex
    */
   private enterActionMenu(
     block: Blockly.BlockSvg,
@@ -1148,6 +1185,10 @@ export class SwitchScanController {
    * an option calls `field.setValue(option[1])` and pops all the way to
    * top. The action-menu overlay is torn down at the same time so the
    * dropdown menu is the only visible overlay while editing.
+   *
+   * @param block
+   * @param field
+   * @param popToTopIndex
    */
   private enterDropdownValues(
     block: Blockly.BlockSvg,
@@ -1226,6 +1267,8 @@ export class SwitchScanController {
    * dropdowns only expose the first to the Edit flow — adequate for the
    * current maze blocks (`maze_turn`'s `DIR`, `maze_if`'s `DIR`,
    * `maze_repeatTimes`'s `TIMES`, etc., each have exactly one).
+   *
+   * @param block
    */
   private findFirstEditableDropdown(
     block: Blockly.BlockSvg,
@@ -1255,6 +1298,9 @@ export class SwitchScanController {
    * Anchoring heuristic: default below-left of the block; if that would
    * overflow the viewport bottom, switch to right-of the block. Simple
    * two-fallback rule is enough for the maze game's compact layout.
+   *
+   * @param block
+   * @param items
    */
   private renderActionMenu(
     block: Blockly.BlockSvg,
@@ -1279,6 +1325,9 @@ export class SwitchScanController {
    * (Re)build the dropdown-values overlay DOM and anchor it adjacent to
    * `block`. Image options render as `<img>` so direction arrows etc.
    * show pictographically; string options render as text.
+   *
+   * @param block
+   * @param options
    */
   private renderDropdownMenu(
     block: Blockly.BlockSvg,
@@ -1316,6 +1365,9 @@ export class SwitchScanController {
    * Default: just below the block, left-aligned. Fallback: if the menu
    * would overflow the viewport bottom, anchor to the right of the
    * block instead.
+   *
+   * @param menuEl
+   * @param block
    */
   private anchorMenuToBlock(
     menuEl: HTMLElement,
@@ -1350,6 +1402,8 @@ export class SwitchScanController {
    * already pops all non-top frames and tears down our overlays — but
    * we keep the named entry point so call sites read clearly as "exit
    * the edit flow", not "pop a sub-scan".
+   *
+   * @param resumeIndex
    */
   private popDropdownToTop(resumeIndex: number): void {
     this.popSubScan(resumeIndex);
@@ -1360,14 +1414,16 @@ export class SwitchScanController {
    * `[data-scan-region="<regionName>"]` wrapper in DOM order.
    *
    * Visibility filter handles:
-   *  - `display: none` and the `.hidden` class (both null out
-   *    `offsetParent` on non-fixed elements). Confirmed against
-   *    `maze.css` — e.g. `#ghostRunButton.hidden { display: none }` —
-   *    so the ghost-run button is correctly dropped on levels where
-   *    it isn't enabled.
-   *  - Zero-width layouts (collapsed flex containers, etc.).
+   * - `display: none` and the `.hidden` class (both null out
+   * `offsetParent` on non-fixed elements). Confirmed against
+   * `maze.css` — e.g. `#ghostRunButton.hidden { display: none }` —
+   * so the ghost-run button is correctly dropped on levels where
+   * it isn't enabled.
+   * - Zero-width layouts (collapsed flex containers, etc.).
    *
    * Returns `[]` if the region wrapper itself is missing.
+   *
+   * @param regionName
    */
   private discoverDomRegionItems(regionName: string): HTMLElement[] {
     const regionEl = document.querySelector<HTMLElement>(

@@ -1,0 +1,4 @@
+Polish: switch-scan-mode.ts file-level docstring rewritten for Phase 1 (URL params, mutex with grid-coding, out-of-scope items). maze.css switch-scan section: darker amber (#ff8f00), dual-ring shadow for breathing room, slightly bolder/left-aligned menu items, beefed-up sentinel chip. Sentinel text already "↺ Back to top" — left as-is. Default-mode regression check: isSwitchScanMode only used to gate controller + grid-coding mutex; controller never instantiates when inputMode unset.
+Build: npm run build:maze passes (16.7s). Lint: no NEW issues in switch-scan-mode.ts (5 errors / 31 warnings all pre-existing from earlier steps — public modifiers and JSDoc @param requirements).
+Dev server smoke test: port 8082 — HTML contains <title>Maze</title> (1 match), data-scan-region (2 matches), data-scan-item (10 matches). No errors in webpack log. Server stopped cleanly.
+Manual verify recipe: /workspace/.claude/scratchpad/MANUAL_VERIFY.md

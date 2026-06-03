@@ -1980,13 +1980,27 @@ body.grid-coding-mode .screen-padding {
   display: none;
 }
 
-/* === Switch Scan Mode === */
+/* === Switch Scan Mode ===
+ * Highlight + sentinel + action/dropdown menus rendered by
+ * `switch-scan-mode.ts`. Phase 1 polish: warm amber outline with a
+ * dark inner ring so the focus marker stays legible on both the
+ * light page chrome and the Blockly workspace.
+ */
 .switch-scan-highlight {
   position: fixed;
   pointer-events: none;
-  border: 4px solid #ffb300; /* warm amber - high contrast */
+  /* Slightly darker amber than the original #ffb300 — reads better
+   * against the Blockly workspace's pale grid background while still
+   * being unmistakably "the focus marker." */
+  border: 4px solid #ff8f00;
   border-radius: 6px;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.4);
+  /* Outer dark ring gives extra contrast on light surfaces; inner
+   * light ring provides breathing room on dark surfaces (Blockly
+   * blocks). Together they act like an `outline-offset` so the
+   * highlight doesn't press right up against button edges. */
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5);
   z-index: 10000;
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
@@ -1994,13 +2008,14 @@ body.grid-coding-mode .screen-padding {
   position: fixed;
   bottom: 16px;
   right: 16px;
-  padding: 8px 14px;
-  background: #ffb300;
-  color: #222;
-  font-weight: 600;
+  padding: 10px 16px;
+  background: #ff8f00;
+  color: #1a1a1a;
+  font-weight: 700;
   font-size: 14px;
   border-radius: 999px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
 }
@@ -2010,20 +2025,26 @@ body.grid-coding-mode .screen-padding {
   background: #fff;
   border: 2px solid #444;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   z-index: 9999;
   pointer-events: none; /* Switch user navigates; clicks would bypass scan order */
-  min-width: 120px;
+  min-width: 140px;
   font-family: sans-serif;
   font-size: 14px;
 }
 .switch-scan-menu-item {
-  padding: 6px 10px;
+  padding: 8px 12px;
   border-radius: 4px;
   background: #f5f5f5;
   color: #222;
+  /* Left-align action labels so they read as a tidy vertical list
+   * rather than centered chips — easier to scan visually as the
+   * highlight steps through them. Slightly bolder weight gives the
+   * action verbs a touch more presence without becoming shouty. */
+  text-align: left;
+  font-weight: 600;
 }
