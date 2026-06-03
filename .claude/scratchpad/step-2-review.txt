@@ -1,0 +1,4 @@
+LGTM.
+None — 5 header + 5 maze-actions data-scan-items present, .game-container correctly chosen as wrapper (spans .level-selector + .game-controls), <header> region tagged, languageSelect/stageDropdown left untagged per plan, infoBtn deferred with documenting comment, no JS/CSS scope creep.
+Files modified: test/maze-game/index.html (plus expected bundle.js rebuild).
+Build: npm run build:maze passes; grep -c data-scan-item = 10, grep -c data-scan-region = 2.

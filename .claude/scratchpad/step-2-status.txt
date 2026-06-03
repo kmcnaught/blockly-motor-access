@@ -1,0 +1,3 @@
+Tagged <header> with data-scan-region="header" + 5 data-scan-items (zoomOut, zoomIn, modeToggle, pegmanButton, muteButton); tagged .game-container with data-scan-region="maze-actions" + 5 data-scan-items (prevLevel, nextLevel, runButton, ghostRunButton, resetButton).
+Per plan, infoBtn deferred (HTML comment added) because it lives in #instructionBar not <header>; chose .game-container as maze-actions wrapper since it spans .level-selector and .game-controls.
+Build: npm run build:maze compiled successfully; grep -c data-scan-item index.html = 10.

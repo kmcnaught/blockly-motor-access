@@ -10,24 +10,24 @@
   <div id="page-scale-wrapper">
     <div id="leftPadding" class="screen-padding left-padding"></div>
     <div class="main-content-wrapper">
-    <header>
+    <header role="region" aria-label="Header" data-scan-region="header">
       <div class="zoom-controls" aria-label="Page zoom">
-        <button id="zoomOutBtn" class="icon-button" title="Zoom out" aria-label="Zoom out">−</button>
+        <button id="zoomOutBtn" class="icon-button" title="Zoom out" aria-label="Zoom out" data-scan-item>−</button>
         <span id="zoomLabel" class="zoom-label">100%</span>
-        <button id="zoomInBtn" class="icon-button" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="zoomInBtn" class="icon-button" title="Zoom in" aria-label="Zoom in" data-scan-item>+</button>
       </div>
       <h1>Maze</h1>
       <div class="header-center">
         <span id="modeLabel" class="mode-label">Coding</span>
       </div>
       <div class="header-selectors">
-        <button id="modeToggle" class="mode-toggle coding" aria-label="Toggle execution mode">
+        <button id="modeToggle" class="mode-toggle coding" aria-label="Toggle execution mode" data-scan-item>
           <span id="modeAction" class="mode-action">Switch to Practice</span>
         </button>
         <div class="selector-group">
-          <button id="pegmanButton"><img src="assets/pegman.png"><span>▼</span></button>
+          <button id="pegmanButton" data-scan-item><img src="assets/pegman.png"><span>▼</span></button>
         </div>
-        <button id="muteButton" class="mute-button" aria-label="Mute sound" aria-pressed="false">
+        <button id="muteButton" class="mute-button" aria-label="Mute sound" aria-pressed="false" data-scan-item>
           <span class="mute-icon sound-on">&#128266;</span>
           <span class="mute-icon sound-off">&#128263;</span>
         </button>
@@ -48,6 +48,8 @@
           <!-- Options populated dynamically by JavaScript -->
         </select>
       </div>
+      <!-- infoBtn: deferred from Phase 1 scan tagging — it lives in #instructionBar
+           (a separate bar from <header>), so it's not part of the header scan region yet. -->
       <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts">?</button>
     </div>
 
@@ -89,11 +91,11 @@
         <span class="toggle-icon">›</span>
       </button>
 
-      <div class="game-container">
+      <div class="game-container" role="region" aria-label="Maze actions" data-scan-region="maze-actions">
         <div class="level-selector">
-          <button id="prevLevel">&lt; Back</button>
+          <button id="prevLevel" data-scan-item>&lt; Back</button>
           <span id="levelDisplay">Level 1</span>
-          <button id="nextLevel">Next &gt;</button>
+          <button id="nextLevel" data-scan-item>Next &gt;</button>
         </div>
 
         <!-- Grid Mode Level Label (shown above maze in Grid mode) -->
@@ -125,9 +127,9 @@
         </div>
 
         <div class="game-controls">
-          <button id="runButton">Run Program</button>
-          <button id="ghostRunButton" class="hidden">Ghost Run</button>
-          <button id="resetButton">Reset</button>
+          <button id="runButton" data-scan-item>Run Program</button>
+          <button id="ghostRunButton" class="hidden" data-scan-item>Ghost Run</button>
+          <button id="resetButton" data-scan-item>Reset</button>
           <div id="capacityBubble" class="hidden"></div>
         </div>
       </div>
