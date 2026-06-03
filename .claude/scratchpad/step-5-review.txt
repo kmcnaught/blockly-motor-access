@@ -1,0 +1,4 @@
+APPROVE — Step 4's plumbing was cleanly generalized; both header and maze-actions route through one enterDomRegionSubScan/discoverDomRegionItems pair, popToTopIndex math lands maze-actions on the top-level sentinel as required.
+No issues: visibility filter uses offsetParent===null (no hardcoded .hidden check, so #ghostRunButton appears when un-hidden); disabled #prevLevel/#nextLevel stay in the cycle (CSS uses opacity only); Run select just .click()s and pops (no Step-9 pause logic snuck in); no toolbox/workspace sub-scan or action menu; progress.txt and commit untouched (orchestrator's job).
+Files modified: test/maze-game/switch-scan-mode.ts, test/maze-game/bundle.js (expected build artifact).
+Build: npm run build:maze — webpack 5.96.1 compiled successfully, no warnings.

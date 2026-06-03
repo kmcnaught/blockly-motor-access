@@ -21,16 +21,18 @@
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 4 (current): top-level scan loop across four regions
+ * Step 5 (current): top-level scan loop across four regions
  * (header / toolbox / workspace / maze-actions) plus a "back to top"
- * sentinel, AND a DOM-item sub-scan for the header region. Scan state
- * is modeled as a stack of "scan frames" so each region with a
- * sub-scan can push a fresh cycle on select and pop on completion.
- * Selecting a header button fires its `click()`; selecting the
- * sub-scan sentinel bails out without firing. After header sub-scan
- * ends (either path) we resume the top-level scan at the next region
- * (toolbox), per the design doc wrap behavior. Toolbox / workspace /
- * maze-actions sub-scans land in Steps 5-7.
+ * sentinel, AND a generic DOM-item sub-scan that now serves both the
+ * header and maze-actions regions. Scan state is modeled as a stack
+ * of "scan frames" so each region with a sub-scan can push a fresh
+ * cycle on select and pop on completion. Selecting a DOM item fires
+ * its `click()`; selecting the sub-scan sentinel bails out without
+ * firing. After a sub-scan ends (either path) we resume the top-level
+ * scan at the next region, per the design doc wrap behavior — which
+ * for maze-actions (the last real region) means landing on the
+ * top-level sentinel. Toolbox and workspace sub-scans land in
+ * Steps 6-7.
  */
 
 import * as Blockly from 'blockly/core';
@@ -438,8 +440,9 @@ export class SwitchScanController {
    *
    * Select:
    *  - `top` at sentinel    → reset to index 0 (wrap).
-   *  - `top` at `header`    → push a header DOM-item sub-scan frame.
-   *    (Other top regions are still log-only — Steps 5-7.)
+   *  - `top` at `header` or `maze-actions` → push a DOM-item sub-scan
+   *    frame for that region. (Toolbox / workspace are still log-only
+   *    — Steps 6-7.)
    *  - `dom-items` at item  → fire `.click()` on the element, then pop
    *    the frame and resume the top scan at `popToTopIndex`.
    *  - `dom-items` at sentinel → pop the frame without firing.
@@ -493,12 +496,11 @@ export class SwitchScanController {
       }
       const region = this.regions[frame.index];
       if (!region) return;
-      if (region.name === 'header') {
-        this.enterHeaderSubScan(frame.index);
+      if (region.name === 'header' || region.name === 'maze-actions') {
+        this.enterDomRegionSubScan(region.name, frame.index);
       } else {
-        // Toolbox / workspace / maze-actions sub-scans land in Steps
-        // 5-7. Until then, keep the Step-3 log behavior so the wiring
-        // stays observable.
+        // Toolbox / workspace sub-scans land in Steps 6-7. Until then,
+        // keep the Step-3 log behavior so the wiring stays observable.
         console.log('[switch-scan] selected region:', region.name);
       }
       return;
@@ -521,29 +523,42 @@ export class SwitchScanController {
   }
 
   /**
-   * Enter the header's DOM-item sub-scan.
+   * Enter a DOM region's item sub-scan.
+   *
+   * Generic over any region whose buttons are tagged with
+   * `data-scan-item` inside a `[data-scan-region="..."]` wrapper.
+   * Currently used for `header` and `maze-actions`; the same plumbing
+   * will serve any future plain-DOM region.
    *
    * Items are discovered fresh every entry (not cached) so that
-   * buttons which become visible later — e.g. the settings/info chip
-   * when an info dialog is enabled on a future level — get picked up
+   * buttons which become visible later — e.g. `#ghostRunButton` once
+   * its `.hidden` class is removed on the right level — get picked up
    * without any cache invalidation logic.
    *
-   * If discovery yields zero visible items (degenerate / hidden
-   * header), we treat select as a no-op and just advance past the
+   * If discovery yields zero visible items (degenerate / fully hidden
+   * region), we treat select as a no-op and just advance past the
    * region: skipping forward keeps the cycle progressing instead of
    * leaving the user stuck on an unactionable region.
    *
-   * @param headerTopLevelIndex Top-level index of the header region;
-   *     used to compute where to resume when the sub-scan exits
-   *     (header+1 = toolbox, per design doc).
+   * @param regionName     The region's `data-scan-region` value.
+   * @param topLevelIndex  Top-level index of the region; used to
+   *     compute where to resume when the sub-scan exits
+   *     (`topLevelIndex + 1`, modulo cycle length). For the last real
+   *     region (maze-actions) this lands on the top-level sentinel,
+   *     which is the desired "you finished, now wrap" affordance.
    */
-  private enterHeaderSubScan(headerTopLevelIndex: number): void {
-    const items = this.discoverHeaderItems();
+  private enterDomRegionSubScan(
+    regionName: string,
+    topLevelIndex: number,
+  ): void {
+    const items = this.discoverDomRegionItems(regionName);
     const topCycleLen = this.regions.length + 1;
-    const popToTopIndex = (headerTopLevelIndex + 1) % topCycleLen;
+    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
 
     if (items.length === 0) {
-      // Nothing to scan — advance past header so the user isn't stuck.
+      // Nothing to scan — advance past the region so the user isn't
+      // stuck. For maze-actions this still correctly lands on the
+      // top-level sentinel via the modulo above.
       const topFrame = this.frameStack[0];
       if (topFrame && topFrame.kind === 'top') {
         topFrame.index = popToTopIndex;
@@ -554,7 +569,7 @@ export class SwitchScanController {
 
     this.frameStack.push({
       kind: 'dom-items',
-      parentRegionName: 'header',
+      parentRegionName: regionName,
       items,
       index: 0,
       popToTopIndex,
@@ -579,20 +594,25 @@ export class SwitchScanController {
   }
 
   /**
-   * Find the visible `[data-scan-item]` descendants of the header
-   * region in DOM order. Visibility filter handles:
+   * Find the visible `[data-scan-item]` descendants of the named
+   * `[data-scan-region="<regionName>"]` wrapper in DOM order.
+   *
+   * Visibility filter handles:
    *  - `display: none` and the `.hidden` class (both null out
-   *    `offsetParent` on non-fixed elements).
+   *    `offsetParent` on non-fixed elements). Confirmed against
+   *    `maze.css` — e.g. `#ghostRunButton.hidden { display: none }` —
+   *    so the ghost-run button is correctly dropped on levels where
+   *    it isn't enabled.
    *  - Zero-width layouts (collapsed flex containers, etc.).
    *
-   * Returns `[]` if the header region itself is missing.
+   * Returns `[]` if the region wrapper itself is missing.
    */
-  private discoverHeaderItems(): HTMLElement[] {
-    const headerEl = document.querySelector<HTMLElement>(
-      '[data-scan-region="header"]',
+  private discoverDomRegionItems(regionName: string): HTMLElement[] {
+    const regionEl = document.querySelector<HTMLElement>(
+      `[data-scan-region="${regionName}"]`,
     );
-    if (!headerEl) return [];
-    const nodeList = headerEl.querySelectorAll<HTMLElement>('[data-scan-item]');
+    if (!regionEl) return [];
+    const nodeList = regionEl.querySelectorAll<HTMLElement>('[data-scan-item]');
     const items: HTMLElement[] = [];
     nodeList.forEach((el) => {
       // offsetParent === null catches display:none and .hidden;

@@ -1,0 +1,3 @@
+Generalized discoverHeaderItems/enterHeaderSubScan into discoverDomRegionItems(regionName)/enterDomRegionSubScan(regionName, topLevelIndex); select dispatch now routes both 'header' and 'maze-actions' through the generic path (toolbox/workspace still log-only).
+Visibility filter (offsetParent === null OR rect width === 0) verified against maze.css: .hidden uses display: none for #ghostRunButton and #runButton, so hidden buttons are correctly dropped; popToTopIndex modulo (regions.length + 1) lands maze-actions exit on the top-level sentinel as intended.
+Build status: npm run build:maze passes (webpack 5.96.1 compiled successfully).
