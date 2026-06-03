@@ -15,6 +15,14 @@ import * as Blockly from 'blockly/core';
 import {javascriptGenerator} from 'blockly/javascript';
 import {MazeGame} from './maze';
 import {msg} from './messages';
+import {insertBlockAfterCursor} from './block-insertion';
+
+// Workspace coordinates the very first block lands at when the
+// workspace is empty. Duplicated as literals (rather than imported from
+// `index.ts`) so this module stays free of an index.ts <-> grid-coding
+// import cycle. Kept in sync with STACK_ANCHOR_X/Y in index.ts.
+const STACK_ANCHOR_X = 25;
+const STACK_ANCHOR_Y = 60;
 
 /**
  * Saved maze state for undo functionality.
@@ -349,66 +357,25 @@ export class GridCodingModeController {
   }
 
   /**
-   * Insert a block into the workspace and connect it to the last block.
+   * Insert a block into the workspace and connect it to the appropriate
+   * tail position. Thin wrapper over the shared
+   * {@link insertBlockAfterCursor} helper so both grid-coding mode and
+   * switch-scan mode share one insertion heuristic. History tracking
+   * (the `this.history` push and the `pending_execution` disabled-state
+   * dance) stays in the per-action methods above, since it's specific
+   * to this controller's immediate/delayed execution flow.
    */
   private insertBlock(
     blockType: string,
     fields?: Record<string, string>,
   ): Blockly.Block | null {
-    // Find the connection point BEFORE creating the new block
-    const topBlocks = this.workspace.getTopBlocks(true);
-    let connectionTarget: Blockly.Connection | null = null;
-
-    if (topBlocks.length > 0) {
-      // Find the last block in the chain
-      let lastBlock = topBlocks[0];
-      while (lastBlock.nextConnection?.targetBlock()) {
-        lastBlock = lastBlock.nextConnection.targetBlock()!;
-      }
-      connectionTarget = lastBlock.nextConnection;
-    }
-
-    // Use Blockly events group
-    const existingGroup = Blockly.Events.getGroup();
-    if (!existingGroup) {
-      Blockly.Events.setGroup(true);
-    }
-
-    try {
-      // Create the block
-      const block = this.workspace.newBlock(blockType);
-
-      // Set any field values
-      if (fields) {
-        for (const [name, value] of Object.entries(fields)) {
-          block.setFieldValue(value, name);
-        }
-      }
-
-      // Initialize SVG
-      block.initSvg();
-
-      // Position the block first (before connecting, so it's a valid top block)
-      const blockSvg = block as Blockly.BlockSvg;
-      if (!connectionTarget) {
-        // First block - position it nicely
-        blockSvg.moveBy(25, 60);
-      }
-
-      // Render the block
-      block.render();
-
-      // Connect to the last block if there is one
-      if (connectionTarget && block.previousConnection) {
-        connectionTarget.connect(block.previousConnection);
-      }
-
-      return block;
-    } finally {
-      if (!existingGroup) {
-        Blockly.Events.setGroup(false);
-      }
-    }
+    return insertBlockAfterCursor(
+      this.workspace,
+      blockType,
+      fields,
+      STACK_ANCHOR_X,
+      STACK_ANCHOR_Y,
+    );
   }
 
   /**

@@ -1,0 +1,4 @@
+APPROVE. Helper extraction is faithful; callers retain history/highlight/focus bookkeeping; toolbox sub-scan wiring (cycleLen, atSentinel, popToTopIndex = (idx+1) % topCycleLen, insert into MAIN workspace) all correct; anchors match index.ts (25/60); no circular imports; workspace stub is minimal.
+Notes (not blockers): helper adds FocusManager-priority — new behavior for grid-coding W/A/D, but matches Step 6's plan text exactly and stays equivalent in the normal flow because focusBlock() puts the cursor on the last inserted block; `blocks` ScanFrame's regionName accepts 'toolbox'|'workspace' as Step 7 needs.
+Files reviewed: test/maze-game/block-insertion.ts (new), test/maze-game/grid-coding-mode.ts, test/maze-game/switch-scan-mode.ts, test/maze-game/bundle.js. No fixes needed.
+Build: `npm run build:maze` — webpack 5.96.1 compiled successfully, no warnings.

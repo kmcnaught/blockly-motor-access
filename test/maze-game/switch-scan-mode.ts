@@ -21,22 +21,20 @@
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 5 (current): top-level scan loop across four regions
+ * Step 6 (current): top-level scan loop across four regions
  * (header / toolbox / workspace / maze-actions) plus a "back to top"
- * sentinel, AND a generic DOM-item sub-scan that now serves both the
- * header and maze-actions regions. Scan state is modeled as a stack
- * of "scan frames" so each region with a sub-scan can push a fresh
- * cycle on select and pop on completion. Selecting a DOM item fires
- * its `click()`; selecting the sub-scan sentinel bails out without
- * firing. After a sub-scan ends (either path) we resume the top-level
- * scan at the next region, per the design doc wrap behavior — which
- * for maze-actions (the last real region) means landing on the
- * top-level sentinel. Toolbox and workspace sub-scans land in
- * Steps 6-7.
+ * sentinel, generic DOM-item sub-scan for header / maze-actions, AND
+ * a Blockly-block sub-scan for the toolbox flyout. Selecting a flyout
+ * block inserts a new instance of that block type into the main
+ * workspace via the shared {@link insertBlockAfterCursor} helper (also
+ * used by grid-coding-mode), then pops back to the top-level scan.
+ * Workspace block sub-scan reuses the same `blocks` frame and lands
+ * in Step 7.
  */
 
 import * as Blockly from 'blockly/core';
 import {MazeGame} from './maze';
+import {insertBlockAfterCursor} from './block-insertion';
 
 /**
  * Options for configuring the switch scan controller.
@@ -101,6 +99,13 @@ type ScanFrame =
       kind: 'dom-items';
       parentRegionName: string;
       items: HTMLElement[];
+      index: number;
+      popToTopIndex: number;
+    }
+  | {
+      kind: 'blocks';
+      regionName: 'toolbox' | 'workspace';
+      blocks: Blockly.BlockSvg[];
       index: number;
       popToTopIndex: number;
     };
@@ -357,7 +362,8 @@ export class SwitchScanController {
    */
   private cycleLen(frame: ScanFrame): number {
     if (frame.kind === 'top') return this.regions.length + 1;
-    return frame.items.length + 1;
+    if (frame.kind === 'dom-items') return frame.items.length + 1;
+    return frame.blocks.length + 1;
   }
 
   /**
@@ -365,7 +371,8 @@ export class SwitchScanController {
    */
   private atSentinel(frame: ScanFrame): boolean {
     if (frame.kind === 'top') return frame.index === this.regions.length;
-    return frame.index === frame.items.length;
+    if (frame.kind === 'dom-items') return frame.index === frame.items.length;
+    return frame.index === frame.blocks.length;
   }
 
   /**
@@ -378,6 +385,9 @@ export class SwitchScanController {
    *  - `dom-items` at an item  → item's `getBoundingClientRect()`.
    *  - `dom-items` at sentinel → sentinel chip (same "Back to top"
    *    affordance — pops the frame instead of resetting index).
+   *  - `blocks` at a block     → block SVG root's bounding rect
+   *    (viewport coordinates work with our `position: fixed` outline).
+   *  - `blocks` at sentinel    → sentinel chip.
    */
   private renderHighlight(): void {
     if (!this.highlightEl || !this.sentinelChip) return;
@@ -400,8 +410,11 @@ export class SwitchScanController {
     let rect: DOMRect | null = null;
     if (frame.kind === 'top') {
       rect = this.regions[frame.index]?.getRect() ?? null;
-    } else {
+    } else if (frame.kind === 'dom-items') {
       rect = frame.items[frame.index]?.getBoundingClientRect() ?? null;
+    } else {
+      const svgRoot = frame.blocks[frame.index]?.getSvgRoot();
+      rect = svgRoot?.getBoundingClientRect() ?? null;
     }
 
     if (!rect || rect.width === 0 || rect.height === 0) {
@@ -498,28 +511,57 @@ export class SwitchScanController {
       if (!region) return;
       if (region.name === 'header' || region.name === 'maze-actions') {
         this.enterDomRegionSubScan(region.name, frame.index);
+      } else if (region.name === 'toolbox') {
+        this.enterToolboxSubScan(frame.index);
       } else {
-        // Toolbox / workspace sub-scans land in Steps 6-7. Until then,
-        // keep the Step-3 log behavior so the wiring stays observable.
+        // Workspace sub-scan lands in Step 7. Until then, keep the
+        // Step-3 log behavior so the wiring stays observable.
         console.log('[switch-scan] selected region:', region.name);
       }
       return;
     }
 
-    // dom-items frame.
+    if (frame.kind === 'dom-items') {
+      if (this.atSentinel(frame)) {
+        // Sentinel: bail out of the sub-scan without firing anything.
+        this.popSubScan(frame.popToTopIndex);
+        return;
+      }
+      const item = frame.items[frame.index];
+      // Click first, then pop — if click() throws we still escape the
+      // sub-scan rather than getting stuck on a broken item.
+      try {
+        item?.click();
+      } finally {
+        this.popSubScan(frame.popToTopIndex);
+      }
+      return;
+    }
+
+    // blocks frame (toolbox in Step 6; workspace in Step 7).
     if (this.atSentinel(frame)) {
-      // Sentinel: bail out of the sub-scan without firing anything.
       this.popSubScan(frame.popToTopIndex);
       return;
     }
-    const item = frame.items[frame.index];
-    // Click first, then pop — if click() throws we still escape the
-    // sub-scan rather than getting stuck on a broken item.
-    try {
-      item?.click();
-    } finally {
-      this.popSubScan(frame.popToTopIndex);
+    const block = frame.blocks[frame.index];
+    if (frame.regionName === 'toolbox') {
+      // Insert a new block of the same type into the MAIN workspace
+      // (not the flyout workspace) via the shared heuristic. We do not
+      // clone or move the flyout block itself — `block.type` plus the
+      // insertion helper produces a fresh, properly-connected instance.
+      try {
+        if (block) {
+          insertBlockAfterCursor(this.workspace, block.type);
+        }
+      } finally {
+        this.popSubScan(frame.popToTopIndex);
+      }
+      return;
     }
+    // Workspace block frame — Step 8 will push an action sub-scan here.
+    // For now (won't trigger until Step 7 enables workspace scanning),
+    // just pop.
+    this.popSubScan(frame.popToTopIndex);
   }
 
   /**
@@ -591,6 +633,77 @@ export class SwitchScanController {
         topCycleLen > 0 ? ((resumeIndex % topCycleLen) + topCycleLen) % topCycleLen : 0;
     }
     this.renderHighlight();
+  }
+
+  /**
+   * Enter the toolbox region's flyout-block sub-scan.
+   *
+   * Discovers the flyout's top blocks via Blockly's flyout API
+   * (`workspace.getFlyout().getWorkspace().getTopBlocks(true)`) rather
+   * than via DOM tagging, since flyout blocks are SVG elements not
+   * tagged with `data-scan-item`. Filters out blocks that aren't
+   * currently rendered / measurable (defensive against transiently
+   * unrendered flyout state on first enable).
+   *
+   * If discovery yields zero blocks, advance past toolbox the same way
+   * `enterDomRegionSubScan` advances past an empty DOM region.
+   *
+   * @param topLevelIndex  Top-level index of the toolbox region; used
+   *     to compute `popToTopIndex` so the user resumes at the region
+   *     AFTER toolbox once they exit the sub-scan (either by selecting
+   *     a block to insert, or by hitting the sentinel).
+   */
+  private enterToolboxSubScan(topLevelIndex: number): void {
+    const blocks = this.discoverFlyoutBlocks();
+    const topCycleLen = this.regions.length + 1;
+    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
+
+    if (blocks.length === 0) {
+      const topFrame = this.frameStack[0];
+      if (topFrame && topFrame.kind === 'top') {
+        topFrame.index = popToTopIndex;
+        this.renderHighlight();
+      }
+      return;
+    }
+
+    this.frameStack.push({
+      kind: 'blocks',
+      regionName: 'toolbox',
+      blocks,
+      index: 0,
+      popToTopIndex,
+    });
+    this.renderHighlight();
+  }
+
+  /**
+   * Discover the flyout's currently-visible top-level blocks, in
+   * flyout order. Returns `[]` if there's no flyout or its workspace
+   * isn't reachable.
+   *
+   * "Visible" filter: block must have a rendered SVG root with a
+   * non-zero bounding rect. Flyout categories or labels (non-block
+   * elements) are naturally excluded because `getTopBlocks` only
+   * returns Block instances.
+   */
+  private discoverFlyoutBlocks(): Blockly.BlockSvg[] {
+    const flyout = this.workspace.getFlyout();
+    if (!flyout) return [];
+    const flyoutWs = flyout.getWorkspace();
+    if (!flyoutWs) return [];
+
+    const topBlocks = flyoutWs.getTopBlocks(true);
+    const result: Blockly.BlockSvg[] = [];
+    for (const block of topBlocks) {
+      const blockSvg = block as Blockly.BlockSvg;
+      const root = blockSvg.getSvgRoot?.();
+      if (!root) continue;
+      const rect = root.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      result.push(blockSvg);
+    }
+    return result;
   }
 
   /**

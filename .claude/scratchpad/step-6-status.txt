@@ -1,0 +1,3 @@
+Helper extracted to test/maze-game/block-insertion.ts (insertBlockAfterCursor); toolbox sub-scan wired via new `blocks` ScanFrame; selecting a flyout block inserts a fresh instance of that type into the main workspace.
+History tracking (history.push, pending_execution disabled-state, scrollToBlock, highlight, focus) all KEPT at the callers in grid-coding-mode.ts — the shared helper is pure insertion + connection only. New BlockSvg `blocks` frame variant also declared with `workspace` region name for Step 7 reuse.
+Build: `npm run build:maze` passes (webpack 5.96.1 compiled successfully). FocusManager-priority is new behavior for grid-coding (previously chain-walk only) — chain-walk fallback preserved when cursor isn't on a workspace block.
