@@ -1,5 +1,0 @@
-## Step 1: Make 'Houston we have a...' Sound Effect 75% Current Volume
-
-**File:** test/maze-game/maze.ts
-**Method:** loadAudio() at line 588
-**Change:** this.crashAudio.volume = 0.5 → 0.375 (0.5 × 0.75 = 0.375)

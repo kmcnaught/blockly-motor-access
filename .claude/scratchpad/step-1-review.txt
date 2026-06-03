@@ -1,0 +1,4 @@
+Fixed 3 issues in switch-scan-mode.ts; mutual-exclusion + URL wiring in index.ts verified correct.
+Issues: (1) handleKeyDown didn't check this.enabled or skip input/textarea targets (matches grid-coding-mode pattern); (2) no normalization for human-readable key aliases — ?switchAdvance=Space would silently no-op since KeyboardEvent.key for spacebar is ' '; setKeys had same issue.
+Modified files: /workspace/test/maze-game/switch-scan-mode.ts. index.ts unchanged — all 24 gridCodingModeController references already null-guard via `if (...)` or `?.`, so the new `isGridCodingMode && !isSwitchScanMode` gate cannot NPE downstream.
+Build: PASS (npm run build:maze, webpack 5.96.1 compiled successfully).

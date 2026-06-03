@@ -31,6 +31,7 @@ import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForS
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
+import {SwitchScanController} from './switch-scan-mode';
 import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
 import {launchConfetti} from './confetti';
@@ -92,6 +93,15 @@ const isGridMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecu
 // Grid coding mode flag (active when grid=1 URL param AND mode=coding)
 // Keyboard commands insert blocks AND execute immediately
 const isGridCodingMode = getStringParamFromUrl('grid', '0') === '1' && getInitialExecutionMode() === 'coding';
+
+// Switch-scan input mode (Phase 1 scaffold).
+// Activated by ?inputMode=switch-scan. Mutually exclusive with grid coding mode.
+// Key bindings use KeyboardEvent.key values: ' ' (Space) and 'Enter' by default.
+// See PLAN_switch_scanning.md for the full design.
+const inputMode = getStringParamFromUrl('inputMode', '');
+const switchAdvanceKey = getStringParamFromUrl('switchAdvance', ' ');
+const switchSelectKey = getStringParamFromUrl('switchSelect', 'Enter');
+const isSwitchScanMode = inputMode === 'switch-scan';
 
 // Current grid stage (1 = immediate execution, 2 = delayed execution)
 // Only used when isGridCodingMode is true
@@ -809,10 +819,11 @@ const immediateModeController = new ImmediateModeController(
   mazeGame
 );
 
-// Initialize Grid coding mode controller (only created if in Grid coding mode)
+// Initialize Grid coding mode controller (only created if in Grid coding mode).
+// Mutually exclusive with switch-scan mode — don't instantiate both.
 let gridCodingModeController: GridCodingModeController | null = null;
 
-if (isGridCodingMode) {
+if (isGridCodingMode && !isSwitchScanMode) {
   gridCodingModeController = new GridCodingModeController(workspace, mazeGame);
 
   // Set initial execution mode based on grid stage
@@ -2684,6 +2695,17 @@ function initializeGridCodingMode(): void {
 
 // Initialize Grid coding mode if active
 initializeGridCodingMode();
+
+// Initialize switch-scan controller if active (Phase 1 scaffold).
+// Mutually exclusive with grid coding mode; instantiation above is guarded.
+let switchScanController: SwitchScanController | null = null;
+if (isSwitchScanMode) {
+  switchScanController = new SwitchScanController(workspace, mazeGame, {
+    switchAdvance: switchAdvanceKey,
+    switchSelect: switchSelectKey,
+  });
+  switchScanController.enable();
+}
 
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)
 workspace.addChangeListener((event) => {

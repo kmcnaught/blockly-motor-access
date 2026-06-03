@@ -1,2 +1,2 @@
-Step 1: done
-Step 2: done
+# Switch-Scanning Mode — Phase 1 (reset 2026-06-03 for new plan)
+Step 1: done — SwitchScanController scaffold + URL-param wiring + mutual exclusion with grid coding. Review fixed 3 issues (enabled-guard, input-field skip, Space alias normalization).

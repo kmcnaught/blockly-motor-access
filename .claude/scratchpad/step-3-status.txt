@@ -1,3 +1,0 @@
-Added ~500ms delay before failure/error/timeout dialogs in showResult().
-Delays are tracked via resultDelayTimeoutId and cancelled in reset().
-Success flow unchanged (already had 1500ms delay, now also cancellable).
