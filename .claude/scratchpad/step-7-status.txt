@@ -1,0 +1,3 @@
+Tree-order discoverWorkspaceBlocks + enterWorkspaceSubScan implemented; top-level 'workspace' select now routes there, and blocks-frame select for workspace logs type/id without popping (sentinel still pops).
+Traversal: getTopBlocks(true) order; per block, yield self -> recurse into each inputList[i].connection.targetBlock() (statement/value inputs descended first) -> then follow nextConnection.targetBlock(); filters out blocks with no getSvgRoot().
+Build: `npm run build:maze` compiles cleanly (webpack 5.96.1, no TS errors).

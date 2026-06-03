@@ -21,15 +21,19 @@
  * Full design / phased plan: see `PLAN_switch_scanning.md` at the
  * repository root and `.claude/scratchpad/current-plan.md`.
  *
- * Step 6 (current): top-level scan loop across four regions
+ * Step 7 (current): top-level scan loop across four regions
  * (header / toolbox / workspace / maze-actions) plus a "back to top"
- * sentinel, generic DOM-item sub-scan for header / maze-actions, AND
- * a Blockly-block sub-scan for the toolbox flyout. Selecting a flyout
- * block inserts a new instance of that block type into the main
- * workspace via the shared {@link insertBlockAfterCursor} helper (also
- * used by grid-coding-mode), then pops back to the top-level scan.
- * Workspace block sub-scan reuses the same `blocks` frame and lands
- * in Step 7.
+ * sentinel, generic DOM-item sub-scan for header / maze-actions, a
+ * Blockly-block sub-scan for the toolbox flyout (selecting inserts a
+ * new instance via the shared {@link insertBlockAfterCursor} helper),
+ * and a Blockly-block sub-scan for the workspace itself. Workspace
+ * blocks are enumerated in tree order — descending into statement
+ * inputs before continuing along `nextConnection` siblings — which
+ * matches how a programmer reads code top-to-bottom. Selecting a
+ * workspace block currently just logs its type and id (the block
+ * action menu lands in Step 8); the user keeps scanning workspace
+ * blocks rather than popping, which is handy interim behavior for
+ * testing the enumeration.
  */
 
 import * as Blockly from 'blockly/core';
@@ -513,9 +517,12 @@ export class SwitchScanController {
         this.enterDomRegionSubScan(region.name, frame.index);
       } else if (region.name === 'toolbox') {
         this.enterToolboxSubScan(frame.index);
+      } else if (region.name === 'workspace') {
+        this.enterWorkspaceSubScan(frame.index);
       } else {
-        // Workspace sub-scan lands in Step 7. Until then, keep the
-        // Step-3 log behavior so the wiring stays observable.
+        // Unknown region — keep the Step-3 log behavior so any future
+        // region added to `discoverRegions` without a routing branch
+        // surfaces in the console rather than silently no-op'ing.
         console.log('[switch-scan] selected region:', region.name);
       }
       return;
@@ -558,10 +565,19 @@ export class SwitchScanController {
       }
       return;
     }
-    // Workspace block frame — Step 8 will push an action sub-scan here.
-    // For now (won't trigger until Step 7 enables workspace scanning),
-    // just pop.
-    this.popSubScan(frame.popToTopIndex);
+    // Workspace block frame — Step 8 will push an action sub-scan
+    // (Select / Edit / Delete) here. For Step 7 we just log the block
+    // type & id and DELIBERATELY do not pop: the user keeps scanning
+    // workspace blocks, which lets us exercise the enumeration order
+    // without the action menu yet existing. The sentinel branch above
+    // still pops normally.
+    if (block) {
+      console.log(
+        '[switch-scan] selected workspace block:',
+        block.type,
+        block.id,
+      );
+    }
   }
 
   /**
@@ -702,6 +718,99 @@ export class SwitchScanController {
       const rect = root.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
       result.push(blockSvg);
+    }
+    return result;
+  }
+
+  /**
+   * Enter the workspace region's block sub-scan.
+   *
+   * Mirrors {@link enterToolboxSubScan} but over the main workspace's
+   * blocks (via {@link discoverWorkspaceBlocks}) in tree order. If
+   * discovery yields zero blocks (empty workspace), advance past the
+   * region the same way the toolbox / DOM helpers do, so the user
+   * isn't stuck on an empty workspace.
+   *
+   * @param topLevelIndex  Top-level index of the workspace region;
+   *     used to compute `popToTopIndex` so the user resumes at the
+   *     region AFTER workspace once they exit the sub-scan (via the
+   *     sentinel — Step 7 select doesn't pop yet).
+   */
+  private enterWorkspaceSubScan(topLevelIndex: number): void {
+    const blocks = this.discoverWorkspaceBlocks();
+    const topCycleLen = this.regions.length + 1;
+    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
+
+    if (blocks.length === 0) {
+      const topFrame = this.frameStack[0];
+      if (topFrame && topFrame.kind === 'top') {
+        topFrame.index = popToTopIndex;
+        this.renderHighlight();
+      }
+      return;
+    }
+
+    this.frameStack.push({
+      kind: 'blocks',
+      regionName: 'workspace',
+      blocks,
+      index: 0,
+      popToTopIndex,
+    });
+    this.renderHighlight();
+  }
+
+  /**
+   * Discover the main workspace's blocks in tree order, matching how
+   * a programmer reads code top-to-bottom.
+   *
+   * Traversal rule, applied to each top block from
+   * `workspace.getTopBlocks(true)` in order:
+   *  1. Yield the block itself.
+   *  2. For each input on `block.inputList`, if it has a `connection`
+   *     whose `targetBlock()` is non-null, recurse into that subtree
+   *     BEFORE moving on. This is what makes us descend into statement
+   *     inputs (e.g. the body of a `repeat`) before continuing.
+   *  3. After all inputs are processed, follow
+   *     `block.nextConnection.targetBlock()` to the next sibling along
+   *     the stack chain and repeat from step 1.
+   *
+   * The filter `block.getSvgRoot() != null` drops non-rendered
+   * placeholders (e.g. blocks that exist in the model but haven't been
+   * rendered yet — rare in the maze game but cheap insurance).
+   *
+   * Staleness: in the controlled switch-only flow, blocks don't get
+   * disposed between a frame push and the next interaction without the
+   * user driving it; we don't bother with weak refs. The 0x0-rect hide
+   * path in {@link renderHighlight} already handles the rare case of a
+   * block being removed mid-cycle.
+   */
+  private discoverWorkspaceBlocks(): Blockly.BlockSvg[] {
+    const result: Blockly.BlockSvg[] = [];
+    const visit = (block: Blockly.Block | null): void => {
+      if (!block) return;
+      const blockSvg = block as Blockly.BlockSvg;
+      if (blockSvg.getSvgRoot && blockSvg.getSvgRoot() != null) {
+        result.push(blockSvg);
+      }
+      // Descend into statement / value inputs first, in input-list order.
+      for (const input of block.inputList) {
+        const conn = input.connection;
+        if (conn) {
+          const target = conn.targetBlock();
+          if (target) visit(target);
+        }
+      }
+      // Then continue along the next-connection chain.
+      const nextConn = block.nextConnection;
+      if (nextConn) {
+        const next = nextConn.targetBlock();
+        if (next) visit(next);
+      }
+    };
+    const topBlocks = this.workspace.getTopBlocks(true);
+    for (const top of topBlocks) {
+      visit(top);
     }
     return result;
   }

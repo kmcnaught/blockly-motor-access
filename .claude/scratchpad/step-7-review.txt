@@ -1,0 +1,4 @@
+APPROVE: traversal yields T,C1,C2,T2 as required; no double-visit (recursion handles next-chain, outer loop only iterates getTopBlocks heads); all 4 regions explicitly routed; empty-workspace advances past; workspace-block select logs without popping while sentinel still pops.
+No issues found; value-input descent is acknowledged in plan as intentional/acceptable for Phase 1.
+Files modified: none (review-only; no fixes needed).
+Build: clean (webpack 5.96.1 compiled successfully, no TS errors).
