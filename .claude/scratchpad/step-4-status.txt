@@ -1,0 +1,3 @@
+Implemented header sub-scan: select on header pushes a dom-items frame over its visible [data-scan-item] buttons; select fires click() then pops to toolbox; sentinel pops without firing. Visibility filter handles display:none/.hidden + zero-width.
+Refactored scan state from a single scanIndex into a frameStack of discriminated-union ScanFrame ({kind:'top'} | {kind:'dom-items', items, popToTopIndex,...}). renderHighlight/handleKeyDown now route through activeFrame()/cycleLen()/atSentinel() so future sub-scans (Steps 5-7) just push another frame. Toolbox/workspace/maze-actions selects keep the Step-3 log behavior.
+Build status: npm run build:maze passes (webpack compiled successfully, 17.3s).

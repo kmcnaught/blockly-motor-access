@@ -1,0 +1,4 @@
+APPROVE: frame-stack refactor + header sub-scan are correct; all 12 critique points clear.
+No issues. popToTopIndex math is in regions-index space ((headerIdx+1) % cycleLen), every state transition (advance/select-region/sentinel-pop/item-click-pop/empty-skip) is followed by renderHighlight(), empty-header degenerate path skips forward without pushing, toolbox/workspace/maze-actions remain log-only.
+Files modified: test/maze-game/switch-scan-mode.ts (+ regenerated bundle.js). No fixes applied.
+Build: npm run build:maze compiled successfully in 16.2s, no new warnings.
