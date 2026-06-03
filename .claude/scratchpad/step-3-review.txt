@@ -1,0 +1,4 @@
+Verdict: APPROVE with one minor fix applied — cycle math, rAF throttling, disable() teardown, CSS scoping, z-index (10000 vs max-existing 9999), initial render, and scope discipline all check out; `any`-cast is justified with eslint-disable comment matching src/index.ts:157 pattern.
+Issues found: discoverRegions() permanently dropped the toolbox region if its initial getBoundingClientRect() was 0x0 at enable() time — fragile against Blockly not-yet-laid-out / hidden-tab cases since getRect is already a re-reading thunk and renderHighlight already hides 0x0 rects; fixed by removing the discovery-time zero-size check so the toolbox self-recovers on later cycles.
+Files modified during review: test/maze-game/switch-scan-mode.ts (discoverRegions toolbox block, ~6 lines).
+Build status: `npm run build:maze` PASS, no TS errors/warnings, bundle.js emitted (5.68 MiB).

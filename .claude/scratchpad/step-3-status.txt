@@ -1,0 +1,3 @@
+Implemented top-level scan loop: discoverRegions() builds [header, toolbox, workspace, maze-actions] via DOM attrs + Blockly flyout svgGroup_ / toolbox.HtmlDiv / workspace.getInjectionDiv; added position:fixed highlight overlay + "Back to top" sentinel chip, rAF-throttled reflow on resize/scroll, and key handlers (advance cycles + wraps via sentinel, select logs region name or resets from sentinel). CSS block appended to maze.css.
+No surprises with flyout: cast (flyout as any).svgGroup_ matches the existing pattern in src/index.ts:157; toolbox region is dropped if its initial rect is zero-sized (defensive against no-toolbox level configs).
+Build OK: `npm run build:maze` compiled successfully in ~17s, no TS errors.

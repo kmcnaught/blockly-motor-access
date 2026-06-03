@@ -1,3 +1,4 @@
 # Switch-Scanning Mode — Phase 1 (reset 2026-06-03 for new plan)
 Step 1: done — SwitchScanController scaffold + URL-param wiring + mutual exclusion with grid coding. Review fixed 3 issues (enabled-guard, input-field skip, Space alias normalization).
 Step 2: done — DOM tagging in index.html. data-scan-region on <header> and .game-container; data-scan-item on 10 buttons (5 header + 5 maze-actions). #infoBtn deferred (lives in instructionBar). Review LGTM, no fixes.
+Step 3: done — top-level scan cycle visible. Region discovery (header / toolbox / workspace / maze-actions), sentinel chip, amber fixed overlay outline, rAF-throttled resize/scroll reflow, css class .switch-scan-highlight / .switch-scan-sentinel. Review fix: removed transient toolbox 0x0 drop so it self-heals via getRect thunk.

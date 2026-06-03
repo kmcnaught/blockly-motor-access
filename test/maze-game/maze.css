@@ -1979,3 +1979,28 @@ body.grid-mode .screen-padding,
 body.grid-coding-mode .screen-padding {
   display: none;
 }
+
+/* === Switch Scan Mode === */
+.switch-scan-highlight {
+  position: fixed;
+  pointer-events: none;
+  border: 4px solid #ffb300; /* warm amber - high contrast */
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.4);
+  z-index: 10000;
+  transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
+}
+.switch-scan-sentinel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  padding: 8px 14px;
+  background: #ffb300;
+  color: #222;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  z-index: 10000;
+  pointer-events: none;
+}
