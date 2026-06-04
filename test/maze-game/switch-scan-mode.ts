@@ -1554,6 +1554,16 @@ export class SwitchScanController {
       if (!isAdvance) return;
       if (this.autoState === 'idle') {
         this.startAutoTimer();
+        // Polish: speak the current item immediately on the idle →
+        // scanning transition so the user gets audible confirmation
+        // the timer is running (and knows what they're starting
+        // from). Without this, TTS users would hear nothing for the
+        // full `scanSpeedMs` until the first auto-tick fires. The
+        // call is a no-op when TTS is off or unsupported. Only fires
+        // for THIS transition — speed changes via setMode don't
+        // re-trigger it, since the user is already mid-scan and
+        // already knows where they are.
+        this.speakCurrentItemLabel();
         return;
       }
       // autoState === 'scanning' → select.
