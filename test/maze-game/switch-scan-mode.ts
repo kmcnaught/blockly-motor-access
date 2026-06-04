@@ -122,10 +122,11 @@ interface ScanRegion {
  *    slot at index === regions.length.
  *  - `dom-items`: cycles a concrete list of DOM elements (e.g. the
  *    buttons inside the header region) plus a sentinel at
- *    index === items.length. `popToTopIndex` is the top-level index to
- *    restore when this sub-scan exits (either via the sentinel or via
- *    selecting an item) — header pops back to header+1 = toolbox so the
- *    user keeps moving forward instead of restarting the cycle.
+ *    index === items.length. `topLevelIndex` is the index of the
+ *    top-level region the user entered THIS sub-scan from — pop helpers
+ *    derive the resume index from it (same region for sentinel pops, the
+ *    NEXT region for action-completed pops). See {@link popToSameRegion}
+ *    and {@link popToNextRegion}.
  *  - `parentRegionName` is informational only (used for logging /
  *    future diagnostics) — frame routing is purely positional.
  */
@@ -136,21 +137,21 @@ type ScanFrame =
       parentRegionName: string;
       items: HTMLElement[];
       index: number;
-      popToTopIndex: number;
+      topLevelIndex: number;
     }
   | {
       kind: 'blocks';
       regionName: 'toolbox' | 'workspace';
       blocks: Blockly.BlockSvg[];
       index: number;
-      popToTopIndex: number;
+      topLevelIndex: number;
     }
   | {
       kind: 'action-menu';
       block: Blockly.BlockSvg;
       items: ActionItem[];
       index: number;
-      popToTopIndex: number;
+      topLevelIndex: number;
     }
   | {
       kind: 'dropdown-values';
@@ -160,7 +161,7 @@ type ScanFrame =
         [string | {src: string; width: number; height: number; alt: string}, string]
       >;
       index: number;
-      popToTopIndex: number;
+      topLevelIndex: number;
     };
 
 /**
@@ -702,12 +703,16 @@ export class SwitchScanController {
    *
    * Select:
    * - `top` at sentinel    → reset to index 0 (wrap).
-   * - `top` at `header` or `maze-actions` → push a DOM-item sub-scan
-   * frame for that region. (Toolbox / workspace are still log-only
-   * — Steps 6-7.)
-   * - `dom-items` at item  → fire `.click()` on the element, then pop
-   * the frame and resume the top scan at `popToTopIndex`.
-   * - `dom-items` at sentinel → pop the frame without firing.
+   * - `top` at any region  → push the appropriate sub-scan frame for
+   * that region (DOM-item, toolbox-blocks, workspace-blocks).
+   * - sub-scan at item     → commit the action (click button / insert
+   * block / pick value / Select / Delete / Edit) and pop via
+   * {@link popToNextRegion} so the user advances to the next top
+   * region.
+   * - sub-scan at sentinel → pop via {@link popToSameRegion} so the
+   * user lands back on the SAME top-level region they entered the
+   * sub-scan from, ready to re-enter it. (Action-completed pops go
+   * to the NEXT region; sentinel pops stay on the same region.)
    *
    * Defensive: bails if disabled (the listener is removed on disable,
    * but the guard keeps state and listener-binding decoupled) and skips
@@ -784,7 +789,10 @@ export class SwitchScanController {
     if (frame.kind === 'dom-items') {
       if (this.atSentinel(frame)) {
         // Sentinel: bail out of the sub-scan without firing anything.
-        this.popSubScan(frame.popToTopIndex);
+        // Land on the SAME region the user just left so they can re-enter
+        // it (matches user's mental model of "back to top = let me try
+        // again from where I was").
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const item = frame.items[frame.index];
@@ -793,14 +801,17 @@ export class SwitchScanController {
       try {
         item?.click();
       } finally {
-        this.popSubScan(frame.popToTopIndex);
+        // Action completed: advance to the next top-level region so the
+        // user keeps moving forward through the scan cycle.
+        this.popToNextRegion(frame.topLevelIndex);
       }
       return;
     }
 
     if (frame.kind === 'blocks') {
       if (this.atSentinel(frame)) {
-        this.popSubScan(frame.popToTopIndex);
+        // Sentinel pop → stay on the same region for re-entry.
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const block = frame.blocks[frame.index];
@@ -815,30 +826,34 @@ export class SwitchScanController {
             insertBlockAfterCursor(this.workspace, block.type);
           }
         } finally {
-          this.popSubScan(frame.popToTopIndex);
+          // Action completed (block inserted): advance to next region.
+          this.popToNextRegion(frame.topLevelIndex);
         }
         return;
       }
       // Workspace block frame: open the action sub-scan menu anchored
-      // next to this block. `popToTopIndex` matches what the workspace
-      // sub-scan itself would use — after acting on the block we land
-      // straight back at the top, past the workspace region.
+      // next to this block. The action-menu frame inherits this frame's
+      // `topLevelIndex` (the workspace top-level index) so its own pop
+      // helpers compute the correct same/next resume index.
       if (block) {
-        this.enterActionMenu(block, frame.popToTopIndex);
+        this.enterActionMenu(block, frame.topLevelIndex);
       }
       return;
     }
 
     if (frame.kind === 'action-menu') {
       if (this.atSentinel(frame)) {
-        // "Back to top" sentinel — bail out without acting on the block.
-        this.popSubScan(frame.popToTopIndex);
+        // "Back to top" sentinel — bail out without acting on the block,
+        // stay on the same top region (workspace) so the user can pick a
+        // different block.
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const item = frame.items[frame.index];
       const block = frame.block;
       if (!item) {
-        this.popSubScan(frame.popToTopIndex);
+        // Defensive fallback — treat as a sentinel-style bail.
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       if (item.key === 'select') {
@@ -853,7 +868,8 @@ export class SwitchScanController {
           // anyway so the user isn't stranded.
           console.warn('[switch-scan] focusNode failed:', err);
         }
-        this.popSubScan(frame.popToTopIndex);
+        // Action committed → next region.
+        this.popToNextRegion(frame.topLevelIndex);
         return;
       }
       if (item.key === 'delete') {
@@ -871,20 +887,23 @@ export class SwitchScanController {
         } catch (err) {
           console.warn('[switch-scan] block.dispose failed:', err);
         }
-        this.popSubScan(frame.popToTopIndex);
+        // Action committed → next region.
+        this.popToNextRegion(frame.topLevelIndex);
         return;
       }
       if (item.key === 'edit') {
         // Push a nested dropdown-values frame. The Edit option is only
         // present when there's at least one editable FieldDropdown, so
         // this lookup should succeed; defensively fall back to pop-to-
-        // top if it doesn't.
+        // top if it doesn't (treat as a bail → same region).
         const field = this.findFirstEditableDropdown(block);
         if (!field) {
-          this.popSubScan(frame.popToTopIndex);
+          this.popToSameRegion(frame.topLevelIndex);
           return;
         }
-        this.enterDropdownValues(block, field, frame.popToTopIndex);
+        // Dropdown frame inherits the same top-level index so its own
+        // pop helpers compute correctly.
+        this.enterDropdownValues(block, field, frame.topLevelIndex);
         return;
       }
       return;
@@ -892,11 +911,11 @@ export class SwitchScanController {
 
     if (frame.kind === 'dropdown-values') {
       if (this.atSentinel(frame)) {
-        // Bail without changing the field's value. We still pop both
-        // the dropdown-values frame AND the action-menu frame beneath
-        // it, mirroring the design choice that any exit from the
-        // edit-flow lands the user back at the top frame.
-        this.popDropdownToTop(frame.popToTopIndex);
+        // Bail without changing the field's value. Pop both the
+        // dropdown-values frame AND the action-menu frame beneath it;
+        // stay on the same top region so the user can re-enter the
+        // workspace sub-scan and try editing again.
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const option = frame.options[frame.index];
@@ -907,11 +926,10 @@ export class SwitchScanController {
           console.warn('[switch-scan] field.setValue failed:', err);
         }
       }
-      // Pop BOTH frames (dropdown-values then action-menu) and land at
-      // the top-level frame's `popToTopIndex`. v1 design choice: pop
-      // straight to top after edit, rather than back to the action menu
-      // — simpler, and treats "Edit" as a single committed action.
-      this.popDropdownToTop(frame.popToTopIndex);
+      // Edit committed → advance to next region (v1 design: treat the
+      // whole edit flow as a single committed action that lands the user
+      // past the workspace region, not back inside it).
+      this.popToNextRegion(frame.topLevelIndex);
       return;
     }
   }
@@ -935,29 +953,26 @@ export class SwitchScanController {
    * leaving the user stuck on an unactionable region.
    *
    * @param regionName     The region's `data-scan-region` value.
-   * @param topLevelIndex  Top-level index of the region; used to
-   *     compute where to resume when the sub-scan exits
-   *     (`topLevelIndex + 1`, modulo cycle length). For the last real
-   *     region (maze-actions) this lands on the top-level sentinel,
-   *     which is the desired "you finished, now wrap" affordance.
+   * @param topLevelIndex  Top-level index of the region the user entered
+   *     from. Stored on the frame so the pop helpers can derive the
+   *     correct resume index (same region for sentinel pops, next region
+   *     for action-completed pops — see {@link popToSameRegion} /
+   *     {@link popToNextRegion}).
    */
   private enterDomRegionSubScan(
     regionName: string,
     topLevelIndex: number,
   ): void {
     const items = this.discoverDomRegionItems(regionName);
-    const topCycleLen = this.regions.length + 1;
-    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
 
     if (items.length === 0) {
       // Nothing to scan — advance past the region so the user isn't
-      // stuck. For maze-actions this still correctly lands on the
-      // top-level sentinel via the modulo above.
-      const topFrame = this.frameStack[0];
-      if (topFrame && topFrame.kind === 'top') {
-        topFrame.index = popToTopIndex;
-        this.renderHighlight();
-      }
+      // stuck. Treat the empty sub-scan as a no-op "action" and advance
+      // to the next top-level region (matches what a successful item
+      // click would have done). For maze-actions this still correctly
+      // lands on the top-level sentinel via the modulo inside
+      // popToNextRegion.
+      this.popToNextRegion(topLevelIndex);
       return;
     }
 
@@ -966,9 +981,47 @@ export class SwitchScanController {
       parentRegionName: regionName,
       items,
       index: 0,
-      popToTopIndex,
+      topLevelIndex,
     });
     this.renderHighlight();
+  }
+
+  /**
+   * Pop every non-`top` frame off the stack and resume the top frame at
+   * the SAME top-level region the user entered the sub-scan from.
+   *
+   * Used for sentinel-driven pops ("Back to top"): the user is
+   * explicitly bailing out of the sub-scan and wants to land back on the
+   * region they were on, so they can re-enter it (e.g. re-open the
+   * toolbox if they entered it by mistake, or pick a different workspace
+   * block after backing out of the action menu).
+   *
+   * @param topLevelIndex Top-level region the sub-scan was entered from.
+   */
+  private popToSameRegion(topLevelIndex: number): void {
+    this.popSubScan(topLevelIndex);
+  }
+
+  /**
+   * Pop every non-`top` frame off the stack and resume the top frame at
+   * the NEXT top-level region (wrapping past the sentinel, modulo cycle
+   * length).
+   *
+   * Used after an action commits — a clicked DOM button, a toolbox
+   * block insertion, a workspace block action (Select / Delete / Edit
+   * value chosen). Moving forward keeps the scan cycle progressing
+   * rather than parking the user on a region they just finished with.
+   *
+   * For the last real region (maze-actions) the next index lands on the
+   * top-level sentinel, which is the desired "you reached the end, now
+   * wrap" affordance.
+   *
+   * @param topLevelIndex Top-level region the sub-scan was entered from.
+   */
+  private popToNextRegion(topLevelIndex: number): void {
+    const topCycleLen = this.regions.length + 1;
+    const nextIndex = topCycleLen > 0 ? (topLevelIndex + 1) % topCycleLen : 0;
+    this.popSubScan(nextIndex);
   }
 
   /**
@@ -985,6 +1038,11 @@ export class SwitchScanController {
    *
    * For the simpler dom-items / blocks-from-toolbox case, this is still
    * a single pop because there's only one non-top frame on the stack.
+   *
+   * Prefer the named helpers {@link popToSameRegion} /
+   * {@link popToNextRegion} at call sites — they encode the semantic
+   * intent (sentinel bail vs action commit) and compute the right
+   * resume index from the entry top-level index.
    *
    * @param resumeIndex
    */
@@ -1025,22 +1083,17 @@ export class SwitchScanController {
    * If discovery yields zero blocks, advance past toolbox the same way
    * `enterDomRegionSubScan` advances past an empty DOM region.
    *
-   * @param topLevelIndex  Top-level index of the toolbox region; used
-   *     to compute `popToTopIndex` so the user resumes at the region
-   *     AFTER toolbox once they exit the sub-scan (either by selecting
-   *     a block to insert, or by hitting the sentinel).
+   * @param topLevelIndex  Top-level index of the toolbox region. Stored
+   *     on the pushed frame so the pop helpers can resume at the same
+   *     region (sentinel bail — user re-enters toolbox) or the next
+   *     region (block-inserted — user moves on to workspace).
    */
   private enterToolboxSubScan(topLevelIndex: number): void {
     const blocks = this.discoverFlyoutBlocks();
-    const topCycleLen = this.regions.length + 1;
-    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
 
     if (blocks.length === 0) {
-      const topFrame = this.frameStack[0];
-      if (topFrame && topFrame.kind === 'top') {
-        topFrame.index = popToTopIndex;
-        this.renderHighlight();
-      }
+      // Empty toolbox is a degenerate "action complete" → advance.
+      this.popToNextRegion(topLevelIndex);
       return;
     }
 
@@ -1049,7 +1102,7 @@ export class SwitchScanController {
       regionName: 'toolbox',
       blocks,
       index: 0,
-      popToTopIndex,
+      topLevelIndex,
     });
     this.renderHighlight();
   }
@@ -1092,22 +1145,18 @@ export class SwitchScanController {
    * region the same way the toolbox / DOM helpers do, so the user
    * isn't stuck on an empty workspace.
    *
-   * @param topLevelIndex  Top-level index of the workspace region;
-   *     used to compute `popToTopIndex` so the user resumes at the
-   *     region AFTER workspace once they exit the sub-scan (via the
-   *     sentinel — Step 7 select doesn't pop yet).
+   * @param topLevelIndex  Top-level index of the workspace region.
+   *     Stored on the pushed frame so the pop helpers can resume at the
+   *     same region (sentinel bail — user re-enters workspace to pick
+   *     a different block) or the next region (after an action menu
+   *     commits — user moves on to maze-actions).
    */
   private enterWorkspaceSubScan(topLevelIndex: number): void {
     const blocks = this.discoverWorkspaceBlocks();
-    const topCycleLen = this.regions.length + 1;
-    const popToTopIndex = (topLevelIndex + 1) % topCycleLen;
 
     if (blocks.length === 0) {
-      const topFrame = this.frameStack[0];
-      if (topFrame && topFrame.kind === 'top') {
-        topFrame.index = popToTopIndex;
-        this.renderHighlight();
-      }
+      // Empty workspace is a degenerate "action complete" → advance.
+      this.popToNextRegion(topLevelIndex);
       return;
     }
 
@@ -1116,7 +1165,7 @@ export class SwitchScanController {
       regionName: 'workspace',
       blocks,
       index: 0,
-      popToTopIndex,
+      topLevelIndex,
     });
     this.renderHighlight();
   }
@@ -1187,18 +1236,20 @@ export class SwitchScanController {
    * {@link findFirstEditableDropdown}; multi-field handling is a
    * later-phase enhancement).
    *
-   * `popToTopIndex` is the workspace frame's own `popToTopIndex` — by
-   * design every action (Select / Edit / Delete) and the sentinel pop
-   * straight back to the top-level frame, skipping the workspace
-   * sub-scan beneath. This keeps the "you committed an action" boundary
-   * visually obvious and avoids the staleness problem after Delete.
+   * `topLevelIndex` is inherited from the workspace blocks frame — by
+   * design every action (Select / Edit / Delete) pops straight back to
+   * the top-level frame (advancing to the next region), and the
+   * sentinel pops back to the same workspace region so the user can
+   * pick a different block. This keeps the "you committed an action"
+   * boundary visually obvious and avoids the staleness problem after
+   * Delete.
    *
    * @param block
-   * @param popToTopIndex
+   * @param topLevelIndex
    */
   private enterActionMenu(
     block: Blockly.BlockSvg,
-    popToTopIndex: number,
+    topLevelIndex: number,
   ): void {
     const items: ActionItem[] = [{key: 'select', label: 'Select'}];
     if (this.findFirstEditableDropdown(block)) {
@@ -1211,7 +1262,7 @@ export class SwitchScanController {
       block,
       items,
       index: 0,
-      popToTopIndex,
+      topLevelIndex,
     });
     this.renderActionMenu(block, items);
     this.renderHighlight();
@@ -1225,12 +1276,12 @@ export class SwitchScanController {
    *
    * @param block
    * @param field
-   * @param popToTopIndex
+   * @param topLevelIndex
    */
   private enterDropdownValues(
     block: Blockly.BlockSvg,
     field: Blockly.FieldDropdown,
-    popToTopIndex: number,
+    topLevelIndex: number,
   ): void {
     // FieldDropdown.getOptions returns MenuOption[] where each option
     // is `[labelOrImage, value]`. We narrow to the subset our renderer
@@ -1291,7 +1342,7 @@ export class SwitchScanController {
       field,
       options,
       index: 0,
-      popToTopIndex,
+      topLevelIndex,
     });
     this.renderDropdownMenu(block, options);
     this.renderHighlight();
@@ -1425,25 +1476,6 @@ export class SwitchScanController {
       menuEl.style.top = `${r.bottom + 8}px`;
       menuEl.style.left = `${r.left}px`;
     }
-  }
-
-  /**
-   * Pop the entire edit flow (dropdown-values frame, action-menu frame,
-   * and the workspace blocks frame beneath them) and resume the top
-   * frame at `resumeIndex`. Used after a dropdown value is picked OR
-   * after the dropdown-values sentinel is selected — either way the
-   * edit flow is over and v1 design pops straight to top (rather than
-   * back to the action menu).
-   *
-   * Implemented as a thin wrapper around {@link popSubScan} since that
-   * already pops all non-top frames and tears down our overlays — but
-   * we keep the named entry point so call sites read clearly as "exit
-   * the edit flow", not "pop a sub-scan".
-   *
-   * @param resumeIndex
-   */
-  private popDropdownToTop(resumeIndex: number): void {
-    this.popSubScan(resumeIndex);
   }
 
   /**
