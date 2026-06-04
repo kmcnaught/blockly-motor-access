@@ -45,7 +45,7 @@
       </div>
     </header>
 
-    <div id="instructionBar">
+    <div id="instructionBar" role="region" aria-label="Instructions" data-scan-region="instruction-bar">
       <div class="instruction-content"><span id="levelInstruction"></span><span id="contextualHint"></span></div>
       <div class="stage-selector" id="stageSelector">
         <label for="stageDropdown" id="stageLabel">Stage:</label>
@@ -53,9 +53,7 @@
           <!-- Options populated dynamically by JavaScript -->
         </select>
       </div>
-      <!-- infoBtn: deferred from Phase 1 scan tagging — it lives in #instructionBar
-           (a separate bar from <header>), so it's not part of the header scan region yet. -->
-      <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts">?</button>
+      <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts" data-scan-item>?</button>
     </div>
 
     <div class="container">

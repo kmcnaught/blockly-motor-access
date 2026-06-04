@@ -890,6 +890,24 @@ export class SwitchScanController {
       console.warn('[switch-scan] header region not found');
     }
 
+    // Instruction bar — separate DOM region from <header> (lives below
+    // it visually). Hosts the `?` info button (keyboard-shortcuts modal
+    // entry). Tagged in Phase 1 Step 2 as deferred; closed by this
+    // polish pass. Only scannable items here are tagged with
+    // `data-scan-item`; the bare instruction text + stage selector are
+    // not scan items (the instruction text isn't actionable; the stage
+    // dropdown is a separate consideration if we want it reachable
+    // later — see `data-scan-dropdown-source` pattern).
+    const instructionBarEl = document.querySelector<HTMLElement>(
+      '[data-scan-region="instruction-bar"]',
+    );
+    if (instructionBarEl) {
+      regions.push({
+        name: 'instruction-bar',
+        getRect: () => instructionBarEl.getBoundingClientRect(),
+      });
+    }
+
     // Toolbox — prefer Blockly's flyout SVG group, fall back to the
     // toolbox HtmlDiv if a category-style Toolbox is in use. Both are
     // private-ish APIs; the cast pattern matches `src/index.ts:157`.
@@ -1628,7 +1646,11 @@ export class SwitchScanController {
       }
       const region = this.regions[frame.index];
       if (!region) return;
-      if (region.name === 'header' || region.name === 'maze-actions') {
+      if (
+        region.name === 'header' ||
+        region.name === 'maze-actions' ||
+        region.name === 'instruction-bar'
+      ) {
         this.enterDomRegionSubScan(region.name, frame.index);
       } else if (region.name === 'toolbox') {
         this.enterToolboxSubScan(frame.index);
