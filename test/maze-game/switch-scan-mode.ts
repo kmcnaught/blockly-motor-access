@@ -101,6 +101,45 @@ interface SwitchScanTtsLike {
 }
 
 /**
+ * One end of the header-dropdown wiring (Phase 3 Step 2).
+ *
+ * A header button tagged `data-scan-dropdown-source="<name>"` (e.g.
+ * `#pegmanButton`, `#languageSelect`) opens a NATIVE popover when
+ * clicked — which switch users can't reach. The controller instead
+ * intercepts the select press at the dom-items frame, looks up the
+ * source by name in {@link SwitchScanOptions.headerDropdowns}, and
+ * pushes a `dropdown-values` sub-scan over the options returned by
+ * `getOptions()`. Selecting an option calls `commit(value)`.
+ *
+ * Why a per-source provider object instead of letting the controller
+ * peek at `#pegmanMenu` / `<select>` directly:
+ *  - The controller has no business knowing about skin IDs, locales,
+ *    or how the host page chooses to apply each change (changePegman
+ *    vs `location.href = ...`). The provider keeps that policy in
+ *    `index.ts` and the controller stays focused on the scan loop.
+ *  - The same shape can serve future header dropdowns (level picker,
+ *    audio voice, etc.) without growing the controller's API.
+ */
+export interface HeaderDropdownSource {
+  /**
+   * Build the option list shown in the sub-scan, in display order.
+   * Each option is `[labelOrImage, value]` matching the existing
+   * `dropdown-values` frame shape. Labels are strings; image-style
+   * labels render as `<img>` with `alt` used as the TTS / a11y text.
+   */
+  getOptions(): Array<
+    [string | {src: string; width: number; height: number; alt: string}, string]
+  >;
+  /**
+   * Apply the user's pick. For the character source this calls
+   * `changePegman(parseInt(value))`; for the language source it
+   * mutates `languageSelect.value` and dispatches `change` (which
+   * triggers the full page reload that swaps the Blockly locale).
+   */
+  commit(value: string): void;
+}
+
+/**
  * Options for configuring the switch scan controller.
  * Keys use `KeyboardEvent.key` string values (e.g. `' '` for Space,
  * `'Enter'` for Enter). Human-readable aliases like `'Space'` are also
@@ -113,12 +152,21 @@ interface SwitchScanTtsLike {
  * select the currently highlighted item. The select key is ignored
  * entirely under `scanMode === 'auto'` (Switch B is hidden in the
  * settings panel and unused in this flow).
+ *
+ * Phase 3 Step 2: `headerDropdowns` registers per-source providers
+ * keyed by the `data-scan-dropdown-source` attribute on a header
+ * button. When the user selects such a button in the header sub-scan,
+ * the controller opens a `dropdown-values` sub-scan over the source's
+ * `getOptions()` instead of firing `.click()` (which would open a
+ * native popover the switch scanner can't reach). Picking an option
+ * calls the source's `commit()`. See {@link HeaderDropdownSource}.
  */
 export interface SwitchScanOptions {
   switchAdvance?: string;
   switchSelect?: string;
   scanMode?: 'step' | 'auto';
   scanSpeedMs?: number;
+  headerDropdowns?: Record<string, HeaderDropdownSource>;
 }
 
 /**
@@ -194,14 +242,32 @@ type ScanFrame =
       topLevelIndex: number;
     }
   | {
+      // The `dropdown-values` frame is used for TWO entry paths that
+      // share the same visual menu + cycle semantics:
+      //  1. Block Edit (Phase 1): `block` + `field` are set, and the
+      //     commit path calls `field.setValue(value)`. `anchor` is the
+      //     workspace block being edited (menu sits below it).
+      //  2. Header dropdown (Phase 3 Step 2 — Character / Language):
+      //     `commitHandler` is set; `block` / `field` are absent. The
+      //     anchor is the header button (`#pegmanButton` or the
+      //     `<select id="languageSelect">`), so the menu drops below
+      //     the right control instead of the workspace.
+      // The single `commitHandler` discriminant keeps the frame shape
+      // tight — when set, the select branch calls it instead of
+      // `field.setValue` and skips the Blockly-field bookkeeping.
       kind: 'dropdown-values';
-      block: Blockly.BlockSvg;
-      field: Blockly.FieldDropdown;
+      block: Blockly.BlockSvg | null;
+      field: Blockly.FieldDropdown | null;
+      anchor: HTMLElement | Blockly.BlockSvg;
       options: Array<
         [string | {src: string; width: number; height: number; alt: string}, string]
       >;
       index: number;
       topLevelIndex: number;
+      // Phase 3 Step 2: optional commit override for header dropdowns.
+      // When set, takes precedence over `field.setValue`. The block-
+      // Edit path leaves this unset, preserving the original behavior.
+      commitHandler?: (value: string) => void;
     }
   | {
       // Phase 3 Step 1: switch-scan during Blockly's move mode. The
@@ -320,6 +386,14 @@ export class SwitchScanController {
   // doesn't need to worry about queueing.
   private tts: SwitchScanTtsLike | null = null;
 
+  // Phase 3 Step 2 — providers for header dropdowns (Character /
+  // Language). Keyed by the `data-scan-dropdown-source` attribute on
+  // the header button. Populated from {@link SwitchScanOptions} at
+  // construction; left as an empty record when no header dropdowns
+  // are wired so a missing key is just a "no special handling" miss
+  // and falls through to the standard `.click()` path.
+  private headerDropdowns: Record<string, HeaderDropdownSource> = {};
+
   // Top-level regions, discovered on enable(). Index === regions.length
   // represents the synthetic "back to top" sentinel.
   private regions: ScanRegion[] = [];
@@ -367,6 +441,9 @@ export class SwitchScanController {
     }
     if (options.scanSpeedMs !== undefined) {
       this.scanSpeedMs = options.scanSpeedMs;
+    }
+    if (options.headerDropdowns) {
+      this.headerDropdowns = options.headerDropdowns;
     }
 
     // Bind handlers so add/removeEventListener get matching references.
@@ -1576,6 +1653,29 @@ export class SwitchScanController {
         return;
       }
       const item = frame.items[frame.index];
+      // Phase 3 Step 2: header dropdowns. Some header items open a
+      // native popover (`<select>`, the custom #pegmanMenu) that the
+      // switch scanner can't reach. Those items are tagged with
+      // `data-scan-dropdown-source="<name>"`; if a matching provider
+      // was registered, open a dropdown-values sub-scan over its
+      // options instead of firing `.click()`. Mouse users still get
+      // the native popover because they never go through this dispatch
+      // path — they click the element directly.
+      const source = item?.getAttribute('data-scan-dropdown-source');
+      if (source) {
+        const provider = this.headerDropdowns[source];
+        if (provider) {
+          this.enterHeaderDropdownValues(
+            item as HTMLElement,
+            provider,
+            frame.topLevelIndex,
+          );
+          return;
+        }
+        // No provider registered for this source name — fall through to
+        // the default click() path. Logging would be noisy on every
+        // mis-tag; the silent fallback keeps mouse users unaffected.
+      }
       // Click first, then pop — if click() throws we still escape the
       // sub-scan rather than getting stuck on a broken item.
       try {
@@ -1766,21 +1866,35 @@ export class SwitchScanController {
         // Bail without changing the field's value. Pop both the
         // dropdown-values frame AND the action-menu frame beneath it;
         // stay on the same top region so the user can re-enter the
-        // workspace sub-scan and try editing again.
+        // workspace sub-scan and try editing again. For header
+        // dropdowns the action-menu frame isn't on the stack so this
+        // also correctly lands the user back on the header region
+        // they came from.
         this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const option = frame.options[frame.index];
       if (option) {
         try {
-          frame.field.setValue(option[1]);
+          if (frame.commitHandler) {
+            // Phase 3 Step 2 — header dropdowns. The provider owns the
+            // semantics (changePegman vs. dispatch change on
+            // languageSelect); we just hand it the chosen value.
+            frame.commitHandler(option[1]);
+          } else if (frame.field) {
+            frame.field.setValue(option[1]);
+          }
         } catch (err) {
-          console.warn('[switch-scan] field.setValue failed:', err);
+          console.warn('[switch-scan] dropdown commit failed:', err);
         }
       }
       // Edit committed → advance to next region (v1 design: treat the
       // whole edit flow as a single committed action that lands the user
-      // past the workspace region, not back inside it).
+      // past the workspace region, not back inside it). For the language
+      // dropdown this pop is technically moot because commit triggers a
+      // full page reload (URL changes with the new lang param), but
+      // popping anyway leaves the controller in a consistent state in
+      // case the reload is deferred or aborted by the browser.
       this.popToNextRegion(frame.topLevelIndex);
       return;
     }
@@ -2214,11 +2328,70 @@ export class SwitchScanController {
       kind: 'dropdown-values',
       block,
       field,
+      anchor: block,
       options,
       index: 0,
       topLevelIndex,
     });
     this.renderDropdownMenu(block, options);
+    this.renderHighlight();
+  }
+
+  /**
+   * Push a `dropdown-values` sub-scan over a HEADER dropdown source
+   * (Phase 3 Step 2 — Character / Language).
+   *
+   * Mirrors {@link enterDropdownValues} for the Block-Edit case but
+   * anchors the menu off the header button rather than a workspace
+   * block, sources options via the provider's `getOptions()`, and
+   * routes the commit through the provider's `commit()` instead of
+   * `field.setValue`. The `block` / `field` slots on the frame stay
+   * null so the select branch knows to take the commitHandler path.
+   *
+   * @param anchor    The header button the user just selected (used
+   *     purely as the menu's anchor — its native click() is NOT
+   *     fired, otherwise the native popover would appear behind our
+   *     overlay).
+   * @param source    The provider registered under the matching
+   *     `data-scan-dropdown-source` name.
+   * @param topLevelIndex Top-level index the user was on when they
+   *     entered the header sub-scan — passed through so the standard
+   *     same/next pop helpers compute correctly.
+   */
+  private enterHeaderDropdownValues(
+    anchor: HTMLElement,
+    source: HeaderDropdownSource,
+    topLevelIndex: number,
+  ): void {
+    let options: Array<
+      [string | {src: string; width: number; height: number; alt: string}, string]
+    >;
+    try {
+      options = source.getOptions();
+    } catch (err) {
+      console.warn('[switch-scan] header dropdown getOptions failed:', err);
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+    if (!options || options.length === 0) {
+      // Nothing to pick — treat as a sentinel bail so the user lands
+      // back on the same header region for another try (likely a
+      // transient empty state).
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+
+    this.frameStack.push({
+      kind: 'dropdown-values',
+      block: null,
+      field: null,
+      anchor,
+      options,
+      index: 0,
+      topLevelIndex,
+      commitHandler: (value) => source.commit(value),
+    });
+    this.renderDropdownMenu(anchor, options);
     this.renderHighlight();
   }
 
@@ -2531,14 +2704,20 @@ export class SwitchScanController {
 
   /**
    * (Re)build the dropdown-values overlay DOM and anchor it adjacent to
-   * `block`. Image options render as `<img>` so direction arrows etc.
+   * `anchor`. Image options render as `<img>` so direction arrows etc.
    * show pictographically; string options render as text.
    *
-   * @param block
+   * `anchor` is either a workspace `BlockSvg` (Block-Edit path) or an
+   * `HTMLElement` (header-dropdown path — the `#pegmanButton` /
+   * `<select id="languageSelect">`). Both yield a viewport rect via
+   * different helpers; the same below-the-anchor / fallback-right
+   * placement applies.
+   *
+   * @param anchor
    * @param options
    */
   private renderDropdownMenu(
-    block: Blockly.BlockSvg,
+    anchor: HTMLElement | Blockly.BlockSvg,
     options: Array<
       [string | {src: string; width: number; height: number; alt: string}, string]
     >,
@@ -2565,7 +2744,7 @@ export class SwitchScanController {
     }
     document.body.appendChild(el);
     this.dropdownMenuEl = el;
-    this.anchorMenuToBlock(el, block);
+    this.anchorMenuToAnchor(el, anchor);
   }
 
   /**
@@ -2588,6 +2767,46 @@ export class SwitchScanController {
     // when the block has no rendered SVG root — same guard as before.
     const r = this.getSingleBlockViewportRect(block);
     if (!r) return;
+    this.placeMenuByRect(menuEl, r);
+  }
+
+  /**
+   * Position `menuEl` adjacent to a polymorphic `anchor` — either a
+   * Blockly `BlockSvg` (Block-Edit dropdown) or an `HTMLElement` (header
+   * dropdown). Both resolve to a viewport rect; the same below-the-anchor
+   * / fallback-right placement applies.
+   *
+   * Kept separate from {@link anchorMenuToBlock} so the action-menu /
+   * move-menu callers continue to pass a `BlockSvg` directly without
+   * the TypeScript widening dance.
+   *
+   * @param menuEl
+   * @param anchor
+   */
+  private anchorMenuToAnchor(
+    menuEl: HTMLElement,
+    anchor: HTMLElement | Blockly.BlockSvg,
+  ): void {
+    let rect: DOMRect | null = null;
+    if (anchor instanceof HTMLElement) {
+      rect = anchor.getBoundingClientRect();
+    } else {
+      rect = this.getSingleBlockViewportRect(anchor);
+    }
+    if (!rect) return;
+    this.placeMenuByRect(menuEl, rect);
+  }
+
+  /**
+   * Shared placement heuristic: drop the menu below the anchor with an
+   * 8px gap; if that would overflow the viewport bottom, anchor right
+   * of the anchor instead. The fixed-position styling on the menu
+   * itself means viewport coords are what we want.
+   *
+   * @param menuEl
+   * @param r
+   */
+  private placeMenuByRect(menuEl: HTMLElement, r: DOMRect): void {
     // Measure menu after appending so the fallback heuristic has real
     // dimensions to compare against the viewport.
     const menuRect = menuEl.getBoundingClientRect();

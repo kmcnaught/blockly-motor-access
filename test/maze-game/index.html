@@ -25,7 +25,7 @@
           <span id="modeAction" class="mode-action">Switch to Practice</span>
         </button>
         <div class="selector-group">
-          <button id="pegmanButton" data-scan-item><img src="assets/pegman.png"><span>▼</span></button>
+          <button id="pegmanButton" data-scan-item data-scan-dropdown-source="character"><img src="assets/pegman.png"><span>▼</span></button>
         </div>
         <button id="muteButton" class="mute-button" aria-label="Mute sound" aria-pressed="false" data-scan-item>
           <span class="mute-icon sound-on">&#128266;</span>
@@ -37,7 +37,7 @@
              it up alongside the other header buttons. -->
         <button id="switchSettingsBtn" class="icon-button hidden" title="Switch scan settings" aria-label="Switch scan settings" data-scan-item>&#9881;</button>
         <div class="selector-group">
-          <select id="languageSelect">
+          <select id="languageSelect" data-scan-item data-scan-dropdown-source="language" aria-label="Language">
             <option value="en">English</option>
             <option value="fr">Français</option>
           </select>

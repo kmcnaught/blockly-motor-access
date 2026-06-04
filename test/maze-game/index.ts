@@ -31,7 +31,7 @@ import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForS
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
-import {SwitchScanController} from './switch-scan-mode';
+import {SwitchScanController, type HeaderDropdownSource} from './switch-scan-mode';
 import {SwitchScanSettings} from './switch-scan-settings';
 import {SwitchScanTts} from './switch-scan-tts';
 import {PaddingControlsManager} from './padding-controls';
@@ -2827,6 +2827,84 @@ function initializeGridCodingMode(): void {
 // Initialize Grid coding mode if active
 initializeGridCodingMode();
 
+/**
+ * Phase 3 Step 2 — build the per-source providers the switch-scan
+ * controller uses to open a sub-scan over header dropdowns.
+ *
+ * Two sources are registered:
+ *  - `character`: tags `#pegmanButton`. Options are the
+ *    {@link ENABLED_SKIN_IDS} list, each with a short display name
+ *    keyed off the existing comment in this file. The skin object
+ *    itself has no `name` field — we keep the labels here rather than
+ *    threading a name into the Skin interface, since these labels are
+ *    UI strings and not part of the maze runtime.
+ *  - `language`: tags `<select id="languageSelect">`. Options are
+ *    read straight off the DOM (`<option>` text + value pairs) so
+ *    adding a new locale to the markup picks up here automatically.
+ *    Commit mutates the select's value and dispatches `change` so the
+ *    existing handler (which persists the locale and reloads the page
+ *    with the new `lang` param) fires unchanged.
+ */
+function buildHeaderDropdownSources(): Record<string, HeaderDropdownSource> {
+  // Indexed by skinId — order matches the SKINS array in maze.ts. The
+  // Skin interface itself carries no `name` field (the maze runtime
+  // doesn't need one), so the UI labels live here. Keeping the table
+  // as a plain array dodges the @typescript-eslint/naming-convention
+  // rule that numeric object-literal keys trip, and an unknown skinId
+  // falls back to the generic "Skin N" label below.
+  const SKIN_NAMES: string[] = [
+    'Astro',
+    'Wheelchair',
+    'Panda',
+    'Pegman',
+    'Rudolph',
+    'Footballer (chase)',
+    'Footballer (dribble)',
+  ];
+  return {
+    character: {
+      getOptions: () =>
+        ENABLED_SKIN_IDS.map<
+          [string, string]
+        >((id) => [SKIN_NAMES[id] ?? `Skin ${id}`, String(id)]),
+      commit: (value) => {
+        const id = parseInt(value, 10);
+        if (Number.isFinite(id)) changePegman(id);
+      },
+    },
+    language: {
+      getOptions: () => {
+        const select = document.getElementById(
+          'languageSelect',
+        ) as HTMLSelectElement | null;
+        if (!select) return [];
+        const opts: Array<[string, string]> = [];
+        for (const opt of Array.from(select.options)) {
+          // Use the visible textContent so localized language names
+          // (e.g. "Français") read correctly via TTS and visually
+          // match what mouse users see in the native dropdown.
+          const label = opt.textContent?.trim() || opt.value;
+          opts.push([label, opt.value]);
+        }
+        return opts;
+      },
+      commit: (value) => {
+        const select = document.getElementById(
+          'languageSelect',
+        ) as HTMLSelectElement | null;
+        if (!select) return;
+        // Mirror the mouse-user flow: set value, then fire the native
+        // `change` event so the existing handler at line ~1660 runs
+        // (persists locale to localStorage + navigates to a new URL
+        // with the updated `lang` param — Blockly needs the full
+        // reload to re-register blocks with the new locale).
+        select.value = value;
+        select.dispatchEvent(new Event('change'));
+      },
+    },
+  };
+}
+
 // Initialize switch-scan controller if active (Phase 1 scaffold).
 // Mutually exclusive with grid coding mode; instantiation above is guarded.
 let switchScanController: SwitchScanController | null = null;
@@ -2850,6 +2928,13 @@ if (isSwitchScanMode) {
     // cycling.
     scanMode: switchScanInitialMode,
     scanSpeedMs: switchScanInitialScanSpeedMs,
+    // Phase 3 Step 2: providers for the Character (#pegmanButton) and
+    // Language (<select id="languageSelect">) header dropdowns. Both
+    // normally open native popovers that switch users can't reach;
+    // registering them here makes the controller intercept a switch-
+    // scan select on the tagged element and open a values sub-scan
+    // over our own dark .switch-scan-dropdown-menu instead.
+    headerDropdowns: buildHeaderDropdownSources(),
   });
   // Wire TTS BEFORE enable() so the initial highlight render — which
   // doesn't speak anyway (see SwitchScanController.enable) — already
