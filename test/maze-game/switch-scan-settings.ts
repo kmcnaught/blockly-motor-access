@@ -51,6 +51,14 @@ export interface SwitchScanSettingsValues {
    * mid-session — matches the live-rebind pattern used for the keys.
    */
   audio: boolean;
+  /**
+   * Phase 4: auto-scan timer period in milliseconds. Only meaningful
+   * when `mode === 'auto'` — the host still always receives the
+   * current value so it can persist + live-update the controller
+   * even if the user toggled modes during the same Save (e.g. saved a
+   * new speed while in step mode, in anticipation of switching later).
+   */
+  scanSpeedMs: number;
 }
 
 /**
@@ -76,6 +84,12 @@ export interface SwitchScanSettingsOptions {
    * page's URL > localStorage > 'off' resolution.
    */
   initialAudio?: boolean;
+  /**
+   * Phase 4: initial auto-scan period in milliseconds. When omitted
+   * the dialog defaults to 1500 ms (matches the slider's `value`
+   * attribute in `index.html`).
+   */
+  initialScanSpeedMs?: number;
   /**
    * True when at least one `?switchAdvance=…` / `?switchSelect=…` /
    * `?scanMode=…` / `?scanAudio=…` URL param is currently in effect
@@ -149,18 +163,26 @@ export class SwitchScanSettings {
   private readonly switchBGroup: HTMLElement | null;
   private readonly modeRadios: NodeListOf<HTMLInputElement>;
   private readonly audioToggle: HTMLInputElement | null;
+  // Phase 4: auto-scan speed slider + the group it lives in (so we can
+  // hide the whole row when the user picks step mode). The slider's
+  // companion value label updates live as the user drags.
+  private readonly scanSpeedSlider: HTMLInputElement | null;
+  private readonly scanSpeedValueEl: HTMLElement | null;
+  private readonly scanSpeedGroup: HTMLElement | null;
 
   /** Committed (last-saved) values — what Cancel reverts to. */
   private committedAdvance: string;
   private committedSelect: string;
   private committedMode: SwitchScanMode;
   private committedAudio: boolean;
+  private committedScanSpeedMs: number;
 
   /** Pending values — what's currently shown in the dialog. */
   private currentAdvance: string;
   private currentSelect: string;
   private currentMode: SwitchScanMode;
   private currentAudio: boolean;
+  private currentScanSpeedMs: number;
 
   /**
    * True iff URL params are overriding saved settings on this page
@@ -193,10 +215,12 @@ export class SwitchScanSettings {
     this.committedSelect = options.initialSelectKey;
     this.committedMode = options.initialMode ?? 'step';
     this.committedAudio = options.initialAudio ?? false;
+    this.committedScanSpeedMs = options.initialScanSpeedMs ?? 1500;
     this.currentAdvance = this.committedAdvance;
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
     this.currentAudio = this.committedAudio;
+    this.currentScanSpeedMs = this.committedScanSpeedMs;
     this.urlOverrideActive = options.urlOverrideActive ?? false;
 
     // Mirrors the pattern used by `shortcutsDialog` in index.ts so
@@ -239,6 +263,11 @@ export class SwitchScanSettings {
     this.audioToggle = document.getElementById(
       'audioFeedbackToggle',
     ) as HTMLInputElement | null;
+    this.scanSpeedSlider = document.getElementById(
+      'scanSpeedSlider',
+    ) as HTMLInputElement | null;
+    this.scanSpeedValueEl = document.getElementById('scanSpeedValue');
+    this.scanSpeedGroup = document.getElementById('scanSpeedGroup');
 
     // Capture buttons were inert (disabled) in Step A; enable them now.
     if (this.switchACaptureBtn) {
@@ -274,6 +303,25 @@ export class SwitchScanSettings {
       });
     }
 
+    // Phase 4: scan-speed slider. Live `input` events update the
+    // pending value (and the adjacent "X ms" label) so the user sees
+    // their drag reflected immediately; Save promotes to committed +
+    // calls onSave, Cancel reverts via revertPending(). The slider is
+    // NOT tagged `data-scan-item` — adjusting a continuous range via
+    // single-switch select doesn't have a clean UX (would need +/-
+    // buttons), and switch users adjust this via a helper or the
+    // mouse for now.
+    if (this.scanSpeedSlider) {
+      this.scanSpeedSlider.value = String(this.currentScanSpeedMs);
+      this.scanSpeedSlider.addEventListener('input', () => {
+        const raw = Number(this.scanSpeedSlider!.value);
+        if (Number.isFinite(raw)) {
+          this.currentScanSpeedMs = raw;
+          this.refreshScanSpeedDisplay();
+        }
+      });
+    }
+
     if (this.cancelBtn) {
       this.cancelBtn.addEventListener('click', () => {
         this.revertPending();
@@ -288,17 +336,20 @@ export class SwitchScanSettings {
         this.committedSelect = this.currentSelect;
         this.committedMode = this.currentMode;
         this.committedAudio = this.currentAudio;
+        this.committedScanSpeedMs = this.currentScanSpeedMs;
         this.onSave({
           switchAdvance: this.committedAdvance,
           switchSelect: this.committedSelect,
           mode: this.committedMode,
           audio: this.committedAudio,
+          scanSpeedMs: this.committedScanSpeedMs,
         });
         this.hide();
       });
     }
 
     this.refreshDisplay();
+    this.refreshScanSpeedDisplay();
     this.refreshModeVisibility();
     this.renderUrlOverrideNote();
   }
@@ -347,11 +398,16 @@ export class SwitchScanSettings {
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
     this.currentAudio = this.committedAudio;
+    this.currentScanSpeedMs = this.committedScanSpeedMs;
     this.modeRadios.forEach((r) => {
       r.checked = r.value === this.currentMode;
     });
     if (this.audioToggle) this.audioToggle.checked = this.currentAudio;
+    if (this.scanSpeedSlider) {
+      this.scanSpeedSlider.value = String(this.currentScanSpeedMs);
+    }
     this.refreshDisplay();
+    this.refreshScanSpeedDisplay();
     this.refreshModeVisibility();
     this.renderUrlOverrideNote();
     this.clearErrors();
@@ -396,11 +452,16 @@ export class SwitchScanSettings {
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
     this.currentAudio = this.committedAudio;
+    this.currentScanSpeedMs = this.committedScanSpeedMs;
     this.modeRadios.forEach((r) => {
       r.checked = r.value === this.currentMode;
     });
     if (this.audioToggle) this.audioToggle.checked = this.currentAudio;
+    if (this.scanSpeedSlider) {
+      this.scanSpeedSlider.value = String(this.currentScanSpeedMs);
+    }
     this.refreshDisplay();
+    this.refreshScanSpeedDisplay();
     this.refreshModeVisibility();
     this.clearErrors();
   }
@@ -416,16 +477,43 @@ export class SwitchScanSettings {
   }
 
   /**
-   * Show / hide the Switch B section based on the current mode. Auto-
-   * scan only needs one switch (the Phase 4 scanning timer drives
-   * highlights forward on its own); step-scan needs two.
+   * Show / hide the Switch B and Scan-speed sections based on the
+   * current mode.
+   *
+   *  - Auto mode: hide Switch B (only one switch is in play), show the
+   *    Scan-speed group (auto mode is the only thing it affects).
+   *  - Step mode: show Switch B, hide Scan-speed (slider would have
+   *    no effect and just adds noise).
+   *
+   * Toggling is via the shared `.hidden` class — matches the existing
+   * pattern used by `#switchSettingsBtn` and by the modal markup.
    */
   private refreshModeVisibility(): void {
-    if (!this.switchBGroup) return;
-    if (this.currentMode === 'auto') {
-      this.switchBGroup.classList.add('hidden');
-    } else {
-      this.switchBGroup.classList.remove('hidden');
+    if (this.switchBGroup) {
+      if (this.currentMode === 'auto') {
+        this.switchBGroup.classList.add('hidden');
+      } else {
+        this.switchBGroup.classList.remove('hidden');
+      }
+    }
+    if (this.scanSpeedGroup) {
+      if (this.currentMode === 'auto') {
+        this.scanSpeedGroup.classList.remove('hidden');
+      } else {
+        this.scanSpeedGroup.classList.add('hidden');
+      }
+    }
+  }
+
+  /**
+   * Sync `#scanSpeedValue` to the pending `currentScanSpeedMs` value.
+   * Called on construction, on every slider `input` event, on `show()`,
+   * and on `revertPending()` so the label stays accurate across every
+   * code path that mutates the pending state.
+   */
+  private refreshScanSpeedDisplay(): void {
+    if (this.scanSpeedValueEl) {
+      this.scanSpeedValueEl.textContent = `${this.currentScanSpeedMs} ms`;
     }
   }
 

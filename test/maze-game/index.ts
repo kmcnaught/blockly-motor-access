@@ -115,7 +115,18 @@ const SWITCH_SCAN_LS_KEYS = {
   // Phase 5: TTS on/off. Stored as the literal string 'on' / 'off'
   // so the resolver helper can compare without parsing.
   audio: 'mazeSwitchScan.audio',
+  // Phase 4: auto-scan period in ms. Stored as a string ("1500") so the
+  // resolveSwitchScanSetting helper can reuse its string-typed plumbing;
+  // parsing / clamping happens at the call site.
+  scanSpeedMs: 'mazeSwitchScan.scanSpeedMs',
 } as const;
+
+// Phase 4 — auto-scan timing bounds. Match the slider's `min`/`max`/
+// `step` in `index.html` so a hand-edited URL or stale localStorage
+// can't push the timer to an unusably fast (<500ms) or slow (>4s) period.
+const SCAN_SPEED_MIN_MS = 500;
+const SCAN_SPEED_MAX_MS = 4000;
+const SCAN_SPEED_DEFAULT_MS = 1500;
 
 type SwitchScanModeValue = 'step' | 'auto';
 
@@ -165,7 +176,11 @@ const switchScanUrlOverrideActive =
   getStringParamFromUrl('scanMode', '') !== '' ||
   // Phase 5: scanAudio joins the URL-override family so the modal's
   // "URL settings active" note appears whenever audio is being forced.
-  getStringParamFromUrl('scanAudio', '') !== '';
+  getStringParamFromUrl('scanAudio', '') !== '' ||
+  // Phase 4: scanSpeedMs joins the family for the same reason — a
+  // ?scanSpeedMs=… URL override should surface the "URL settings active"
+  // note so the user understands why their saved value isn't winning.
+  getStringParamFromUrl('scanSpeedMs', '') !== '';
 
 const switchAdvanceKey = resolveSwitchScanSetting(
   'switchAdvance',
@@ -198,6 +213,25 @@ const switchScanInitialAudio: boolean = (() => {
     'off',
   );
   return v === 'on';
+})();
+
+// Phase 4 — resolve `?scanSpeedMs=…` > localStorage > 1500.
+// Stored as a string for resolver consistency; parseInt + NaN fallback +
+// clamp to the slider's [SCAN_SPEED_MIN_MS, SCAN_SPEED_MAX_MS] range
+// keeps a corrupted LS entry or hand-edited URL from producing a runaway
+// (sub-100ms) or stalled (multi-second) timer.
+const switchScanInitialScanSpeedMs: number = (() => {
+  const v = resolveSwitchScanSetting(
+    'scanSpeedMs',
+    SWITCH_SCAN_LS_KEYS.scanSpeedMs,
+    String(SCAN_SPEED_DEFAULT_MS),
+  );
+  const parsed = parseInt(v, 10);
+  if (!Number.isFinite(parsed)) return SCAN_SPEED_DEFAULT_MS;
+  return Math.min(
+    SCAN_SPEED_MAX_MS,
+    Math.max(SCAN_SPEED_MIN_MS, parsed),
+  );
 })();
 
 // Current grid stage (1 = immediate execution, 2 = delayed execution)
@@ -2810,6 +2844,12 @@ if (isSwitchScanMode) {
   switchScanController = new SwitchScanController(workspace, mazeGame, {
     switchAdvance: switchAdvanceKey,
     switchSelect: switchSelectKey,
+    // Phase 4: seed the auto-scan state machine. `step` is the default
+    // so existing two-switch users see zero behavior change; `auto`
+    // starts idle and waits for the user's first press to begin
+    // cycling.
+    scanMode: switchScanInitialMode,
+    scanSpeedMs: switchScanInitialScanSpeedMs,
   });
   // Wire TTS BEFORE enable() so the initial highlight render — which
   // doesn't speak anyway (see SwitchScanController.enable) — already
@@ -2834,9 +2874,11 @@ if (isSwitchScanMode) {
     initialMode: switchScanInitialMode,
     // Phase 5: seed the audio checkbox from URL > LS > 'off'.
     initialAudio: switchScanInitialAudio,
+    // Phase 4: seed the scan-speed slider from URL > LS > 1500.
+    initialScanSpeedMs: switchScanInitialScanSpeedMs,
     urlOverrideActive: switchScanUrlOverrideActive,
     onSave: (cfg) => {
-      // Persist all four values. Wrapped in try/catch because
+      // Persist all five values. Wrapped in try/catch because
       // localStorage can throw in private-browsing / quota-exceeded
       // contexts — settings work for this session, just not the next.
       try {
@@ -2848,9 +2890,9 @@ if (isSwitchScanMode) {
           SWITCH_SCAN_LS_KEYS.select,
           cfg.switchSelect,
         );
-        // TODO: Phase 4 — `mode` is UI-only until the auto-scan timer
-        // lands. We still persist it so the radio remembers the user's
-        // pick once the controller is wired up to consume it.
+        // Phase 4: mode is now live — the controller's setMode()
+        // applies it without a reload (see below). Persistence keeps
+        // the radio aligned with the user's pick across sessions.
         window.localStorage.setItem(SWITCH_SCAN_LS_KEYS.mode, cfg.mode);
         // Phase 5: TTS persists as 'on' / 'off'. We don't write a
         // boolean — keeps the LS layer consistent with the rest of
@@ -2859,6 +2901,14 @@ if (isSwitchScanMode) {
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.audio,
           cfg.audio ? 'on' : 'off',
+        );
+        // Phase 4: scanSpeedMs persists as a string for symmetry with
+        // the other LS values. The resolver helper handles parseInt
+        // + clamp on read so a hand-edited LS entry can't crash the
+        // timer.
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.scanSpeedMs,
+          String(cfg.scanSpeedMs),
         );
       } catch (e) {
         console.warn(
@@ -2874,6 +2924,12 @@ if (isSwitchScanMode) {
         cfg.switchAdvance,
         cfg.switchSelect,
       );
+      // Phase 4: live-apply the mode + speed. setMode() clears the
+      // auto timer on any transition (so step→auto goes idle and waits
+      // for press, auto→step freezes the highlight wherever it was)
+      // and restarts the interval at the new period if we were already
+      // scanning. Scan position is preserved either way.
+      switchScanController?.setMode(cfg.mode, cfg.scanSpeedMs);
       // Phase 5: live-apply the audio choice. Toggling enabled → on
       // does NOT auto-replay the previous label (would be confusing
       // out of context); instead, we ask the controller to speak the

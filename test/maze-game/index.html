@@ -314,15 +314,22 @@
           </div>
         </div>
 
-        <!-- 4. Scan speed (auto-scan mode — Phase 4). NOT data-scan-item:
-             disabled stub, no action to fire. -->
-        <div class="switch-settings-group switch-settings-disabled">
+        <!-- 4. Scan speed (auto-scan mode — Phase 4). The whole group
+             is hidden via `.hidden` when step mode is selected (the
+             slider has no effect there); the settings panel toggles
+             that class in refreshModeVisibility(). The slider itself
+             is intentionally NOT tagged `data-scan-item`: there's no
+             clean switch-scan UX for adjusting a continuous range
+             with a single advance/select key. Switch users adjust
+             speed via the mouse or a helper for now; if we want full
+             switch-scan adjustment later, +/- buttons next to the
+             slider would be the path. -->
+        <div class="switch-settings-group" id="scanSpeedGroup">
           <h3 class="switch-settings-heading">Scan speed</h3>
           <div class="switch-settings-row">
-            <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500" disabled>
+            <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500">
             <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
           </div>
-          <p class="switch-settings-note">Coming soon &mdash; single-switch mode</p>
         </div>
 
         <!-- 5. Audio feedback (TTS — Phase 5). data-scan-item so it

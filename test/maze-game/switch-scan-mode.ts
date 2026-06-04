@@ -105,10 +105,20 @@ interface SwitchScanTtsLike {
  * Keys use `KeyboardEvent.key` string values (e.g. `' '` for Space,
  * `'Enter'` for Enter). Human-readable aliases like `'Space'` are also
  * accepted (see {@link normalizeKey}).
+ *
+ * Phase 4: `scanMode` toggles between two-switch step scan (the default)
+ * and single-switch auto scan. In auto mode only the advance key is
+ * consulted — the first press starts a self-paced timer that advances
+ * the highlight every `scanSpeedMs` milliseconds; subsequent presses
+ * select the currently highlighted item. The select key is ignored
+ * entirely under `scanMode === 'auto'` (Switch B is hidden in the
+ * settings panel and unused in this flow).
  */
 export interface SwitchScanOptions {
   switchAdvance?: string;
   switchSelect?: string;
+  scanMode?: 'step' | 'auto';
+  scanSpeedMs?: number;
 }
 
 /**
@@ -270,6 +280,32 @@ export class SwitchScanController {
   private switchAdvance = ' ';
   private switchSelect = 'Enter';
 
+  // Phase 4 — single-switch auto-scan state.
+  //
+  // `scanMode === 'step'` is the original two-switch flow: advance key
+  // bumps the highlight, select key acts on the current item. Behavior
+  // is byte-identical to pre-Phase-4 for step-mode users.
+  //
+  // `scanMode === 'auto'` is the single-switch flow described in
+  // PLAN_switch_scanning.md §"Auto-Scan Behavior (one-switch mode)":
+  //  - on enable() the scanner is idle (no timer running);
+  //  - the first advance press transitions to `'scanning'` and starts
+  //    the auto-advance timer;
+  //  - subsequent advance presses act as select against the currently
+  //    highlighted item (same `handleSelect` dispatch step mode uses);
+  //  - a run-start clears the timer and returns to `'idle'`;
+  //  - a run-end leaves us in `'idle'` (per the design doc, the user
+  //    presses their switch to restart scanning after Reset).
+  //
+  // The select key is ignored in auto mode — Switch B is hidden in
+  // the settings panel and has no role in the one-switch flow.
+  private scanMode: 'step' | 'auto' = 'step';
+  private scanSpeedMs = 1500;
+  private autoState: 'idle' | 'scanning' = 'idle';
+  // Window.setInterval returns `number` in browsers; node typings
+  // disagree (NodeJS.Timeout). We're DOM-only, so `number | null`.
+  private autoTimerHandle: number | null = null;
+
   // Settings panel reference (Step D). Optional: only wired up when
   // switch-scan mode is active AND the settings module is constructed.
   // Used purely to consult `isCapturing()` so the controller can stand
@@ -326,6 +362,12 @@ export class SwitchScanController {
     if (options.switchSelect !== undefined) {
       this.switchSelect = normalizeKey(options.switchSelect);
     }
+    if (options.scanMode !== undefined) {
+      this.scanMode = options.scanMode;
+    }
+    if (options.scanSpeedMs !== undefined) {
+      this.scanSpeedMs = options.scanSpeedMs;
+    }
 
     // Bind handlers so add/removeEventListener get matching references.
     // setKeyBindings() relies on this being a stable reference so it can
@@ -347,6 +389,13 @@ export class SwitchScanController {
 
   /**
    * Enable switch scan mode.
+   *
+   * Phase 4: in auto mode the scanner enters in `autoState === 'idle'`
+   * — no timer is started. The highlight is rendered at the initial
+   * frame so the user sees WHERE they'll be when scanning begins, but
+   * nothing cycles until the user's first switch press transitions to
+   * `'scanning'`. This matches the design doc: "App load: scanner is
+   * idle."
    */
   enable(): void {
     if (this.enabled) return;
@@ -423,6 +472,13 @@ export class SwitchScanController {
       cancelAnimationFrame(this.reflowRafHandle);
       this.reflowRafHandle = null;
     }
+
+    // Phase 4: clear any auto-scan timer so a `disable()` mid-scanning
+    // doesn't leave the interval firing into a torn-down controller.
+    // Reset autoState so a subsequent enable() starts idle again
+    // (matches `enable()`'s contract — fresh idle scanner per session).
+    this.clearAutoTimer();
+    this.autoState = 'idle';
 
     // Phase 5: silence any in-progress utterance so a disable doesn't
     // leave the voice talking over a now-hidden highlight.
@@ -518,6 +574,63 @@ export class SwitchScanController {
       // for why we're at capture phase.
       document.removeEventListener('keydown', this.boundKeyHandler, true);
       document.addEventListener('keydown', this.boundKeyHandler, true);
+    }
+  }
+
+  /**
+   * Phase 4 — update the scan mode (and optionally the auto-scan
+   * speed) without tearing down scan state.
+   *
+   * Called by the settings panel's Save handler so a mode toggle takes
+   * effect mid-session without requiring a reload. Scan position —
+   * frame stack, cursor index, highlight overlay — is left untouched
+   * so the user resumes exactly where they were; ONLY the timer +
+   * autoState are reset.
+   *
+   * Transition rules:
+   *  - any → step: clear the auto timer (it might be running) and
+   *    reset `autoState` to idle. Switch B is now active again.
+   *  - any → auto: clear the timer and drop to idle. We deliberately
+   *    do NOT auto-start the timer here — the design contract is "the
+   *    user's first press wakes the scanner up", and starting it from
+   *    a settings-Save would surprise the user mid-modal-close.
+   *  - same mode, new scanSpeedMs: if the timer is currently running,
+   *    restart it with the new period so the change takes effect
+   *    immediately. If idle, the new value will be picked up on the
+   *    user's next start.
+   *
+   * @param mode The new scan mode.
+   * @param scanSpeedMs Optional new auto-scan period in milliseconds.
+   *     When omitted, the existing `scanSpeedMs` is preserved.
+   */
+  setMode(mode: 'step' | 'auto', scanSpeedMs?: number): void {
+    const wasScanning =
+      this.scanMode === 'auto' && this.autoState === 'scanning';
+    const prevMode = this.scanMode;
+
+    this.scanMode = mode;
+    if (scanSpeedMs !== undefined) {
+      this.scanSpeedMs = scanSpeedMs;
+    }
+
+    // Always clear the existing timer — both mode transitions and
+    // mid-session speed changes need a clean restart. We re-arm below
+    // only in the "still auto + still scanning + speed-only change"
+    // case so the user's in-progress scan picks up the new period
+    // without skipping a beat.
+    this.clearAutoTimer();
+
+    if (mode === 'auto' && prevMode === 'auto' && wasScanning) {
+      // Live scanSpeedMs change (or no change) while already scanning —
+      // re-arm at the new period so the user sees their setting take
+      // effect immediately. autoState stays 'scanning'.
+      this.startAutoTimer();
+    } else {
+      // Mode transition (step↔auto) or starting fresh in auto mode —
+      // drop back to idle so the user's next press re-arms the timer
+      // on their terms. In step mode `autoState` is a no-op but we
+      // keep it tidy.
+      this.autoState = 'idle';
     }
   }
 
@@ -1176,6 +1289,13 @@ export class SwitchScanController {
     // own no-op-when-disabled behavior makes this safe to call
     // unconditionally.
     this.tts?.cancel();
+    // Phase 4: pause the auto-scan timer and drop back to idle. The
+    // scanner has no business cycling while the user watches their
+    // program execute; `handleRunEnd` leaves us idle so the user
+    // re-arms scanning with a fresh switch press, matching the design
+    // doc's "resumes idle after Reset" semantics.
+    this.clearAutoTimer();
+    this.autoState = 'idle';
     this.tearDownOverlaysForRun();
   }
 
@@ -1188,6 +1308,14 @@ export class SwitchScanController {
    * — chosen over "resume where they were" so it's predictable: after
    * a run, the highlight is always back at the top, ready for the
    * next interaction.
+   *
+   * Phase 4: in auto mode we leave `autoState === 'idle'` (handleRunStart
+   * already cleared the timer). The user's next switch press re-arms
+   * the timer, matching the design doc's "resumes idle after Reset" —
+   * we interpret that as "the scanner becomes idle after any run end,
+   * waiting for the user to press to restart" so a switch user doesn't
+   * find their highlight cycling under them the moment the run banner
+   * disappears.
    */
   private handleRunEnd(): void {
     this.executing = false;
@@ -1314,17 +1442,96 @@ export class SwitchScanController {
       e.preventDefault();
     }
 
-    if (isAdvance) {
-      const len = this.cycleLen(frame);
-      if (len > 0) {
-        frame.index = (frame.index + 1) % len;
-        this.renderHighlight();
+    if (this.scanMode === 'auto') {
+      // Phase 4: single-switch auto-scan. The advance key is the ONLY
+      // input — its meaning depends on `autoState`:
+      //  - `idle`  → start the timer (no other side effect; the user's
+      //              press is consumed as the "wake up" gesture, NOT a
+      //              select).
+      //  - `scanning` → act on the currently highlighted item (same
+      //              `handleSelect` dispatch step mode uses for its
+      //              Switch B). The timer keeps running so the highlight
+      //              continues to auto-cycle on whatever frame the
+      //              select transitioned us into (e.g. a sub-scan that
+      //              was just pushed).
+      // The select key is intentionally ignored — Switch B is hidden in
+      // the settings panel when scanMode === 'auto' and has no role.
+      if (!isAdvance) return;
+      if (this.autoState === 'idle') {
+        this.startAutoTimer();
+        return;
       }
+      // autoState === 'scanning' → select.
+      this.handleSelect(frame);
+      return;
+    }
+
+    if (isAdvance) {
+      this.advance();
       return;
     }
 
     // isSelect
     this.handleSelect(frame);
+  }
+
+  /**
+   * Advance the current frame's highlight by one slot and re-render.
+   *
+   * Shared between step mode (driven by the user's advance keypress) and
+   * auto mode (driven by the internal interval timer). Extracted from
+   * the original inline body in {@link handleKeyDown} so both paths
+   * cycle identically — including the modulo over `cycleLen` (real
+   * slots + 1 sentinel) and the TTS speak triggered by
+   * {@link renderHighlight}.
+   */
+  private advance(): void {
+    const frame = this.activeFrame();
+    if (!frame) return;
+    const len = this.cycleLen(frame);
+    if (len <= 0) return;
+    frame.index = (frame.index + 1) % len;
+    this.renderHighlight();
+  }
+
+  /**
+   * Phase 4 — start the auto-advance interval timer.
+   *
+   * Idempotent: if a timer is already running, the existing one is
+   * cleared first so we never end up with two intervals racing. The
+   * caller is expected to have just transitioned `autoState` from
+   * `'idle'` to `'scanning'` (or to be re-entering scanning after a
+   * settings-driven scanSpeedMs change).
+   *
+   * Note we do NOT call `advance()` immediately — the user's
+   * first press is intentionally a "wake up" gesture that just starts
+   * the timer; the highlight stays parked on the initial frame until
+   * the first tick fires `scanSpeedMs` later. This matches the design
+   * doc: "First switch press: scanner starts at top level, highlights
+   * cycle on `scanSpeedMs` interval, looping."
+   */
+  private startAutoTimer(): void {
+    this.clearAutoTimer();
+    this.autoState = 'scanning';
+    this.autoTimerHandle = window.setInterval(
+      () => this.advance(),
+      this.scanSpeedMs,
+    );
+  }
+
+  /**
+   * Phase 4 — stop the auto-advance interval timer if one is running.
+   *
+   * Does NOT flip `autoState` — the caller owns that decision. Used by
+   * `handleRunStart` (run pauses scanning), `handleRunEnd` (back to
+   * idle), `disable()` (teardown), and {@link setMode} (mode/speed
+   * change). Safe to call when no timer is running.
+   */
+  private clearAutoTimer(): void {
+    if (this.autoTimerHandle !== null) {
+      window.clearInterval(this.autoTimerHandle);
+      this.autoTimerHandle = null;
+    }
   }
 
   /**
