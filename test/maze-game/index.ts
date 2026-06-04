@@ -100,9 +100,84 @@ const isGridCodingMode = getStringParamFromUrl('grid', '0') === '1' && getInitia
 // Key bindings use KeyboardEvent.key values: ' ' (Space) and 'Enter' by default.
 // See PLAN_switch_scanning.md for the full design.
 const inputMode = getStringParamFromUrl('inputMode', '');
-const switchAdvanceKey = getStringParamFromUrl('switchAdvance', ' ');
-const switchSelectKey = getStringParamFromUrl('switchSelect', 'Enter');
 const isSwitchScanMode = inputMode === 'switch-scan';
+
+// ========== SWITCH SCAN SETTINGS RESOLUTION (Phase 2 Step C) ==========
+// localStorage keys for persisted switch-scan settings. The `mazeSwitchScan.`
+// prefix matches PLAN_switch_scanning.md lines 189-190. Values are stored as
+// raw KeyboardEvent.key strings (so Space is the literal " ", not "Space");
+// SwitchScanController.normalizeKey() still handles the friendly URL alias.
+const SWITCH_SCAN_LS_KEYS = {
+  advance: 'mazeSwitchScan.switchAdvance',
+  select: 'mazeSwitchScan.switchSelect',
+  mode: 'mazeSwitchScan.mode',
+} as const;
+
+type SwitchScanModeValue = 'step' | 'auto';
+
+/**
+ * Resolve a switch-scan setting using URL > localStorage > default
+ * precedence. Pulled out so all three settings (advance key, select
+ * key, mode) share the same resolution rule and so a unit test or
+ * future caller can hit it directly.
+ *
+ * The URL value, if present, wins outright — we don't normalize or
+ * validate it here; the controller's normalizeKey() handles the
+ * Space alias and the rest is passed through verbatim.
+ *
+ * @param urlParam URL query-string parameter name (e.g. 'switchAdvance').
+ * @param lsKey    localStorage key (e.g. 'mazeSwitchScan.switchAdvance').
+ * @param defaultValue Fallback when neither source has a value.
+ */
+function resolveSwitchScanSetting(
+  urlParam: string,
+  lsKey: string,
+  defaultValue: string,
+): string {
+  // URL wins.
+  const urlVal = getStringParamFromUrl(urlParam, '');
+  if (urlVal !== '') return urlVal;
+
+  // Else localStorage. An empty string in storage is treated as
+  // "not set" — the setter never writes an empty value, so this is
+  // either a corrupted/manual entry or genuinely missing.
+  try {
+    const lsVal = window.localStorage?.getItem(lsKey);
+    if (lsVal !== null && lsVal !== '') return lsVal;
+  } catch (e) {
+    // Storage access can throw in SecurityError contexts — fall through.
+  }
+
+  return defaultValue;
+}
+
+// Whether any switch-scan URL param is currently in effect. Drives the
+// "URL settings active" note in the settings modal so users understand
+// why a Save doesn't show up after reload while ?switchAdvance=… is
+// still in the URL.
+const switchScanUrlOverrideActive =
+  getStringParamFromUrl('switchAdvance', '') !== '' ||
+  getStringParamFromUrl('switchSelect', '') !== '' ||
+  getStringParamFromUrl('scanMode', '') !== '';
+
+const switchAdvanceKey = resolveSwitchScanSetting(
+  'switchAdvance',
+  SWITCH_SCAN_LS_KEYS.advance,
+  ' ',
+);
+const switchSelectKey = resolveSwitchScanSetting(
+  'switchSelect',
+  SWITCH_SCAN_LS_KEYS.select,
+  'Enter',
+);
+const switchScanInitialMode: SwitchScanModeValue = (() => {
+  const v = resolveSwitchScanSetting(
+    'scanMode',
+    SWITCH_SCAN_LS_KEYS.mode,
+    'step',
+  );
+  return v === 'auto' ? 'auto' : 'step';
+})();
 
 // Current grid stage (1 = immediate execution, 2 = delayed execution)
 // Only used when isGridCodingMode is true
@@ -2712,15 +2787,48 @@ if (isSwitchScanMode) {
   // in the header (it's `.hidden` in markup so non-switch-scan users
   // never see it) and wire it to open the settings modal.
   // Phase 2 Step B: pass current keybindings + an onSave callback so
-  // the modal has live key-capture. Persistence + live re-bind of the
-  // controller land in Step C — for now Save just logs.
+  // the modal has live key-capture.
+  // Phase 2 Step C: Save now persists to localStorage and lives re-binds
+  // the controller via setKeyBindings(). The `urlOverrideActive` flag
+  // tells the modal to render the "URL settings active" note so users
+  // understand why their saved values won't show up after reload while
+  // URL params remain in the address bar.
   switchScanSettings = new SwitchScanSettings({
     initialAdvanceKey: switchAdvanceKey,
     initialSelectKey: switchSelectKey,
+    initialMode: switchScanInitialMode,
+    urlOverrideActive: switchScanUrlOverrideActive,
     onSave: (cfg) => {
-      // Step C will: write to localStorage + call a controller
-      // setKeyBindings() so the change takes effect without reload.
-      console.log('[switch-scan settings] save (Step B no-op):', cfg);
+      // Persist all three values. Wrapped in try/catch because
+      // localStorage can throw in private-browsing / quota-exceeded
+      // contexts — settings work for this session, just not the next.
+      try {
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.advance,
+          cfg.switchAdvance,
+        );
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.select,
+          cfg.switchSelect,
+        );
+        // TODO: Phase 4 — `mode` is UI-only until the auto-scan timer
+        // lands. We still persist it so the radio remembers the user's
+        // pick once the controller is wired up to consume it.
+        window.localStorage.setItem(SWITCH_SCAN_LS_KEYS.mode, cfg.mode);
+      } catch (e) {
+        console.warn(
+          '[switch-scan settings] localStorage write failed:',
+          e,
+        );
+      }
+
+      // Live re-bind so the new keys take effect mid-session without
+      // requiring a reload. Scan position + frame stack are preserved
+      // by setKeyBindings() — the user resumes exactly where they were.
+      switchScanController?.setKeyBindings(
+        cfg.switchAdvance,
+        cfg.switchSelect,
+      );
     },
   });
   const switchSettingsBtn = document.getElementById('switchSettingsBtn');

@@ -57,6 +57,21 @@ export interface SwitchScanSettingsValues {
 export interface SwitchScanSettingsOptions {
   initialAdvanceKey: string;
   initialSelectKey: string;
+  /**
+   * Initial scan mode (Phase 4 — UI-only for now). When omitted, the
+   * dialog defaults to `'step'`. Step C plumbs the persisted value
+   * through here so the radio reflects what the user last picked.
+   */
+  initialMode?: SwitchScanMode;
+  /**
+   * True when at least one `?switchAdvance=…` / `?switchSelect=…` /
+   * `?scanMode=…` URL param is currently in effect for this page load.
+   * When true the dialog renders a small note explaining that saved
+   * values are being overridden by the URL — without this, a user who
+   * just saved a different key would wonder why the URL bindings keep
+   * winning on reload.
+   */
+  urlOverrideActive?: boolean;
   onSave: (cfg: SwitchScanSettingsValues) => void;
 }
 
@@ -115,6 +130,13 @@ export class SwitchScanSettings {
   private currentSelect: string;
   private currentMode: SwitchScanMode;
 
+  /**
+   * True iff URL params are overriding saved settings on this page
+   * load. Drives the "URL settings active" note rendered near the top
+   * of the modal body — see {@link renderUrlOverrideNote}.
+   */
+  private readonly urlOverrideActive: boolean;
+
   /** Active key-capture state. Null when no capture is in flight. */
   private captureContext: {
     which: 'advance' | 'select';
@@ -133,10 +155,11 @@ export class SwitchScanSettings {
     this.onSave = options.onSave;
     this.committedAdvance = options.initialAdvanceKey;
     this.committedSelect = options.initialSelectKey;
-    this.committedMode = 'step';
+    this.committedMode = options.initialMode ?? 'step';
     this.currentAdvance = this.committedAdvance;
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
+    this.urlOverrideActive = options.urlOverrideActive ?? false;
 
     // Mirrors the pattern used by `shortcutsDialog` in index.ts so
     // ESC closes / focus traps work the same way as every other modal.
@@ -215,6 +238,38 @@ export class SwitchScanSettings {
 
     this.refreshDisplay();
     this.refreshModeVisibility();
+    this.renderUrlOverrideNote();
+  }
+
+  /**
+   * Inject (or remove) the "URL settings active" hint near the top of
+   * the modal body. Idempotent — we render at construction time and
+   * again on `show()` so re-opening the modal after a Save shows fresh
+   * state. The note is only meaningful when URL params are in effect:
+   * a user who arrived without URL overrides gets nothing extra.
+   *
+   * Placement: prepended to `.switch-settings-list` so it sits above
+   * the first group without any markup changes in `index.html`.
+   */
+  private renderUrlOverrideNote(): void {
+    const existing = document.getElementById('switchSettingsUrlNote');
+    if (!this.urlOverrideActive) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return; // already present, nothing to do
+
+    const list = document.querySelector<HTMLElement>(
+      '#switchSettingsModal .switch-settings-list',
+    );
+    if (!list) return;
+
+    const note = document.createElement('p');
+    note.id = 'switchSettingsUrlNote';
+    note.className = 'switch-settings-url-note';
+    note.textContent =
+      'URL settings active — refresh without params to use saved values.';
+    list.insertBefore(note, list.firstChild);
   }
 
   /**
@@ -234,6 +289,7 @@ export class SwitchScanSettings {
     });
     this.refreshDisplay();
     this.refreshModeVisibility();
+    this.renderUrlOverrideNote();
     this.clearErrors();
     this.dialog.show();
   }

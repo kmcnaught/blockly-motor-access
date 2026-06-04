@@ -244,6 +244,8 @@ export class SwitchScanController {
     }
 
     // Bind handlers so add/removeEventListener get matching references.
+    // setKeyBindings() relies on this being a stable reference so it can
+    // detach the listener and re-attach it cleanly during live rebind.
     this.boundKeyHandler = this.handleKeyDown.bind(this);
     this.boundReflow = this.scheduleReflow.bind(this);
     // Wrap with an `enabled` guard so a late-firing callback after a
@@ -366,8 +368,43 @@ export class SwitchScanController {
    * @param switchSelect
    */
   setKeys(switchAdvance: string, switchSelect: string): void {
+    this.setKeyBindings(switchAdvance, switchSelect);
+  }
+
+  /**
+   * Live re-bind the advance / select keys without tearing down scan
+   * state. Used by the settings panel's Save handler so the user sees
+   * their new bindings take effect immediately, no reload required.
+   *
+   * Even though `handleKeyDown` reads `this.switchAdvance` /
+   * `this.switchSelect` at event time (so mutating the fields would be
+   * enough), we explicitly detach + re-attach the listener here. That
+   * keeps the contract obvious to future readers ("re-bind" really
+   * means re-bind) and gives us a clean hook if we ever want to swap
+   * the handler shape (e.g. capture-phase vs bubble).
+   *
+   * Scan state — the frame stack, cursor index, highlight overlay —
+   * is left untouched so the user resumes exactly where they were.
+   *
+   * Accepts either a raw `KeyboardEvent.key` value (`' '`) or the
+   * friendly alias `'Space'`; the same `normalizeKey` helper used at
+   * construction time handles both.
+   *
+   * @param switchAdvance New advance key (raw or alias).
+   * @param switchSelect New select key (raw or alias).
+   */
+  setKeyBindings(switchAdvance: string, switchSelect: string): void {
     this.switchAdvance = normalizeKey(switchAdvance);
     this.switchSelect = normalizeKey(switchSelect);
+
+    // Re-attach the keydown listener so the rebind is explicit even
+    // though the handler reads `this.switchAdvance` / `this.switchSelect`
+    // dynamically. Only do this when we're actually listening — a
+    // disabled controller has no listener to swap.
+    if (this.enabled) {
+      document.removeEventListener('keydown', this.boundKeyHandler);
+      document.addEventListener('keydown', this.boundKeyHandler);
+    }
   }
 
   /**
