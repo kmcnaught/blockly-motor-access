@@ -1525,9 +1525,13 @@ export class SwitchScanController {
     menuEl: HTMLElement,
     block: Blockly.BlockSvg,
   ): void {
-    const root = block.getSvgRoot?.();
-    if (!root) return;
-    const r = root.getBoundingClientRect();
+    // Use the single-block viewport rect (not `getSvgRoot().getBoundingClientRect()`):
+    // the SVG `<g>` root visually contains the entire connected stack, so
+    // anchoring off it drops the menu at the bottom of the chain instead of
+    // directly below the block being acted on. The helper returns null only
+    // when the block has no rendered SVG root — same guard as before.
+    const r = this.getSingleBlockViewportRect(block);
+    if (!r) return;
     // Measure menu after appending so the fallback heuristic has real
     // dimensions to compare against the viewport.
     const menuRect = menuEl.getBoundingClientRect();
