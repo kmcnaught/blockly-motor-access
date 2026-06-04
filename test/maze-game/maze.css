@@ -2048,3 +2048,41 @@ body.grid-coding-mode .screen-padding {
   text-align: left;
   font-weight: 600;
 }
+
+/* Dropdown-values overlay (shown after Edit on a block with a
+ * FieldDropdown) gets a darker treatment than the action menu so:
+ *   1. The user can visually tell they've stepped into a different
+ *      sub-mode (picking a value vs. picking an action).
+ *   2. Option icons sourced from the maze's white-filled direction
+ *      SVGs (e.g. `turn_left.svg`) remain visible — on the default
+ *      near-white `.switch-scan-menu-item` background the white
+ *      arrows were illegible (white-on-offwhite).
+ *
+ * Scoped strictly to `.switch-scan-dropdown-menu` so Blockly's own
+ * dropdown widget (used by mouse/keyboard users outside switch-scan)
+ * is untouched.
+ */
+.switch-scan-dropdown-menu {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+.switch-scan-dropdown-menu .switch-scan-menu-item {
+  background: #2e2e2e;
+  color: #fff;
+}
+/* Maze direction-arrow SVGs (`turn_left.svg`, `turn_right.svg`) are
+ * authored as white fills for use on coloured Blockly blocks. Against
+ * the dark dropdown-row background above they read fine; but if a
+ * future skin/theme darkens further or a designer swaps in a dark
+ * arrow, the filter below is a safe no-op for already-dark icons.
+ * Coloured icons (red_circle.svg, blue_square.svg) keep their hue —
+ * we only normalise brightness, not chroma. */
+.switch-scan-dropdown-menu .switch-scan-menu-item img {
+  /* Drop-shadow halo lifts white icons off the dark background and
+   * also adds a subtle outline to coloured icons, without recolouring
+   * them. Two stacked shadows fake an outline on all four sides. */
+  filter:
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+  vertical-align: middle;
+}
