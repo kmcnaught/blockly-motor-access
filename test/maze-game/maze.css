@@ -2188,6 +2188,28 @@ body.grid-coding-mode .screen-padding {
   z-index: 10000;
   pointer-events: none;
 }
+/* Auto-scan idle affordance. Visible only while the scanner is in
+ * auto mode AND hasn't started cycling yet — tells the user they
+ * need to press to wake it up. Distinct blue palette so it doesn't
+ * look like the orange sentinel chip (which is a totally different
+ * state). Centered along the bottom edge so it reads as a page-level
+ * instruction rather than being tied to any specific highlight. */
+.switch-scan-idle-chip {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 22px;
+  background: #1565c0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+  pointer-events: none;
+}
 .switch-scan-action-menu,
 .switch-scan-dropdown-menu {
   position: fixed;

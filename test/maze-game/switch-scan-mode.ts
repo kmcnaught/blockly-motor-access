@@ -406,6 +406,12 @@ export class SwitchScanController {
   // DOM overlay elements; created once per enable, removed on disable.
   private highlightEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
+  // Auto-scan idle affordance — visible only when scanMode === 'auto'
+  // and autoState === 'idle' so the user sees a "press to start" hint
+  // before the timer is running. Without this, an auto-mode page load
+  // shows a static highlight with no visible cue that pressing starts
+  // scanning. Hidden via display:none in every other state.
+  private autoIdleChip: HTMLDivElement | null = null;
 
   // Inline action / dropdown menus shown next to a workspace block when
   // the user enters the action sub-scan. Lazily created on first use and
@@ -569,11 +575,13 @@ export class SwitchScanController {
     this.cancelActiveMoveIfAny();
     this.highlightEl?.remove();
     this.sentinelChip?.remove();
+    this.autoIdleChip?.remove();
     this.actionMenuEl?.remove();
     this.dropdownMenuEl?.remove();
     this.moveMenuEl?.remove();
     this.highlightEl = null;
     this.sentinelChip = null;
+    this.autoIdleChip = null;
     this.actionMenuEl = null;
     this.dropdownMenuEl = null;
     this.moveMenuEl = null;
@@ -1097,6 +1105,12 @@ export class SwitchScanController {
     this.sentinelChip.textContent = '↺ Back to top';
     this.sentinelChip.style.display = 'none';
     document.body.appendChild(this.sentinelChip);
+
+    this.autoIdleChip = document.createElement('div');
+    this.autoIdleChip.className = 'switch-scan-idle-chip';
+    this.autoIdleChip.textContent = 'Press your switch to start scanning';
+    this.autoIdleChip.style.display = 'none';
+    document.body.appendChild(this.autoIdleChip);
   }
 
   /**
@@ -1269,7 +1283,20 @@ export class SwitchScanController {
     if (!frame) {
       this.highlightEl.style.display = 'none';
       this.sentinelChip.style.display = 'none';
+      if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
       return;
+    }
+
+    // Auto-scan idle affordance — visible only when we're in auto mode
+    // AND the timer hasn't started yet AND a run isn't underway. Hide
+    // for every other state so the chip doesn't linger over an active
+    // scan or over a maze animation.
+    if (this.autoIdleChip) {
+      const showIdleChip =
+        this.scanMode === 'auto' &&
+        this.autoState === 'idle' &&
+        !this.executing;
+      this.autoIdleChip.style.display = showIdleChip ? 'block' : 'none';
     }
 
     // Phase 5: speak the current label, unless this render was
@@ -1430,6 +1457,7 @@ export class SwitchScanController {
   private tearDownOverlaysForRun(): void {
     if (this.highlightEl) this.highlightEl.style.display = 'none';
     if (this.sentinelChip) this.sentinelChip.style.display = 'none';
+    if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
     this.dropdownMenuEl?.remove();
@@ -1622,6 +1650,12 @@ export class SwitchScanController {
       () => this.advance(),
       this.scanSpeedMs,
     );
+    // Hide the "press to start" idle chip immediately on transition —
+    // waiting for the first timer tick would leave the chip visible
+    // for up to `scanSpeedMs` after the user's press. speak=false
+    // because the idle→scanning caller in handleKeyDown already
+    // speaks the current label explicitly.
+    this.renderHighlight({speak: false});
   }
 
   /**
