@@ -1143,6 +1143,39 @@ header.christmas h1::after {
   cursor: not-allowed;
 }
 
+/* Switch B group is hidden when the user picks auto-scan mode (Step B
+   UI; the Phase 4 timer that actually drives auto-scan isn't built
+   yet). Scoped to the group id so we don't fight the generic .hidden
+   rules elsewhere. */
+#switchBGroup.hidden {
+  display: none;
+}
+
+/* Capture-button "Press a key..." state. Distinctive border + tint
+   so the user knows the modal is listening — without animating (eye-
+   gaze users find blinking borders hard to track). */
+.switch-settings-capture.switch-settings-capturing {
+  border-color: #2962ff;
+  background: #e3f2fd;
+  color: #0d47a1;
+  outline: 2px solid #2962ff;
+  outline-offset: 1px;
+}
+
+/* Transient validation error below a capture row. Empty (no text)
+   by default so the layout doesn't jump when there's nothing to say. */
+.switch-settings-error {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  color: #c62828;
+  min-height: 1em;
+}
+
+.switch-settings-error:empty {
+  margin: 0;
+  min-height: 0;
+}
+
 /* Sidebar toggle button */
 .sidebar-toggle {
   --element-color: #666;

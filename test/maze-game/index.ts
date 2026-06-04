@@ -2711,7 +2711,18 @@ if (isSwitchScanMode) {
   // Phase 2 Step A: surface the dedicated Switch Scan Settings button
   // in the header (it's `.hidden` in markup so non-switch-scan users
   // never see it) and wire it to open the settings modal.
-  switchScanSettings = new SwitchScanSettings();
+  // Phase 2 Step B: pass current keybindings + an onSave callback so
+  // the modal has live key-capture. Persistence + live re-bind of the
+  // controller land in Step C — for now Save just logs.
+  switchScanSettings = new SwitchScanSettings({
+    initialAdvanceKey: switchAdvanceKey,
+    initialSelectKey: switchSelectKey,
+    onSave: (cfg) => {
+      // Step C will: write to localStorage + call a controller
+      // setKeyBindings() so the change takes effect without reload.
+      console.log('[switch-scan settings] save (Step B no-op):', cfg);
+    },
+  });
   const switchSettingsBtn = document.getElementById('switchSettingsBtn');
   if (switchSettingsBtn) {
     switchSettingsBtn.classList.remove('hidden');

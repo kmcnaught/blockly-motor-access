@@ -5,7 +5,7 @@
  */
 
 /**
- * @fileoverview Switch Scan Settings modal (Phase 2 Step A — scaffold).
+ * @fileoverview Switch Scan Settings modal.
  *
  * Owns the lifecycle of the in-page Switch Scan Settings modal — a
  * dedicated dialog separate from the existing `#shortcutsModal`. It's
@@ -15,19 +15,19 @@
  * shortcuts list to reach their settings.
  *
  * Phase 2 sub-step rollout:
- *  - Step A (this file): scaffold only — modal open/close via the
- *    existing {@link Dialog} helper, all controls rendered as stubs
- *    (radio mode, two key-capture rows, scan-speed slider, audio
- *    toggle, Save/Cancel). Save just closes the modal. No persistence.
- *  - Step B: live key capture for Switch A / Switch B with validation
- *    (no duplicates, no Tab/Escape).
- *  - Step C: localStorage persistence + URL-wins precedence.
+ *  - Step A: scaffold (modal markup + open/close).
+ *  - Step B (this file's current state): live key capture for Switch A
+ *    / Switch B with validation (no duplicates, no Tab/Escape) and a
+ *    mode-radio that hides Switch B in auto-scan mode. Save fires an
+ *    `onSave` callback; persistence + live re-bind land in Step C.
+ *  - Step C: localStorage persistence + URL-wins precedence + live
+ *    re-bind of the SwitchScanController.
  *  - Step D: tag controls with `data-scan-region` / `data-scan-item`
  *    so the modal is itself reachable via switch-scan.
  *
- * Non-switch-scan users see ZERO change from this step: the controller
- * is instantiated only when `inputMode === 'switch-scan'`, and the
- * header button is hidden until that controller is wired up.
+ * Non-switch-scan users see ZERO change: the controller is instantiated
+ * only when `inputMode === 'switch-scan'`, and the header button is
+ * hidden until that controller is wired up.
  *
  * See `PLAN_switch_scanning.md` lines 192-211 for the full settings
  * panel design, and `.claude/scratchpad/current-plan.md` Phase 2 for
@@ -36,52 +36,185 @@
 
 import {Dialog} from './dialogs';
 
+/** Scan mode chosen by the user. Auto-scan is Phase 4 (UI-only here). */
+export type SwitchScanMode = 'step' | 'auto';
+
+/** Shape of the settings object handed back to the caller on Save. */
+export interface SwitchScanSettingsValues {
+  switchAdvance: string;
+  switchSelect: string;
+  mode: SwitchScanMode;
+}
+
+/**
+ * Constructor options for {@link SwitchScanSettings}.
+ *
+ * Initial values come from whatever the page resolved at boot (URL
+ * params today; localStorage in Step C). The `onSave` callback is how
+ * the host page learns about user edits — Step C wires it to persist
+ * + re-bind the controller; Step B's host wires it to a no-op log.
+ */
+export interface SwitchScanSettingsOptions {
+  initialAdvanceKey: string;
+  initialSelectKey: string;
+  onSave: (cfg: SwitchScanSettingsValues) => void;
+}
+
+/**
+ * Convert a raw `KeyboardEvent.key` value to a human-readable label.
+ *
+ * `KeyboardEvent.key` returns the literal character produced — `" "`
+ * for Space, `"ArrowLeft"` for the left arrow, etc. We show those as
+ * "Space" / "Left" so the settings panel reads naturally.
+ *
+ * Single printable characters are upper-cased so "q" → "Q"; named keys
+ * are passed through (Enter, Escape, etc.) with arrow keys stripped of
+ * their "Arrow" prefix.
+ *
+ * @param key Raw `KeyboardEvent.key` value (e.g. `" "`, `"ArrowLeft"`).
+ * @returns Human-readable label for display in the settings UI.
+ */
+function keyLabel(key: string): string {
+  if (key === ' ') return 'Space';
+  if (key.startsWith('Arrow')) return key.slice('Arrow'.length);
+  if (key.length === 1) return key.toUpperCase();
+  return key;
+}
+
 /**
  * Controller for the Switch Scan Settings modal.
  *
  * Wraps the existing `#switchSettingsModal` `<dialog>` (declared in
  * `index.html` so the markup ships with the page rather than being
  * injected at runtime — keeps the modal styleable from `maze.css` and
- * matches the convention used by `#shortcutsModal`,
- * `#confirmationModal`, etc.).
+ * matches the convention used by `#shortcutsModal`, etc.).
+ *
+ * State model: the constructor records the *committed* (initial)
+ * values, and `currentAdvance` / `currentSelect` / `currentMode` hold
+ * the *pending* state shown in the dialog. Cancel reverts to committed;
+ * Save promotes pending to committed and fires `onSave`.
  */
 export class SwitchScanSettings {
   private readonly dialog: Dialog;
   private readonly cancelBtn: HTMLButtonElement | null;
   private readonly saveBtn: HTMLButtonElement | null;
+  private readonly switchACurrentEl: HTMLElement | null;
+  private readonly switchBCurrentEl: HTMLElement | null;
+  private readonly switchACaptureBtn: HTMLButtonElement | null;
+  private readonly switchBCaptureBtn: HTMLButtonElement | null;
+  private readonly switchBGroup: HTMLElement | null;
+  private readonly modeRadios: NodeListOf<HTMLInputElement>;
 
-  /**
-   * @param elementId   Optional DOM id of the `<dialog>` element.
-   *                    Defaults to `'switchSettingsModal'`.
-   */
-  constructor(elementId = 'switchSettingsModal') {
+  /** Committed (last-saved) values — what Cancel reverts to. */
+  private committedAdvance: string;
+  private committedSelect: string;
+  private committedMode: SwitchScanMode;
+
+  /** Pending values — what's currently shown in the dialog. */
+  private currentAdvance: string;
+  private currentSelect: string;
+  private currentMode: SwitchScanMode;
+
+  /** Active key-capture state. Null when no capture is in flight. */
+  private captureContext: {
+    which: 'advance' | 'select';
+    button: HTMLButtonElement;
+    originalLabel: string;
+    keydownHandler: (e: KeyboardEvent) => void;
+    errorEl: HTMLElement;
+  } | null = null;
+
+  private readonly onSave: (cfg: SwitchScanSettingsValues) => void;
+
+  constructor(
+    options: SwitchScanSettingsOptions,
+    elementId = 'switchSettingsModal',
+  ) {
+    this.onSave = options.onSave;
+    this.committedAdvance = options.initialAdvanceKey;
+    this.committedSelect = options.initialSelectKey;
+    this.committedMode = 'step';
+    this.currentAdvance = this.committedAdvance;
+    this.currentSelect = this.committedSelect;
+    this.currentMode = this.committedMode;
+
     // Mirrors the pattern used by `shortcutsDialog` in index.ts so
-    // ESC closes / focus traps work the same way as every other modal
-    // on the page.
+    // ESC closes / focus traps work the same way as every other modal.
+    // We treat backdrop-click / ESC as Cancel so the user can't leak
+    // pending key-captures past a dismissed dialog.
     this.dialog = new Dialog(elementId, {
       focusSelector: '#switchSettingsCancel',
       closeOnEscape: true,
       closeOnBackdropClick: true,
+      onClose: () => this.cancelCapture(),
     });
 
-    // These buttons live inside the dialog. We deliberately don't
-    // attach any logic beyond hide() in Step A — Save persistence
-    // lands in Step C, capture logic in Step B.
     this.cancelBtn = document.getElementById(
       'switchSettingsCancel',
     ) as HTMLButtonElement | null;
     this.saveBtn = document.getElementById(
       'switchSettingsSave',
     ) as HTMLButtonElement | null;
+    this.switchACurrentEl = document.getElementById('switchACurrent');
+    this.switchBCurrentEl = document.getElementById('switchBCurrent');
+    this.switchACaptureBtn = document.getElementById(
+      'switchACaptureBtn',
+    ) as HTMLButtonElement | null;
+    this.switchBCaptureBtn = document.getElementById(
+      'switchBCaptureBtn',
+    ) as HTMLButtonElement | null;
+    this.switchBGroup = document.getElementById('switchBGroup');
+    this.modeRadios = document.querySelectorAll<HTMLInputElement>(
+      'input[name="switchScanMode"]',
+    );
+
+    // Capture buttons were inert (disabled) in Step A; enable them now.
+    if (this.switchACaptureBtn) {
+      this.switchACaptureBtn.disabled = false;
+      this.switchACaptureBtn.addEventListener('click', () =>
+        this.beginCapture('advance'),
+      );
+    }
+    if (this.switchBCaptureBtn) {
+      this.switchBCaptureBtn.disabled = false;
+      this.switchBCaptureBtn.addEventListener('click', () =>
+        this.beginCapture('select'),
+      );
+    }
+
+    this.modeRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          this.currentMode = radio.value as SwitchScanMode;
+          this.refreshModeVisibility();
+        }
+      });
+    });
 
     if (this.cancelBtn) {
-      this.cancelBtn.addEventListener('click', () => this.hide());
+      this.cancelBtn.addEventListener('click', () => {
+        this.revertPending();
+        this.hide();
+      });
     }
     if (this.saveBtn) {
-      // Step A scaffold: Save is a no-op beyond closing. Step C will
-      // wire it to write to localStorage and re-bind keys live.
-      this.saveBtn.addEventListener('click', () => this.hide());
+      this.saveBtn.addEventListener('click', () => {
+        this.cancelCapture();
+        // Promote pending → committed and notify the host.
+        this.committedAdvance = this.currentAdvance;
+        this.committedSelect = this.currentSelect;
+        this.committedMode = this.currentMode;
+        this.onSave({
+          switchAdvance: this.committedAdvance,
+          switchSelect: this.committedSelect,
+          mode: this.committedMode,
+        });
+        this.hide();
+      });
     }
+
+    this.refreshDisplay();
+    this.refreshModeVisibility();
   }
 
   /**
@@ -90,22 +223,215 @@ export class SwitchScanSettings {
    * for a scan user who lands on the modal accidentally).
    */
   show(): void {
+    // Re-sync displayed values to committed in case anything mutated
+    // them while the modal was closed (Step C will do this on URL
+    // changes; harmless here).
+    this.currentAdvance = this.committedAdvance;
+    this.currentSelect = this.committedSelect;
+    this.currentMode = this.committedMode;
+    this.modeRadios.forEach((r) => {
+      r.checked = r.value === this.currentMode;
+    });
+    this.refreshDisplay();
+    this.refreshModeVisibility();
+    this.clearErrors();
     this.dialog.show();
   }
 
-  /**
-   * Close the settings modal.
-   */
+  /** Close the settings modal. */
   hide(): void {
     this.dialog.hide();
   }
 
   /**
    * Whether the modal is currently open. Exposed for the switch-scan
-   * controller in later sub-steps so it can pause its own keydown
-   * handling while a key-capture is in progress (Step B / D).
+   * controller in Step D so it can pause its own keydown handling
+   * while a key-capture is in progress.
    */
   isOpen(): boolean {
     return this.dialog.isOpen();
+  }
+
+  /**
+   * Whether a live key-capture is in progress. Step D will check this
+   * to decide whether to suspend the controller's keybindings.
+   */
+  isCapturing(): boolean {
+    return this.captureContext !== null;
+  }
+
+  /**
+   * Push pending state back to the displayed initial values. Used by
+   * Cancel and by `show()` on each open.
+   */
+  private revertPending(): void {
+    this.cancelCapture();
+    this.currentAdvance = this.committedAdvance;
+    this.currentSelect = this.committedSelect;
+    this.currentMode = this.committedMode;
+    this.modeRadios.forEach((r) => {
+      r.checked = r.value === this.currentMode;
+    });
+    this.refreshDisplay();
+    this.refreshModeVisibility();
+    this.clearErrors();
+  }
+
+  /** Sync `#switchACurrent` / `#switchBCurrent` to the pending state. */
+  private refreshDisplay(): void {
+    if (this.switchACurrentEl) {
+      this.switchACurrentEl.textContent = keyLabel(this.currentAdvance);
+    }
+    if (this.switchBCurrentEl) {
+      this.switchBCurrentEl.textContent = keyLabel(this.currentSelect);
+    }
+  }
+
+  /**
+   * Show / hide the Switch B section based on the current mode. Auto-
+   * scan only needs one switch (the Phase 4 scanning timer drives
+   * highlights forward on its own); step-scan needs two.
+   */
+  private refreshModeVisibility(): void {
+    if (!this.switchBGroup) return;
+    if (this.currentMode === 'auto') {
+      this.switchBGroup.classList.add('hidden');
+    } else {
+      this.switchBGroup.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Begin a live key-capture for `which` (advance or select).
+   *
+   * We attach the keydown listener on `document` with `capture: true`
+   * and call `stopImmediatePropagation()` inside the handler so the
+   * SwitchScanController — which also listens for the same keys on
+   * `window` / `document` — never sees the press. Otherwise the user
+   * pressing their *current* Switch A key while trying to rebind it
+   * would also trigger "Advance" in the controller.
+   *
+   * @param which Which switch this capture is rebinding.
+   */
+  private beginCapture(which: 'advance' | 'select'): void {
+    // If another capture is in flight, abort it first so we never have
+    // two competing keydown listeners.
+    this.cancelCapture();
+
+    const button =
+      which === 'advance'
+        ? this.switchACaptureBtn
+        : this.switchBCaptureBtn;
+    if (!button) return;
+
+    const originalLabel = button.textContent ?? 'Click to capture';
+    button.textContent = 'Press a key...';
+    button.classList.add('switch-settings-capturing');
+
+    const errorEl = this.ensureErrorEl(which);
+
+    const keydownHandler = (event: KeyboardEvent) => {
+      // Block the SwitchScanController + any browser default for keys
+      // we'd otherwise accept (e.g. Space scrolling the page).
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+
+      // Disallow Tab/Escape entirely — they have UA-default behavior
+      // (focus traversal, dialog dismiss) that we shouldn't override.
+      if (event.key === 'Tab' || event.key === 'Escape') {
+        errorEl.textContent =
+          "Tab/Escape can't be used as a switch key. Try again.";
+        return; // stay in capture mode
+      }
+
+      // Disallow binding both switches to the same key.
+      const other =
+        which === 'advance' ? this.currentSelect : this.currentAdvance;
+      if (event.key === other) {
+        const otherLabel = which === 'advance' ? 'Switch B' : 'Switch A';
+        errorEl.textContent = `That key is already bound to ${otherLabel}. Pick a different key.`;
+        return; // stay in capture mode
+      }
+
+      // Accepted — commit to pending state and exit capture mode.
+      if (which === 'advance') {
+        this.currentAdvance = event.key;
+      } else {
+        this.currentSelect = event.key;
+      }
+      this.refreshDisplay();
+      this.cancelCapture();
+    };
+
+    // capture:true so we fire before any bubbling switch-scan listener
+    // attached at `window` / `document` levels.
+    document.addEventListener('keydown', keydownHandler, {capture: true});
+
+    this.captureContext = {
+      which,
+      button,
+      originalLabel,
+      keydownHandler,
+      errorEl,
+    };
+  }
+
+  /**
+   * Tear down any in-flight capture. Safe to call when no capture is
+   * active.
+   */
+  private cancelCapture(): void {
+    if (!this.captureContext) return;
+    const {button, originalLabel, keydownHandler} = this.captureContext;
+    document.removeEventListener('keydown', keydownHandler, {
+      capture: true,
+    });
+    button.textContent = originalLabel;
+    button.classList.remove('switch-settings-capturing');
+    this.captureContext = null;
+  }
+
+  /**
+   * Look up (or lazily create) the inline error element below the
+   * capture row for `which`. We don't put these in the HTML because
+   * they're transient and per-row; a single sibling element keeps the
+   * DOM tidy and the styling targeted.
+   *
+   * @param which Which capture row this error belongs to.
+   * @returns The `<p class="switch-settings-error">` element.
+   */
+  private ensureErrorEl(which: 'advance' | 'select'): HTMLElement {
+    const id =
+      which === 'advance'
+        ? 'switchSettingsErrorA'
+        : 'switchSettingsErrorB';
+    let el = document.getElementById(id);
+    if (el) return el;
+
+    const groupId = which === 'advance' ? null : 'switchBGroup';
+    // Switch A has no id on its group, so anchor off the capture
+    // button's parent group; Switch B has #switchBGroup.
+    const group =
+      groupId !== null
+        ? document.getElementById(groupId)
+        : this.switchACaptureBtn?.closest('.switch-settings-group') ?? null;
+
+    el = document.createElement('p');
+    el.id = id;
+    el.className = 'switch-settings-error';
+    el.setAttribute('role', 'alert');
+    if (group) {
+      group.appendChild(el);
+    }
+    return el;
+  }
+
+  /** Wipe any error messages from both capture rows. */
+  private clearErrors(): void {
+    const a = document.getElementById('switchSettingsErrorA');
+    const b = document.getElementById('switchSettingsErrorB');
+    if (a) a.textContent = '';
+    if (b) b.textContent = '';
   }
 }
