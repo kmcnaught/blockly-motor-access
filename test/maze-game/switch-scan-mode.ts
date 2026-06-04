@@ -441,11 +441,33 @@ export class SwitchScanController {
     // Translate to viewport coords by anchoring to the injection div's
     // bounding rect. This matches the workspace focus ring used by
     // src/index.ts:resizeFocusRingInternal.
+    //
+    // Visual nudge: shift the outline LEFT by `toolbox_width / 10` and
+    // narrow it by `toolbox_width / 6` so the rect doesn't visually
+    // hug the full available width. Toolbox width is read from
+    // `toolboxRectFn` (captured above) at render time so it tracks
+    // resizes; if the toolbox isn't measurable yet (null rect or zero
+    // width), fall through to the unmodified workspace rect.
     const injectionDiv = this.workspace.getInjectionDiv();
+    const capturedToolboxRectFn = toolboxRectFn;
     if (injectionDiv) {
       regions.push({
         name: 'workspace',
-        getRect: () => this.getWorkspaceViewportRect(injectionDiv),
+        getRect: () => {
+          const base = this.getWorkspaceViewportRect(injectionDiv);
+          if (!base) return null;
+          const toolboxRect = capturedToolboxRectFn?.() ?? null;
+          const toolboxWidth = toolboxRect?.width ?? 0;
+          if (!toolboxWidth) return base;
+          const leftShift = toolboxWidth / 10;
+          const widthReduction = toolboxWidth / 6;
+          return new DOMRect(
+            base.left - leftShift,
+            base.top,
+            base.width - widthReduction,
+            base.height,
+          );
+        },
       });
     } else {
       console.warn('[switch-scan] workspace region not found');
