@@ -173,6 +173,27 @@ type ScanFrame =
       >;
       index: number;
       topLevelIndex: number;
+    }
+  | {
+      // Phase 3 Step 1: switch-scan during Blockly's move mode. The
+      // visible CANDIDATE highlight is owned by Blockly (its
+      // connection-preview indicator) — we deliberately don't draw
+      // our switch-scan outline on top of it. We render a small
+      // inline menu next to the moving block with two explicit
+      // actions ("Next", "Place") plus the standard "Back to top"
+      // sentinel which aborts the move. Select on "Next" steps Blockly
+      // forward one candidate (via `move_down_constrained` shortcut);
+      // select on "Place" commits (via `finish_move`); select on
+      // sentinel aborts (via `abort_move`).
+      //
+      // `block` is the block we asked Blockly to start moving so a
+      // stuck move can be cleaned up via {@link cancelActiveMoveIfAny}
+      // during pause-during-run.
+      kind: 'move-candidates';
+      block: Blockly.BlockSvg;
+      items: MoveCandidatesItem[];
+      index: number;
+      topLevelIndex: number;
     };
 
 /**
@@ -181,7 +202,21 @@ type ScanFrame =
  * human-readable `label` is what we render in the overlay.
  */
 interface ActionItem {
-  key: 'select' | 'edit' | 'delete';
+  key: 'select' | 'edit' | 'move' | 'delete';
+  label: string;
+}
+
+/**
+ * One row in the inline overlay shown during a move-candidates
+ * sub-scan. `key === 'next'` steps Blockly to the next candidate
+ * connection (without committing); `key === 'place'` commits the move
+ * at the currently-previewed candidate. Aborting is handled via the
+ * standard sentinel slot, NOT a third explicit row, so the user only
+ * ever sees these two real actions plus the familiar "back to top"
+ * chip.
+ */
+interface MoveCandidatesItem {
+  key: 'next' | 'place';
   label: string;
 }
 
@@ -240,6 +275,11 @@ export class SwitchScanController {
   // removed when the corresponding frame is popped.
   private actionMenuEl: HTMLDivElement | null = null;
   private dropdownMenuEl: HTMLDivElement | null = null;
+  // Phase 3 Step 1: inline "Next / Place" menu shown while Blockly's
+  // move mode is active. Anchored next to the moving block; tracked
+  // here so we can tear it down when the move-candidates frame is
+  // popped or during pause-during-run.
+  private moveMenuEl: HTMLDivElement | null = null;
 
   // rAF handle for throttled reflow on resize/scroll, so we don't
   // re-render on every wheel tick.
@@ -293,7 +333,18 @@ export class SwitchScanController {
     this.createOverlayElements();
 
     // Bind keyboard + viewport-change events.
-    document.addEventListener('keydown', this.boundKeyHandler);
+    // Capture-phase keydown so we run BEFORE Blockly's container-level
+    // shortcut handler. Required during Phase 3 Move mode: if the
+    // user's Advance switch happens to be Space or Enter, those keys
+    // are ALSO bound to Blockly's `finish_move` / `enter` shortcuts.
+    // Without capture-phase intercept, pressing Advance during a move
+    // would prematurely commit it via Blockly's handler before our
+    // own `move_down_constrained` step ever fired. We only stop
+    // propagation while a move-candidates frame is on top — every
+    // other frame leaves the event to flow normally, preserving
+    // pre-existing behavior for the action-menu / dropdown-values /
+    // toolbox / workspace sub-scans.
+    document.addEventListener('keydown', this.boundKeyHandler, true);
     window.addEventListener('resize', this.boundReflow);
     window.addEventListener('scroll', this.boundReflow, true);
 
@@ -330,7 +381,9 @@ export class SwitchScanController {
     this.enabled = false;
 
     // Unbind events.
-    document.removeEventListener('keydown', this.boundKeyHandler);
+    // Capture-phase flag must match `enable()` so removal cleans up
+    // the right listener slot.
+    document.removeEventListener('keydown', this.boundKeyHandler, true);
     window.removeEventListener('resize', this.boundReflow);
     window.removeEventListener('scroll', this.boundReflow, true);
 
@@ -341,14 +394,21 @@ export class SwitchScanController {
     }
 
     // Tear down overlay DOM.
+    // If a Blockly move is in flight (move-candidates frame on the
+    // stack) abort it BEFORE removing our overlay so Blockly's own
+    // teardown can clean up its highlight layer, connection-preview
+    // node, and click-stick listeners.
+    this.cancelActiveMoveIfAny();
     this.highlightEl?.remove();
     this.sentinelChip?.remove();
     this.actionMenuEl?.remove();
     this.dropdownMenuEl?.remove();
+    this.moveMenuEl?.remove();
     this.highlightEl = null;
     this.sentinelChip = null;
     this.actionMenuEl = null;
     this.dropdownMenuEl = null;
+    this.moveMenuEl = null;
 
     this.regions = [];
     this.frameStack = [];
@@ -419,8 +479,10 @@ export class SwitchScanController {
     // dynamically. Only do this when we're actually listening — a
     // disabled controller has no listener to swap.
     if (this.enabled) {
-      document.removeEventListener('keydown', this.boundKeyHandler);
-      document.addEventListener('keydown', this.boundKeyHandler);
+      // Capture flag must match `enable()` — see the docstring there
+      // for why we're at capture phase.
+      document.removeEventListener('keydown', this.boundKeyHandler, true);
+      document.addEventListener('keydown', this.boundKeyHandler, true);
     }
   }
 
@@ -785,7 +847,9 @@ export class SwitchScanController {
     if (frame.kind === 'dom-items') return frame.items.length + 1;
     if (frame.kind === 'blocks') return frame.blocks.length + 1;
     if (frame.kind === 'action-menu') return frame.items.length + 1;
-    return frame.options.length + 1;
+    if (frame.kind === 'dropdown-values') return frame.options.length + 1;
+    // 'move-candidates': fixed 2-item menu + sentinel = 3.
+    return frame.items.length + 1;
   }
 
   /**
@@ -798,7 +862,9 @@ export class SwitchScanController {
     if (frame.kind === 'dom-items') return frame.index === frame.items.length;
     if (frame.kind === 'blocks') return frame.index === frame.blocks.length;
     if (frame.kind === 'action-menu') return frame.index === frame.items.length;
-    return frame.index === frame.options.length;
+    if (frame.kind === 'dropdown-values') return frame.index === frame.options.length;
+    // 'move-candidates'
+    return frame.index === frame.items.length;
   }
 
   /**
@@ -862,10 +928,18 @@ export class SwitchScanController {
         `[data-scan-action-item="${frame.index}"]`,
       );
       rect = itemEl?.getBoundingClientRect() ?? null;
-    } else {
-      // dropdown-values
+    } else if (frame.kind === 'dropdown-values') {
       const itemEl = this.dropdownMenuEl?.querySelector<HTMLElement>(
         `[data-scan-dropdown-item="${frame.index}"]`,
+      );
+      rect = itemEl?.getBoundingClientRect() ?? null;
+    } else {
+      // 'move-candidates': highlight the Next/Place menu row. The
+      // candidate-connection itself is highlighted by Blockly's own
+      // move-mode preview (connection-highlight layer), so we never
+      // outline the block here.
+      const itemEl = this.moveMenuEl?.querySelector<HTMLElement>(
+        `[data-scan-move-item="${frame.index}"]`,
       );
       rect = itemEl?.getBoundingClientRect() ?? null;
     }
@@ -937,6 +1011,15 @@ export class SwitchScanController {
     this.actionMenuEl = null;
     this.dropdownMenuEl?.remove();
     this.dropdownMenuEl = null;
+    // Phase 3 Step 1: a move could be in flight when a run starts
+    // (rare — user has to advance through "Move → Next → Run" in a
+    // very specific order). Abort it cleanly before tearing down our
+    // overlay so Blockly's own move-mode bookkeeping (drag strategy
+    // patch, connection highlights, shortcut registration) gets
+    // unwound. handleRunEnd resets the frame stack to a fresh top.
+    this.cancelActiveMoveIfAny();
+    this.moveMenuEl?.remove();
+    this.moveMenuEl = null;
   }
 
   /**
@@ -1012,7 +1095,24 @@ export class SwitchScanController {
     const frame = this.activeFrame();
     if (!frame) return;
 
-    if (e.key === this.switchAdvance) {
+    const isAdvance = e.key === this.switchAdvance;
+    const isSelect = e.key === this.switchSelect;
+    if (!isAdvance && !isSelect) return;
+
+    // While a move is in flight (move-candidates frame), our switch
+    // keys collide with Blockly's own move-mode bindings — Space/Enter
+    // are `finish_move`, arrow keys are constrained candidate steps.
+    // Stop propagation here (capture phase) so Blockly's container-
+    // level handler never sees the press and doesn't commit/abort
+    // independently of us. Other frames intentionally do NOT stop
+    // propagation — pre-existing flows assume Blockly continues to
+    // receive non-switch keys, and we don't want to regress anything.
+    if (frame.kind === 'move-candidates') {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+
+    if (isAdvance) {
       const len = this.cycleLen(frame);
       if (len > 0) {
         frame.index = (frame.index + 1) % len;
@@ -1021,10 +1121,8 @@ export class SwitchScanController {
       return;
     }
 
-    if (e.key === this.switchSelect) {
-      this.handleSelect(frame);
-      return;
-    }
+    // isSelect
+    this.handleSelect(frame);
   }
 
   /**
@@ -1203,6 +1301,54 @@ export class SwitchScanController {
         this.enterDropdownValues(block, field, frame.topLevelIndex);
         return;
       }
+      if (item.key === 'move') {
+        // Hand off to Blockly's keyboard-move mode and push our own
+        // move-candidates frame to translate switch input into move-mode
+        // shortcut invocations. {@link enterMoveCandidates} encapsulates
+        // the focus / cursor priming and the start_move dispatch; if
+        // anything fails it'll pop us back to the same region rather
+        // than leaving the user stuck.
+        this.enterMoveCandidates(block, frame.topLevelIndex);
+        return;
+      }
+      return;
+    }
+
+    if (frame.kind === 'move-candidates') {
+      if (this.atSentinel(frame)) {
+        // Sentinel ("Back to top") aborts the in-flight move. Revert
+        // the block to its original position and pop back to the same
+        // top-level region (workspace), matching the other sentinel
+        // bails so the user can immediately pick a different block.
+        this.cancelActiveMoveIfAny();
+        this.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const item = frame.items[frame.index];
+      if (!item) {
+        // Defensive fallback — abort cleanly.
+        this.cancelActiveMoveIfAny();
+        this.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      if (item.key === 'next') {
+        // Step Blockly's move mode forward one candidate connection,
+        // then re-render so our Next/Place menu highlight stays on
+        // "Next" (the most common follow-up is another "Next"). The
+        // candidate-preview highlight is drawn by Blockly itself.
+        this.stepMoveCandidate();
+        this.renderHighlight();
+        return;
+      }
+      if (item.key === 'place') {
+        // Commit the move at whatever candidate Blockly is currently
+        // previewing. If commit succeeds (or fails defensively), pop
+        // to the next top-level region — Move counts as a committed
+        // action just like Select / Delete / Edit-commit.
+        this.commitMoveAtCurrentCandidate();
+        this.popToNextRegion(frame.topLevelIndex);
+        return;
+      }
       return;
     }
 
@@ -1356,6 +1502,15 @@ export class SwitchScanController {
       } else if (popped?.kind === 'dropdown-values') {
         this.dropdownMenuEl?.remove();
         this.dropdownMenuEl = null;
+      } else if (popped?.kind === 'move-candidates') {
+        // Just remove the overlay here — caller has already invoked
+        // either finish_move (commit) or abort_move (sentinel) BEFORE
+        // calling pop, so Blockly's own move-mode state is already
+        // cleaned up by this point. If pop is reached without one of
+        // those (defensive paths only — e.g. surprise frame stack
+        // reset), `cancelActiveMoveIfAny` will catch the stuck move.
+        this.moveMenuEl?.remove();
+        this.moveMenuEl = null;
       }
     }
     const topFrame = this.frameStack[0];
@@ -1532,6 +1687,16 @@ export class SwitchScanController {
    * editable dropdowns, we'll edit the FIRST one — see
    * {@link findFirstEditableDropdown}; multi-field handling is a
    * later-phase enhancement).
+   * - `Move` (Phase 3 Step 1) is conditional on the block having at
+   * least one valid alternative connection on the workspace — see
+   * {@link hasValidAlternativeConnections}. If there's nowhere else
+   * the block could go, entering move mode would just leave the user
+   * stuck cycling candidates that don't exist, so we hide the option
+   * entirely (matches the design doc instruction "skip this option").
+   *
+   * Order is `[Select, Edit, Move, Delete]` per the design doc —
+   * Move sits between Edit and Delete so the most-destructive option
+   * stays at the bottom of the menu where mis-selects are less likely.
    *
    * `topLevelIndex` is inherited from the workspace blocks frame — by
    * design every action (Select / Edit / Delete) pops straight back to
@@ -1551,6 +1716,9 @@ export class SwitchScanController {
     const items: ActionItem[] = [{key: 'select', label: 'Select'}];
     if (this.findFirstEditableDropdown(block)) {
       items.push({key: 'edit', label: 'Edit'});
+    }
+    if (this.hasValidAlternativeConnections(block)) {
+      items.push({key: 'move', label: 'Move'});
     }
     items.push({key: 'delete', label: 'Delete'});
 
@@ -1676,6 +1844,220 @@ export class SwitchScanController {
   }
 
   /**
+   * Decide whether the action menu's "Move" entry should be shown for
+   * `block`. True iff at least one of `block`'s own connections could
+   * legally connect to at least one connection on some OTHER block on
+   * the workspace (excluding `block`'s own descendants — they move with
+   * it, so they aren't valid attachment targets).
+   *
+   * Mirrors the same predicate used by the maze game's normal-mode
+   * move-hint code in `index.ts` (`hasValidConnections`). Duplicating
+   * the logic instead of importing keeps the controller a self-
+   * contained, lazily-loaded module and avoids reaching across to
+   * top-level page glue from inside a sub-feature.
+   *
+   * @param block
+   */
+  private hasValidAlternativeConnections(block: Blockly.BlockSvg): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const localConnections = (block as any).getConnections_?.(false) as
+      | Blockly.Connection[]
+      | undefined;
+    if (!localConnections || localConnections.length === 0) return false;
+
+    const movingDescendants = block.getDescendants(true) as Blockly.BlockSvg[];
+    const movingSet = new Set(movingDescendants);
+    const allWorkspaceConnections: Blockly.Connection[] = [];
+    for (const b of this.workspace.getAllBlocks(false)) {
+      if (movingSet.has(b as Blockly.BlockSvg)) continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const conns = (b as any).getConnections_?.(false) as Blockly.Connection[] | undefined;
+      if (conns) allWorkspaceConnections.push(...conns);
+    }
+    if (allWorkspaceConnections.length === 0) return false;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const connectionChecker = (this.workspace as any).connectionChecker as
+      | {
+          canConnect(
+            a: Blockly.Connection,
+            b: Blockly.Connection,
+            isDragging: boolean,
+            distance: number,
+          ): boolean;
+        }
+      | undefined;
+    if (!connectionChecker) return false;
+
+    for (const local of localConnections) {
+      for (const ws of allWorkspaceConnections) {
+        const sourceBlock = ws.getSourceBlock();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (!sourceBlock || (sourceBlock as any).isInsertionMarker?.()) continue;
+        // Only check directions where `block` would attach TO another
+        // block (matches the normal-mode helper's filter — keeps Move
+        // from showing on a block that's already at the end of a stack
+        // and only has next-statement connections that nothing in the
+        // workspace can attach to).
+        const isValidDirection =
+          (local.type === Blockly.ConnectionType.OUTPUT_VALUE &&
+            ws.type === Blockly.ConnectionType.INPUT_VALUE) ||
+          (local.type === Blockly.ConnectionType.PREVIOUS_STATEMENT &&
+            ws.type === Blockly.ConnectionType.NEXT_STATEMENT) ||
+          (local.type === Blockly.ConnectionType.NEXT_STATEMENT &&
+            ws.type === Blockly.ConnectionType.PREVIOUS_STATEMENT);
+        if (!isValidDirection) continue;
+        if (connectionChecker.canConnect(local, ws, true, Infinity)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Hand off to Blockly's keyboard move mode and push our own
+   * `move-candidates` frame so subsequent switch input drives Blockly's
+   * candidate traversal / commit / abort.
+   *
+   * Why route through `ShortcutRegistry` rather than reaching into the
+   * `Mover` directly: the maze game holds only a `KeyboardNavigation`
+   * handle (no public accessor for `Mover` / `MoveActions`), and the
+   * spec is to use ONLY public-API entry points. The `start_move`
+   * shortcut is the same code path Blockly's `M` key uses, so we
+   * inherit its preconditions (focus on workspace, no other move in
+   * flight, draggable is movable) and its keyboard-navigation activation
+   * (`keyboardNavigationController.setIsActive(true)`) for free.
+   *
+   * Priming: we focus the block AND set the workspace cursor to it so
+   * `getCurrentDraggable(workspace)` (which looks at
+   * `workspace.getCursor().getSourceBlock()`) returns this exact block
+   * when the shortcut runs. Without this priming the shortcut would
+   * fall through to whatever block last held focus.
+   *
+   * @param block
+   * @param topLevelIndex
+   */
+  private enterMoveCandidates(
+    block: Blockly.BlockSvg,
+    topLevelIndex: number,
+  ): void {
+    // Tear down the action menu first so the move-mode menu doesn't
+    // visually stack on top of it.
+    this.actionMenuEl?.remove();
+    this.actionMenuEl = null;
+
+    // Prime focus + cursor so start_move targets THIS block. Both calls
+    // are needed: Blockly's NavigationController activation flips into
+    // accessibility mode (via the start_move callback) and reads the
+    // current cursor; the focus call also moves the workspace focus tree
+    // so `getState()` reports WORKSPACE.
+    try {
+      Blockly.getFocusManager().focusNode(block);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.workspace as any).getCursor?.()?.setCurNode?.(block);
+    } catch (err) {
+      console.warn('[switch-scan] move-mode focus priming failed:', err);
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+
+    const started = this.invokeShortcut('start_move');
+    if (!started) {
+      // Could not enter move mode — workspace state didn't satisfy
+      // `canMove` (e.g. workspace lost focus mid-call) or the shortcut
+      // wasn't registered. Bail without leaving residual state.
+      console.warn('[switch-scan] start_move did not begin a move');
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+
+    const items: MoveCandidatesItem[] = [
+      {key: 'next', label: 'Next'},
+      {key: 'place', label: 'Place'},
+    ];
+    this.frameStack.push({
+      kind: 'move-candidates',
+      block,
+      items,
+      index: 0,
+      topLevelIndex,
+    });
+    this.renderMoveMenu(block, items);
+    this.renderHighlight();
+  }
+
+  /**
+   * Step Blockly's move-mode candidate cursor to the next valid
+   * connection. We use `move_down_constrained` (the same shortcut bound
+   * to Down arrow during normal-keyboard move mode) because its
+   * traversal walks `allConnections` in index order with wraparound,
+   * which is the right "advance through candidates" semantic for a
+   * single advance switch.
+   */
+  private stepMoveCandidate(): void {
+    if (!this.invokeShortcut('move_down_constrained')) {
+      console.warn('[switch-scan] move_down_constrained did not run');
+    }
+  }
+
+  /**
+   * Commit the in-flight move at the currently-previewed candidate.
+   * Mirrors what `Enter` does during Blockly's normal keyboard move.
+   */
+  private commitMoveAtCurrentCandidate(): void {
+    if (!this.invokeShortcut('finish_move')) {
+      console.warn('[switch-scan] finish_move did not run');
+    }
+  }
+
+  /**
+   * Abort the in-flight move if one is active. Safe to call when no
+   * move is in progress (the shortcut's `preconditionFn` makes it a
+   * no-op in that case). Used by:
+   *  - the move-candidates sentinel handler (user-initiated abort),
+   *  - `tearDownOverlaysForRun` (a pause-during-run guard so a partial
+   *    move doesn't leave Blockly's drag strategy patched),
+   *  - `disable()` (clean controller shutdown).
+   */
+  private cancelActiveMoveIfAny(): void {
+    this.invokeShortcut('abort_move');
+  }
+
+  /**
+   * Invoke a named shortcut from Blockly's `ShortcutRegistry` against
+   * this controller's workspace. Returns true iff the shortcut existed,
+   * its preconditionFn (if any) passed, AND its callback ran. We don't
+   * synthesize a real `KeyboardEvent` here — the move-mode shortcut
+   * callbacks all ignore the event/scope arguments and only read the
+   * workspace, so an empty fake event is sufficient.
+   *
+   * @param name
+   */
+  private invokeShortcut(name: string): boolean {
+    const registry = Blockly.ShortcutRegistry.registry.getRegistry();
+    const shortcut = registry[name];
+    if (!shortcut || !shortcut.callback) return false;
+    try {
+      if (shortcut.preconditionFn && !shortcut.preconditionFn(this.workspace, {})) {
+        return false;
+      }
+      return !!shortcut.callback(
+        this.workspace,
+        // The move-mode callbacks never read the event; an empty
+        // synthetic KeyboardEvent satisfies the type without
+        // triggering any DOM side-effects.
+        new KeyboardEvent('keydown'),
+        shortcut,
+        {workspace: this.workspace},
+      );
+    } catch (err) {
+      console.warn(`[switch-scan] shortcut "${name}" threw:`, err);
+      return false;
+    }
+  }
+
+  /**
    * (Re)build the action-menu overlay DOM and anchor it adjacent to
    * `block`. We rebuild on every entry rather than keeping a long-lived
    * element so the item list can change per block (Edit is conditional).
@@ -1703,6 +2085,38 @@ export class SwitchScanController {
     }
     document.body.appendChild(el);
     this.actionMenuEl = el;
+    this.anchorMenuToBlock(el, block);
+  }
+
+  /**
+   * (Re)build the move-candidates overlay DOM ("Next" / "Place") and
+   * anchor it next to `block`. Reuses the action-menu CSS class for
+   * styling consistency so the two overlays look like siblings rather
+   * than visually competing widgets. The candidate-connection itself
+   * is highlighted by Blockly's own move-mode preview, so this overlay
+   * just hosts the "which switch action did the user pick" affordance.
+   *
+   * @param block
+   * @param items
+   */
+  private renderMoveMenu(
+    block: Blockly.BlockSvg,
+    items: MoveCandidatesItem[],
+  ): void {
+    this.moveMenuEl?.remove();
+    const el = document.createElement('div');
+    // Share the action-menu class for visual consistency; an extra
+    // marker class lets us narrow CSS overrides later if needed.
+    el.className = 'switch-scan-action-menu switch-scan-move-menu';
+    for (let i = 0; i < items.length; i++) {
+      const row = document.createElement('div');
+      row.className = 'switch-scan-menu-item';
+      row.setAttribute('data-scan-move-item', String(i));
+      row.textContent = items[i].label;
+      el.appendChild(row);
+    }
+    document.body.appendChild(el);
+    this.moveMenuEl = el;
     this.anchorMenuToBlock(el, block);
   }
 
