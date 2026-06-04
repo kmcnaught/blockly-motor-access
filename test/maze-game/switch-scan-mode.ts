@@ -965,6 +965,19 @@ export class SwitchScanController {
           this.popToSameRegion(frame.topLevelIndex);
           return;
         }
+        // Pre-focus the block via Blockly's FocusManager (same call the
+        // Select handler uses) so the block visibly highlights during the
+        // dropdown-values sub-scan. Without this, the action menu closes
+        // and the dropdown opens with no indication of WHICH block is
+        // being edited — confusing in a chain of similar blocks. Wrapped
+        // in try/catch defensively: focusNode can throw if the block was
+        // disposed between menu open and selection, but we still want to
+        // proceed into the dropdown-values frame.
+        try {
+          Blockly.getFocusManager().focusNode(block);
+        } catch (err) {
+          console.warn('[switch-scan] focusNode failed:', err);
+        }
         // Dropdown frame inherits the same top-level index so its own
         // pop helpers compute correctly.
         this.enterDropdownValues(block, field, frame.topLevelIndex);

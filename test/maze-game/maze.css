@@ -2065,6 +2065,12 @@ body.grid-coding-mode .screen-padding {
 .switch-scan-dropdown-menu {
   background: #1a1a1a;
   border-color: #1a1a1a;
+  /* Nudge the dropdown-values overlay up a touch so it sits closer to
+   * the block being edited. The shared `anchorMenuToBlock` positions
+   * both the action menu AND this menu the same `+ 8px` below the
+   * block, but the dropdown menu reads as sitting a little too low in
+   * practice. CSS-only bump keeps the action-menu position unchanged. */
+  transform: translateY(-7px);
 }
 .switch-scan-dropdown-menu .switch-scan-menu-item {
   background: #2e2e2e;
