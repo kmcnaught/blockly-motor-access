@@ -498,6 +498,58 @@ export class SwitchScanController {
   }
 
   /**
+   * Compute the viewport-coordinate rect of a SINGLE workspace block,
+   * excluding any blocks connected via `nextConnection` or nested in its
+   * statement inputs.
+   *
+   * Why not `block.getSvgRoot().getBoundingClientRect()`: a block's SVG
+   * `<g>` element visually contains every descendant block (the next-
+   * block stack, children of value/statement inputs), so its DOM
+   * bounding rect over-covers — the outline would wrap the whole stack
+   * instead of the one block being scanned.
+   *
+   * Approach: Blockly's `BlockSvg.getBoundingRectangleWithoutChildren()`
+   * returns a {@link Blockly.utils.Rect} in WORKSPACE coordinates that
+   * uses the block's own `height`/`width` only (no descendants). We
+   * convert each corner to viewport (screen) coordinates via the public
+   * `Blockly.utils.svgMath.wsToScreenCoordinates` helper — same path
+   * Blockly itself uses for context-menu placement — which folds in
+   * workspace scale, scroll, the injection div's viewport offset, and
+   * the workspace origin offset in one call.
+   *
+   * Returns `null` if the block has no rendered SVG root (the renderer
+   * already skips these elsewhere; this is just defensive).
+   *
+   * Reusable: also the right rect to anchor the per-block action menu
+   * to (Step 4) — anchoring off the SVG-root rect drops the menu below
+   * the entire stack instead of below the current block.
+   *
+   * @param block
+   */
+  private getSingleBlockViewportRect(
+    block: Blockly.BlockSvg,
+  ): DOMRect | null {
+    if (!block.getSvgRoot?.()) return null;
+    const wsRect = block.getBoundingRectangleWithoutChildren();
+    const topLeft = Blockly.utils.svgMath.wsToScreenCoordinates(
+      this.workspace,
+      new Blockly.utils.Coordinate(wsRect.left, wsRect.top),
+    );
+    const bottomRight = Blockly.utils.svgMath.wsToScreenCoordinates(
+      this.workspace,
+      new Blockly.utils.Coordinate(wsRect.right, wsRect.bottom),
+    );
+    // RTL: workspace `left` may be > `right` numerically, but converting
+    // both corners and re-normalising via min/max keeps the DOMRect's
+    // width/height positive without us caring which direction is which.
+    const left = Math.min(topLeft.x, bottomRight.x);
+    const top = Math.min(topLeft.y, bottomRight.y);
+    const width = Math.abs(bottomRight.x - topLeft.x);
+    const height = Math.abs(bottomRight.y - topLeft.y);
+    return new DOMRect(left, top, width, height);
+  }
+
+  /**
    * Create the highlight outline + sentinel chip and attach them to
    * the document body. Both elements stay in the DOM for the life of
    * the enabled controller; we just toggle visibility / position.
@@ -590,8 +642,20 @@ export class SwitchScanController {
     } else if (frame.kind === 'dom-items') {
       rect = frame.items[frame.index]?.getBoundingClientRect() ?? null;
     } else if (frame.kind === 'blocks') {
-      const svgRoot = frame.blocks[frame.index]?.getSvgRoot();
-      rect = svgRoot?.getBoundingClientRect() ?? null;
+      const block = frame.blocks[frame.index];
+      if (frame.regionName === 'workspace' && block) {
+        // For workspace blocks we want the outline to hug ONLY the
+        // current block, not the connected stack below it. The block's
+        // SVG root visually contains all descendants/next-blocks, so
+        // its raw bounding rect over-covers. See
+        // {@link getSingleBlockViewportRect} for the conversion.
+        rect = this.getSingleBlockViewportRect(block);
+      } else {
+        // Toolbox flyout blocks aren't stacked, so the SVG root rect
+        // already hugs just the one block.
+        const svgRoot = block?.getSvgRoot();
+        rect = svgRoot?.getBoundingClientRect() ?? null;
+      }
     } else if (frame.kind === 'action-menu') {
       // Highlight the currently-focused menu row inside the overlay.
       // The block underneath is implicitly the subject of every action,
