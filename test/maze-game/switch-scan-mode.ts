@@ -912,8 +912,19 @@ export class SwitchScanController {
             insertBlockAfterCursor(this.workspace, block.type);
           }
         } finally {
-          // Action completed (block inserted): advance to next region.
-          this.popToNextRegion(frame.topLevelIndex);
+          // Toolbox insert is the ONE action-commit exception that pops
+          // to the SAME top-level region instead of advancing: users
+          // building a program typically chain inserts (turn → move →
+          // turn → ...), and advancing to workspace after every insert
+          // forces them to cycle all the way back through workspace +
+          // maze-actions + sentinel + header just to insert again.
+          // Staying on toolbox lets them re-enter the flyout sub-scan
+          // immediately for the next insert. Every other action-commit
+          // site (header button click, action-menu Select/Delete/Edit
+          // commit, maze-actions click, dropdown-values pick) still
+          // uses popToNextRegion — only the chain-insert ergonomics
+          // here warrant the override.
+          this.popToSameRegion(frame.topLevelIndex);
         }
         return;
       }
