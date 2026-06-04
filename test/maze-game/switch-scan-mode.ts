@@ -71,6 +71,17 @@ import {MazeGame} from './maze';
 import {insertBlockAfterCursor} from './block-insertion';
 
 /**
+ * Minimal contract the controller needs from the settings panel. Kept
+ * as a structural type (rather than importing `SwitchScanSettings`
+ * directly) so the two modules don't get a hard cyclic dependency —
+ * the controller doesn't care about the rest of the settings API, only
+ * whether a live key-capture is currently in flight (Step D).
+ */
+interface SwitchScanSettingsLike {
+  isCapturing(): boolean;
+}
+
+/**
  * Options for configuring the switch scan controller.
  * Keys use `KeyboardEvent.key` string values (e.g. `' '` for Space,
  * `'Enter'` for Enter). Human-readable aliases like `'Space'` are also
@@ -204,6 +215,12 @@ export class SwitchScanController {
   // Key bindings (KeyboardEvent.key values). Defaults: Space / Enter.
   private switchAdvance = ' ';
   private switchSelect = 'Enter';
+
+  // Settings panel reference (Step D). Optional: only wired up when
+  // switch-scan mode is active AND the settings module is constructed.
+  // Used purely to consult `isCapturing()` so the controller can stand
+  // down while the modal's live key-capture is reading the next press.
+  private settings: SwitchScanSettingsLike | null = null;
 
   // Top-level regions, discovered on enable(). Index === regions.length
   // represents the synthetic "back to top" sentinel.
@@ -405,6 +422,127 @@ export class SwitchScanController {
       document.removeEventListener('keydown', this.boundKeyHandler);
       document.addEventListener('keydown', this.boundKeyHandler);
     }
+  }
+
+  /**
+   * Wire the controller to the Settings panel (Step D).
+   *
+   * The controller only needs the {@link SwitchScanSettingsLike#isCapturing}
+   * getter — when it's `true`, the modal has attached its own capture
+   * keydown listener at `capture: true` to grab the user's NEXT switch
+   * press as the new binding, and the controller must stand down so it
+   * doesn't ALSO interpret that press as an advance/select. We can't
+   * just rely on the modal's `stopImmediatePropagation()` because both
+   * listeners are at the document level and the order isn't guaranteed
+   * across browsers — making `handleKeyDown` short-circuit on
+   * `isCapturing()` is the belt-and-braces version.
+   *
+   * Settings is also our hook for push/pop modal sub-scan — index.ts
+   * calls `pushModalSubScan` on open, the modal's Dialog onClose calls
+   * `popModalSubScan`. Both are exposed below.
+   *
+   * @param settings The settings panel (or any object with `isCapturing`).
+   */
+  setSettings(settings: SwitchScanSettingsLike | null): void {
+    this.settings = settings;
+  }
+
+  /**
+   * Push a `dom-items` frame for the named region (Step D entry point).
+   *
+   * The modal scan flow needs the same sub-scan plumbing the header /
+   * maze-actions buttons already use — discover `[data-scan-item]`
+   * descendants of the `[data-scan-region="<regionName>"]` wrapper,
+   * push a frame, render the highlight inside the modal — but it's
+   * driven by the modal's open/close lifecycle rather than a user
+   * select. Hence this public entry point: index.ts calls it when the
+   * settings modal opens, the controller treats the modal as a top-
+   * level sub-scan target until {@link popModalSubScan} undoes it.
+   *
+   * Chose Option A from the plan: programmatically open a `dom-items`
+   * sub-scan over the modal's region. The frame stack already supports
+   * `dom-items`; we just bootstrap it from outside the normal `select`
+   * path. The `topLevelIndex` we record is the user's current top-level
+   * index — so the natural pop helper lands them where they came from
+   * (typically header / settings button) if the modal closes via
+   * sentinel-style bail.
+   *
+   * Idempotent: if the modal is already pushed (e.g. an open call
+   * arrives while one is already active), no-op rather than stacking
+   * duplicate frames.
+   *
+   * @param regionName The modal's `data-scan-region` value.
+   */
+  pushModalSubScan(regionName: string): void {
+    if (!this.enabled) return;
+    // Don't double-push: if there's already a dom-items frame for this
+    // region on top, leave it alone. Avoids a stale frame if the modal
+    // fires `open` twice during a race (e.g. open click + focus-trap
+    // bounce).
+    const active = this.activeFrame();
+    if (
+      active?.kind === 'dom-items' &&
+      active.parentRegionName === regionName
+    ) {
+      return;
+    }
+
+    const items = this.discoverDomRegionItems(regionName);
+    if (items.length === 0) {
+      // No scannable controls inside the modal: nothing to push. We
+      // deliberately don't error — the modal still works via mouse /
+      // tab focus; the scanner just has nothing useful to do here.
+      return;
+    }
+
+    // Anchor on whichever top-level index the user is currently on,
+    // falling back to 0 if we somehow have no top frame. This is the
+    // index pop helpers use for "resume here" — for the modal we want
+    // the user to land back on the originating region (e.g. header
+    // where the settings button lives) after close.
+    const topFrame = this.frameStack[0];
+    const topLevelIndex =
+      topFrame && topFrame.kind === 'top' ? topFrame.index : 0;
+
+    this.frameStack.push({
+      kind: 'dom-items',
+      parentRegionName: regionName,
+      items,
+      index: 0,
+      topLevelIndex,
+    });
+    this.renderHighlight();
+  }
+
+  /**
+   * Pop the modal sub-scan frame and resume top-level scanning (Step D).
+   *
+   * Called by index.ts from the Dialog's `onClose` hook, which fires
+   * for every close path the modal supports (Cancel button, Save
+   * button, ESC, backdrop click). We pop every non-`top` frame on the
+   * stack — the same approach {@link popSubScan} uses — so any nested
+   * frame we accidentally accumulated underneath is also cleared.
+   *
+   * Idempotent: a no-op if the stack is already at a clean top frame
+   * (e.g. close fired without a corresponding open, or close fired
+   * twice).
+   */
+  popModalSubScan(): void {
+    if (!this.enabled) return;
+    // Nothing to do if we're already at the top frame.
+    if (this.frameStack.length <= 1) return;
+    // Land back on whichever top-level index the modal-frame recorded
+    // (typically header — that's where the settings button lives).
+    let resumeIndex = 0;
+    for (let i = this.frameStack.length - 1; i >= 0; i--) {
+      const f = this.frameStack[i];
+      if (f.kind === 'dom-items' || f.kind === 'blocks' ||
+          f.kind === 'action-menu' || f.kind === 'dropdown-values') {
+        resumeIndex = f.topLevelIndex;
+        break;
+      }
+    }
+    this.popSubScan(resumeIndex);
   }
 
   /**
@@ -850,6 +988,18 @@ export class SwitchScanController {
     // The user should be watching the animation, not driving the
     // scanner; resuming happens automatically via handleRunEnd.
     if (this.executing) return;
+
+    // Step D: while the settings modal has a live key-capture in
+    // flight, every press belongs to the capture handler (it's reading
+    // the user's NEXT switch press as the new binding). Stand down so
+    // the controller doesn't ALSO interpret that press as advance /
+    // select — otherwise the user would simultaneously rebind Switch A
+    // AND fire an advance, drifting the scan position invisibly.
+    // We can't rely solely on the modal's capture-phase listener +
+    // stopImmediatePropagation, because listener ordering across
+    // browsers at the document level isn't strictly guaranteed; the
+    // explicit short-circuit is the belt-and-braces version.
+    if (this.settings?.isCapturing()) return;
 
     // Ignore if user is typing in an input field.
     if (

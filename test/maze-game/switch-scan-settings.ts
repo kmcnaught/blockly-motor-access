@@ -73,6 +73,22 @@ export interface SwitchScanSettingsOptions {
    */
   urlOverrideActive?: boolean;
   onSave: (cfg: SwitchScanSettingsValues) => void;
+  /**
+   * Optional Step D hook: fired after the modal opens, BEFORE the user
+   * can interact with it. The switch-scan controller wires this to
+   * `pushModalSubScan('settings-modal')` so the scanner re-targets
+   * itself inside the modal's region for the duration of the modal's
+   * lifetime. Non-switch-scan callers can leave it unset.
+   */
+  onOpen?: () => void;
+  /**
+   * Optional Step D hook: fired after the modal closes via any path
+   * (Cancel, Save, ESC, backdrop click — Dialog's existing onClose
+   * funnels them all). The controller wires this to
+   * `popModalSubScan()` so the scanner restores its previous frame
+   * stack. Non-switch-scan callers can leave it unset.
+   */
+  onClose?: () => void;
 }
 
 /**
@@ -147,12 +163,16 @@ export class SwitchScanSettings {
   } | null = null;
 
   private readonly onSave: (cfg: SwitchScanSettingsValues) => void;
+  private readonly onOpenHook: (() => void) | null;
+  private readonly onCloseHook: (() => void) | null;
 
   constructor(
     options: SwitchScanSettingsOptions,
     elementId = 'switchSettingsModal',
   ) {
     this.onSave = options.onSave;
+    this.onOpenHook = options.onOpen ?? null;
+    this.onCloseHook = options.onClose ?? null;
     this.committedAdvance = options.initialAdvanceKey;
     this.committedSelect = options.initialSelectKey;
     this.committedMode = options.initialMode ?? 'step';
@@ -165,11 +185,19 @@ export class SwitchScanSettings {
     // ESC closes / focus traps work the same way as every other modal.
     // We treat backdrop-click / ESC as Cancel so the user can't leak
     // pending key-captures past a dismissed dialog.
+    //
+    // Step D: also fire the host's `onClose` hook so the switch-scan
+    // controller can pop its modal sub-scan frame on every close path
+    // (Cancel button, Save button, ESC, backdrop click — Dialog
+    // funnels them all here).
     this.dialog = new Dialog(elementId, {
       focusSelector: '#switchSettingsCancel',
       closeOnEscape: true,
       closeOnBackdropClick: true,
-      onClose: () => this.cancelCapture(),
+      onClose: () => {
+        this.cancelCapture();
+        this.onCloseHook?.();
+      },
     });
 
     this.cancelBtn = document.getElementById(
@@ -292,6 +320,12 @@ export class SwitchScanSettings {
     this.renderUrlOverrideNote();
     this.clearErrors();
     this.dialog.show();
+    // Step D: notify the host AFTER the dialog has been shown so the
+    // modal's DOM is laid out + measurable. The switch-scan controller
+    // uses this to push a sub-scan frame over the modal's region;
+    // discovery scans `[data-scan-item]` children, which need to be
+    // visible (`offsetParent` non-null) to count.
+    this.onOpenHook?.();
   }
 
   /** Close the settings modal. */

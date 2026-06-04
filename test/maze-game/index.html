@@ -267,21 +267,25 @@
 
     <!-- Switch Scan Settings Modal (Phase 2 Step A scaffold).
          Structurally mirrors #shortcutsModal so it picks up the same
-         dialog.result-modal styling + animation. Controls are stubs
-         in this step; capture (Step B), persistence (Step C), and
-         scan tagging (Step D) follow. -->
+         dialog.result-modal styling + animation. Step D: the
+         .switch-settings-list wrapper carries data-scan-region so the
+         switch-scan controller can push a sub-scan frame over it while
+         the modal is open; scannable controls inside carry
+         data-scan-item. The slider + audio toggle remain untagged
+         intentionally — they're disabled stubs for Phase 4/5, and
+         scanning to them would just yield a no-op press. -->
     <dialog id="switchSettingsModal" class="result-modal switch-settings-modal" aria-labelledby="switchSettingsModalTitle">
       <h2 id="switchSettingsModalTitle" class="result-modal-title">Switch Scan Settings</h2>
 
-      <div class="switch-settings-list">
+      <div class="switch-settings-list" role="region" aria-label="Switch scan settings controls" data-scan-region="settings-modal">
         <!-- 1. Switch mode -->
         <fieldset class="switch-settings-group">
           <legend class="switch-settings-heading">Switch mode</legend>
-          <label class="switch-settings-row">
+          <label class="switch-settings-row" data-scan-item>
             <input type="radio" name="switchScanMode" value="step" checked>
             <span>Two-switch (step scan)</span>
           </label>
-          <label class="switch-settings-row">
+          <label class="switch-settings-row" data-scan-item>
             <input type="radio" name="switchScanMode" value="auto">
             <span>One-switch (auto scan)</span>
           </label>
@@ -292,7 +296,7 @@
           <h3 class="switch-settings-heading">Switch A (Advance)</h3>
           <div class="switch-settings-row">
             <span id="switchACurrent" class="switch-settings-current">Space</span>
-            <button id="switchACaptureBtn" type="button" class="switch-settings-capture" disabled>
+            <button id="switchACaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
               Click to capture
             </button>
           </div>
@@ -304,13 +308,14 @@
           <h3 class="switch-settings-heading">Switch B (Select)</h3>
           <div class="switch-settings-row">
             <span id="switchBCurrent" class="switch-settings-current">Enter</span>
-            <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" disabled>
+            <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
               Click to capture
             </button>
           </div>
         </div>
 
-        <!-- 4. Scan speed (auto-scan mode — Phase 4). -->
+        <!-- 4. Scan speed (auto-scan mode — Phase 4). NOT data-scan-item:
+             disabled stub, no action to fire. -->
         <div class="switch-settings-group switch-settings-disabled">
           <h3 class="switch-settings-heading">Scan speed</h3>
           <div class="switch-settings-row">
@@ -320,7 +325,8 @@
           <p class="switch-settings-note">Coming soon &mdash; single-switch mode</p>
         </div>
 
-        <!-- 5. Audio feedback (TTS — Phase 5). -->
+        <!-- 5. Audio feedback (TTS — Phase 5). NOT data-scan-item:
+             disabled stub, no action to fire. -->
         <div class="switch-settings-group switch-settings-disabled">
           <h3 class="switch-settings-heading">Audio feedback</h3>
           <div class="switch-settings-row">
@@ -331,16 +337,18 @@
           </div>
           <p class="switch-settings-note">Coming soon &mdash; TTS</p>
         </div>
-      </div>
 
-      <div class="result-modal-buttons">
-        <button id="switchSettingsCancel" class="result-modal-cancel">
-          <span class="cancel-text">Cancel</span>
-          <span class="cancel-hint">[Esc]</span>
-        </button>
-        <button id="switchSettingsSave" class="result-modal-ok">
-          <span class="ok-text">Save</span>
-        </button>
+        <!-- Cancel / Save live inside the scan region so they're
+             reachable in the same sub-scan as the controls above. -->
+        <div class="result-modal-buttons">
+          <button id="switchSettingsCancel" class="result-modal-cancel" data-scan-item>
+            <span class="cancel-text">Cancel</span>
+            <span class="cancel-hint">[Esc]</span>
+          </button>
+          <button id="switchSettingsSave" class="result-modal-ok" data-scan-item>
+            <span class="ok-text">Save</span>
+          </button>
+        </div>
       </div>
     </dialog>
 

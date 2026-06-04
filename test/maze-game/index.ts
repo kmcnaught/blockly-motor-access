@@ -2830,11 +2830,36 @@ if (isSwitchScanMode) {
         cfg.switchSelect,
       );
     },
+    // Phase 2 Step D: when the modal opens, push a sub-scan frame over
+    // the modal's `data-scan-region="settings-modal"` so the scanner
+    // re-targets itself INSIDE the modal — otherwise a switch user who
+    // opened the modal would be stranded (the top-level cycle keeps
+    // scanning the page underneath, but the modal's controls aren't on
+    // it). Pop is the symmetric close hook below.
+    onOpen: () => {
+      switchScanController?.pushModalSubScan('settings-modal');
+    },
+    // Phase 2 Step D: fires for EVERY close path (Cancel, Save, ESC,
+    // backdrop click — Dialog funnels them all through this single
+    // callback). Pops the modal frame and restores the user to whatever
+    // top-level region they came from (typically `header`, where the
+    // settings button lives).
+    onClose: () => {
+      switchScanController?.popModalSubScan();
+    },
   });
+
+  // Phase 2 Step D: wire the controller → settings reference so its
+  // keydown handler can short-circuit while a live key-capture is in
+  // flight. See SwitchScanController.setSettings for the why.
+  switchScanController.setSettings(switchScanSettings);
+
   const switchSettingsBtn = document.getElementById('switchSettingsBtn');
   if (switchSettingsBtn) {
     switchSettingsBtn.classList.remove('hidden');
     switchSettingsBtn.addEventListener('click', () => {
+      // `show()` itself fires the onOpen hook (after the dialog is
+      // actually visible), which pushes the modal sub-scan frame.
       switchScanSettings?.show();
     });
   }
