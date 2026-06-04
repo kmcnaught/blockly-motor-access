@@ -271,9 +271,9 @@
          .switch-settings-list wrapper carries data-scan-region so the
          switch-scan controller can push a sub-scan frame over it while
          the modal is open; scannable controls inside carry
-         data-scan-item. The slider + audio toggle remain untagged
-         intentionally — they're disabled stubs for Phase 4/5, and
-         scanning to them would just yield a no-op press. -->
+         data-scan-item. The scan-speed slider remains untagged because
+         it's a Phase 4 disabled stub; the audio toggle is Phase 5
+         live as of this build and carries data-scan-item. -->
     <dialog id="switchSettingsModal" class="result-modal switch-settings-modal" aria-labelledby="switchSettingsModalTitle">
       <h2 id="switchSettingsModalTitle" class="result-modal-title">Switch Scan Settings</h2>
 
@@ -325,17 +325,18 @@
           <p class="switch-settings-note">Coming soon &mdash; single-switch mode</p>
         </div>
 
-        <!-- 5. Audio feedback (TTS — Phase 5). NOT data-scan-item:
-             disabled stub, no action to fire. -->
-        <div class="switch-settings-group switch-settings-disabled">
+        <!-- 5. Audio feedback (TTS — Phase 5). data-scan-item so it
+             reaches the scan cycle inside the modal; toggling fires a
+             pending state change that takes effect on Save (host page
+             persists + calls SwitchScanTts.setEnabled). -->
+        <div class="switch-settings-group">
           <h3 class="switch-settings-heading">Audio feedback</h3>
           <div class="switch-settings-row">
-            <label class="switch-settings-toggle">
-              <input id="audioFeedbackToggle" type="checkbox" disabled>
+            <label class="switch-settings-toggle" data-scan-item>
+              <input id="audioFeedbackToggle" type="checkbox">
               <span>Speak highlighted item</span>
             </label>
           </div>
-          <p class="switch-settings-note">Coming soon &mdash; TTS</p>
         </div>
 
         <!-- Cancel / Save live inside the scan region so they're

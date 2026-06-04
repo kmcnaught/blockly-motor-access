@@ -33,6 +33,7 @@ import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
 import {SwitchScanController} from './switch-scan-mode';
 import {SwitchScanSettings} from './switch-scan-settings';
+import {SwitchScanTts} from './switch-scan-tts';
 import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
 import {launchConfetti} from './confetti';
@@ -111,6 +112,9 @@ const SWITCH_SCAN_LS_KEYS = {
   advance: 'mazeSwitchScan.switchAdvance',
   select: 'mazeSwitchScan.switchSelect',
   mode: 'mazeSwitchScan.mode',
+  // Phase 5: TTS on/off. Stored as the literal string 'on' / 'off'
+  // so the resolver helper can compare without parsing.
+  audio: 'mazeSwitchScan.audio',
 } as const;
 
 type SwitchScanModeValue = 'step' | 'auto';
@@ -158,7 +162,10 @@ function resolveSwitchScanSetting(
 const switchScanUrlOverrideActive =
   getStringParamFromUrl('switchAdvance', '') !== '' ||
   getStringParamFromUrl('switchSelect', '') !== '' ||
-  getStringParamFromUrl('scanMode', '') !== '';
+  getStringParamFromUrl('scanMode', '') !== '' ||
+  // Phase 5: scanAudio joins the URL-override family so the modal's
+  // "URL settings active" note appears whenever audio is being forced.
+  getStringParamFromUrl('scanAudio', '') !== '';
 
 const switchAdvanceKey = resolveSwitchScanSetting(
   'switchAdvance',
@@ -177,6 +184,20 @@ const switchScanInitialMode: SwitchScanModeValue = (() => {
     'step',
   );
   return v === 'auto' ? 'auto' : 'step';
+})();
+
+// Phase 5 TTS — resolve `?scanAudio=on/off` > localStorage > 'off'.
+// Stored as string ('on' / 'off') so the same resolver helper works;
+// converted to boolean here for the controller / settings interface.
+// Default is intentionally OFF (design doc lines 223-235): switch
+// users with audio off should see ZERO change from non-TTS builds.
+const switchScanInitialAudio: boolean = (() => {
+  const v = resolveSwitchScanSetting(
+    'scanAudio',
+    SWITCH_SCAN_LS_KEYS.audio,
+    'off',
+  );
+  return v === 'on';
 })();
 
 // Current grid stage (1 = immediate execution, 2 = delayed execution)
@@ -2776,11 +2797,25 @@ initializeGridCodingMode();
 // Mutually exclusive with grid coding mode; instantiation above is guarded.
 let switchScanController: SwitchScanController | null = null;
 let switchScanSettings: SwitchScanSettings | null = null;
+// Phase 5: a single TTS helper instance owned by the page for the
+// life of the session. The controller speaks via setTts(); the
+// settings panel persists the on/off state via onSave + setEnabled.
+// Constructed unconditionally even though it's only used in switch-
+// scan mode — the helper is cheap and feature-detects internally.
+let switchScanTts: SwitchScanTts | null = null;
 if (isSwitchScanMode) {
+  switchScanTts = new SwitchScanTts();
+  switchScanTts.setEnabled(switchScanInitialAudio);
+
   switchScanController = new SwitchScanController(workspace, mazeGame, {
     switchAdvance: switchAdvanceKey,
     switchSelect: switchSelectKey,
   });
+  // Wire TTS BEFORE enable() so the initial highlight render — which
+  // doesn't speak anyway (see SwitchScanController.enable) — already
+  // sees the helper, and the very first user keypress can fire a
+  // speak call without a re-attach race.
+  switchScanController.setTts(switchScanTts);
   switchScanController.enable();
 
   // Phase 2 Step A: surface the dedicated Switch Scan Settings button
@@ -2797,9 +2832,11 @@ if (isSwitchScanMode) {
     initialAdvanceKey: switchAdvanceKey,
     initialSelectKey: switchSelectKey,
     initialMode: switchScanInitialMode,
+    // Phase 5: seed the audio checkbox from URL > LS > 'off'.
+    initialAudio: switchScanInitialAudio,
     urlOverrideActive: switchScanUrlOverrideActive,
     onSave: (cfg) => {
-      // Persist all three values. Wrapped in try/catch because
+      // Persist all four values. Wrapped in try/catch because
       // localStorage can throw in private-browsing / quota-exceeded
       // contexts — settings work for this session, just not the next.
       try {
@@ -2815,6 +2852,14 @@ if (isSwitchScanMode) {
         // lands. We still persist it so the radio remembers the user's
         // pick once the controller is wired up to consume it.
         window.localStorage.setItem(SWITCH_SCAN_LS_KEYS.mode, cfg.mode);
+        // Phase 5: TTS persists as 'on' / 'off'. We don't write a
+        // boolean — keeps the LS layer consistent with the rest of
+        // the maze game's string-typed flags and matches the URL
+        // param's accepted values.
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.audio,
+          cfg.audio ? 'on' : 'off',
+        );
       } catch (e) {
         console.warn(
           '[switch-scan settings] localStorage write failed:',
@@ -2829,6 +2874,17 @@ if (isSwitchScanMode) {
         cfg.switchAdvance,
         cfg.switchSelect,
       );
+      // Phase 5: live-apply the audio choice. Toggling enabled → on
+      // does NOT auto-replay the previous label (would be confusing
+      // out of context); instead, we ask the controller to speak the
+      // CURRENT highlight so the user hears immediate confirmation
+      // that the toggle worked. Disabling silences any in-progress
+      // utterance via SwitchScanTts.setEnabled(false) → cancel().
+      const wasEnabled = switchScanTts?.isEnabled() ?? false;
+      switchScanTts?.setEnabled(cfg.audio);
+      if (cfg.audio && !wasEnabled) {
+        switchScanController?.speakCurrentItemLabel();
+      }
     },
     // Phase 2 Step D: when the modal opens, push a sub-scan frame over
     // the modal's `data-scan-region="settings-modal"` so the scanner

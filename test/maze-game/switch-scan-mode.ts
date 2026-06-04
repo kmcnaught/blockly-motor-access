@@ -63,7 +63,13 @@
  *    pegman dropdown is reachable via the header sub-scan but its
  *    sub-menu items aren't yet scannable as a nested region).
  *  - No single-switch auto-scan mode — two-switch step scan only.
- *  - No TTS / audio cue layer.
+ *
+ * Phase 5 (TTS) is live: when wired via {@link SwitchScanController#setTts},
+ * each advance / sub-scan-entry speaks the current item's label via
+ * the Web Speech API. The TTS helper owns the enabled flag (off by
+ * default; toggled via the settings modal or the `?scanAudio=on` URL
+ * param) and the cancel-and-replace contract; this controller just
+ * derives the label and forwards it on every interactive render.
  */
 
 import * as Blockly from 'blockly/core';
@@ -79,6 +85,19 @@ import {insertBlockAfterCursor} from './block-insertion';
  */
 interface SwitchScanSettingsLike {
   isCapturing(): boolean;
+}
+
+/**
+ * Minimal contract the controller needs from the TTS helper (Phase 5).
+ * Kept as a structural type so the controller doesn't pull in
+ * `SpeechSynthesisUtterance` types or care about the feature-detect
+ * branch — it just speaks / cancels and lets the helper figure out
+ * whether to actually emit sound.
+ */
+interface SwitchScanTtsLike {
+  speak(label: string): void;
+  cancel(): void;
+  isEnabled(): boolean;
 }
 
 /**
@@ -257,6 +276,14 @@ export class SwitchScanController {
   // down while the modal's live key-capture is reading the next press.
   private settings: SwitchScanSettingsLike | null = null;
 
+  // TTS helper (Phase 5). Optional: when null, the controller never
+  // emits speak calls. When set, every renderHighlight() will derive
+  // a label for the current item and ask the helper to speak it; the
+  // helper itself decides whether to emit based on its enabled flag.
+  // Cancel-and-replace is owned by the helper, so the controller
+  // doesn't need to worry about queueing.
+  private tts: SwitchScanTtsLike | null = null;
+
   // Top-level regions, discovered on enable(). Index === regions.length
   // represents the synthetic "back to top" sentinel.
   private regions: ScanRegion[] = [];
@@ -368,7 +395,11 @@ export class SwitchScanController {
       this.tearDownOverlaysForRun();
     } else {
       // Initial render so the user sees the highlight immediately.
-      this.renderHighlight();
+      // Phase 5: don't speak here — there's been no user gesture yet,
+      // so the browser would either silently swallow the utterance or
+      // (worse) start talking the moment the page loads. The first
+      // real speak happens on the user's first advance/select press.
+      this.renderHighlight({speak: false});
     }
   }
 
@@ -392,6 +423,10 @@ export class SwitchScanController {
       cancelAnimationFrame(this.reflowRafHandle);
       this.reflowRafHandle = null;
     }
+
+    // Phase 5: silence any in-progress utterance so a disable doesn't
+    // leave the voice talking over a now-hidden highlight.
+    this.tts?.cancel();
 
     // Tear down overlay DOM.
     // If a Blockly move is in flight (move-candidates frame on the
@@ -507,6 +542,36 @@ export class SwitchScanController {
    */
   setSettings(settings: SwitchScanSettingsLike | null): void {
     this.settings = settings;
+  }
+
+  /**
+   * Wire the controller to the TTS helper (Phase 5).
+   *
+   * Same structural-type pattern as {@link setSettings} — the
+   * controller doesn't import {@link SwitchScanTts} directly so the
+   * dependency graph stays one-way (host page → controller; host page
+   * → tts). When the helper is unset OR its own `isEnabled()` returns
+   * false, speak calls degrade to no-ops; callers don't branch.
+   *
+   * @param tts The TTS helper, or `null` to clear.
+   */
+  setTts(tts: SwitchScanTtsLike | null): void {
+    this.tts = tts;
+  }
+
+  /**
+   * Speak the label for the currently-highlighted item (Phase 5).
+   *
+   * Exposed publicly so the host page can confirm a settings toggle
+   * by speaking the current label as soon as audio is enabled — the
+   * common "did the toggle work?" feedback case. Internal callers
+   * don't need this — `renderHighlight` already speaks on every
+   * highlight move.
+   */
+  speakCurrentItemLabel(): void {
+    if (!this.tts) return;
+    const label = this.currentItemLabel();
+    if (label) this.tts.speak(label);
   }
 
   /**
@@ -868,6 +933,102 @@ export class SwitchScanController {
   }
 
   /**
+   * Derive a human-readable label for the currently-highlighted item
+   * (Phase 5 TTS). Returns `null` when there's no meaningful string to
+   * read (e.g. defensive cases where the active frame is missing).
+   *
+   * Label source by frame kind:
+   *  - sentinel slot of any frame → "Back to top" (mirrors the chip's
+   *    on-screen text so the audio + visual cues match).
+   *  - `top` at a real region → the region's `name` ("header",
+   *    "toolbox", "workspace", "maze-actions"). The names are
+   *    intentionally terse and machine-flavored — there's no
+   *    region-friendly map yet, and these strings happen to read fine
+   *    out loud.
+   *  - `dom-items` → the item's `aria-label`, falling back to its
+   *    `textContent`. The settings modal's controls already carry
+   *    sensible aria-labels via the existing markup; bare buttons
+   *    fall back to their visible text.
+   *  - `blocks` → `block.toString()` (Blockly's built-in
+   *    structurally-renders the block to "move forward", "turn left",
+   *    "repeat 5 times do", etc., respecting the message strings
+   *    loaded from `messages.ts`). Falls back to `block.type` if
+   *    toString returns empty.
+   *  - `action-menu` / `move-candidates` → the item's explicit
+   *    `label` field, which was set when the menu was constructed.
+   *  - `dropdown-values` → the string form of the option label
+   *    (image-labels use their `alt` text, matching how Blockly
+   *    itself reads them).
+   */
+  private currentItemLabel(): string | null {
+    const frame = this.activeFrame();
+    if (!frame) return null;
+
+    if (this.atSentinel(frame)) {
+      // Mirror the chip's visible text. The "↺" is a decorative glyph
+      // we deliberately drop here — it doesn't read sensibly aloud.
+      return 'Back to top';
+    }
+
+    if (frame.kind === 'top') {
+      const region = this.regions[frame.index];
+      return region?.name ?? null;
+    }
+
+    if (frame.kind === 'dom-items') {
+      const item = frame.items[frame.index];
+      if (!item) return null;
+      const aria = item.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria.trim();
+      const text = item.textContent?.trim();
+      return text || null;
+    }
+
+    if (frame.kind === 'blocks') {
+      const block = frame.blocks[frame.index];
+      if (!block) return null;
+      try {
+        // Blockly's `toString` walks the block's message + fields and
+        // produces a sentence-shaped string (e.g. "move forward",
+        // "turn left", "repeat 5 times do") that respects the
+        // localized messages already loaded into `Blockly.Msg`. If a
+        // block has connected children, toString includes their text
+        // too — fine for a scan label since the highlight visually
+        // hugs only the head block; the audio identifies the block
+        // and the visual identifies its scope.
+        const s = block.toString?.();
+        if (s && s.trim()) return s.trim();
+      } catch (e) {
+        // Defensive — toString shouldn't throw, but if it does we fall
+        // through to the type-based fallback below.
+      }
+      return block.type || null;
+    }
+
+    if (frame.kind === 'action-menu' || frame.kind === 'move-candidates') {
+      // The menu rows carry their human-readable label directly. No
+      // i18n today (matches the visual rendering — Phase 5 doesn't
+      // localize menu chrome).
+      const item = frame.items[frame.index];
+      return item?.label ?? null;
+    }
+
+    if (frame.kind === 'dropdown-values') {
+      const option = frame.options[frame.index];
+      if (!option) return null;
+      const label = option[0];
+      if (typeof label === 'string') return label;
+      // Image-labels: use `alt` (the same text Blockly's accessibility
+      // path falls back to). If alt is missing, the option's `value`
+      // string is the next best thing — at least the user hears
+      // something distinguishable.
+      return label.alt || option[1] || null;
+    }
+
+    return null;
+  }
+
+  /**
    * Reposition / show / hide the highlight + sentinel chip based on
    * the active frame's current index. Safe to call any number of times.
    *
@@ -880,8 +1041,21 @@ export class SwitchScanController {
    *  - `blocks` at a block     → block SVG root's bounding rect
    *    (viewport coordinates work with our `position: fixed` outline).
    *  - `blocks` at sentinel    → sentinel chip.
+   *
+   * Phase 5: after positioning the highlight, also asks the TTS helper
+   * to speak the current item's label (if non-null). The helper handles
+   * the cancel-and-replace contract internally so rapid advances don't
+   * queue a backlog. The `speak` option is set to `false` by the
+   * resize/scroll reflow path so the user doesn't hear the same label
+   * re-spoken just because they resized the window.
+   *
+   * @param options Render flags.
+   * @param options.speak Whether to announce the current item via the
+   *     TTS helper. Pass `false` to suppress (used by the resize /
+   *     scroll reflow path). Defaults to true — every interactive
+   *     render speaks.
    */
-  private renderHighlight(): void {
+  private renderHighlight(options?: {speak?: boolean}): void {
     if (!this.highlightEl || !this.sentinelChip) return;
     const frame = this.activeFrame();
     if (!frame) {
@@ -890,9 +1064,16 @@ export class SwitchScanController {
       return;
     }
 
+    // Phase 5: speak the current label, unless this render was
+    // triggered by a non-user reflow (resize/scroll) where re-speaking
+    // would be noisy. The helper handles cancel-and-replace and the
+    // disabled-state no-op, so we don't branch on those here.
+    const shouldSpeak = options?.speak !== false;
+
     if (this.atSentinel(frame)) {
       this.highlightEl.style.display = 'none';
       this.sentinelChip.style.display = 'block';
+      if (shouldSpeak) this.speakCurrentLabel();
       return;
     }
 
@@ -957,6 +1138,20 @@ export class SwitchScanController {
     this.highlightEl.style.left = `${rect.left}px`;
     this.highlightEl.style.width = `${rect.width}px`;
     this.highlightEl.style.height = `${rect.height}px`;
+
+    if (shouldSpeak) this.speakCurrentLabel();
+  }
+
+  /**
+   * Internal helper — derive the current item's label and forward it
+   * to the TTS helper. Public {@link speakCurrentItemLabel} is the
+   * external API; this is the variant `renderHighlight` calls so the
+   * speak path doesn't have to re-resolve `tts` defensively.
+   */
+  private speakCurrentLabel(): void {
+    if (!this.tts) return;
+    const label = this.currentItemLabel();
+    if (label) this.tts.speak(label);
   }
 
   /**
@@ -976,6 +1171,11 @@ export class SwitchScanController {
    */
   private handleRunStart(): void {
     this.executing = true;
+    // Phase 5: cut off any in-progress utterance so the speech voice
+    // doesn't keep talking over the maze animation. The TTS helper's
+    // own no-op-when-disabled behavior makes this safe to call
+    // unconditionally.
+    this.tts?.cancel();
     this.tearDownOverlaysForRun();
   }
 
@@ -1034,7 +1234,9 @@ export class SwitchScanController {
       // re-render on a clean top-frame anyway, and resizing mid-run
       // shouldn't pop the scanner back on top of the animation.
       if (this.executing) return;
-      this.renderHighlight();
+      // Phase 5: reflow renders shouldn't re-speak the current item —
+      // the scan position hasn't changed, only the geometry has.
+      this.renderHighlight({speak: false});
     });
   }
 

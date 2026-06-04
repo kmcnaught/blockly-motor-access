@@ -44,6 +44,13 @@ export interface SwitchScanSettingsValues {
   switchAdvance: string;
   switchSelect: string;
   mode: SwitchScanMode;
+  /**
+   * Phase 5: whether TTS audio feedback should be on. The host page
+   * persists this to localStorage and calls
+   * `SwitchScanTts.setEnabled(audio)` so the change takes effect
+   * mid-session — matches the live-rebind pattern used for the keys.
+   */
+  audio: boolean;
 }
 
 /**
@@ -64,12 +71,18 @@ export interface SwitchScanSettingsOptions {
    */
   initialMode?: SwitchScanMode;
   /**
+   * Phase 5: initial state for the audio-feedback (TTS) checkbox.
+   * When omitted the dialog defaults to OFF — matching the host
+   * page's URL > localStorage > 'off' resolution.
+   */
+  initialAudio?: boolean;
+  /**
    * True when at least one `?switchAdvance=…` / `?switchSelect=…` /
-   * `?scanMode=…` URL param is currently in effect for this page load.
-   * When true the dialog renders a small note explaining that saved
-   * values are being overridden by the URL — without this, a user who
-   * just saved a different key would wonder why the URL bindings keep
-   * winning on reload.
+   * `?scanMode=…` / `?scanAudio=…` URL param is currently in effect
+   * for this page load. When true the dialog renders a small note
+   * explaining that saved values are being overridden by the URL —
+   * without this, a user who just saved a different key would wonder
+   * why the URL bindings keep winning on reload.
    */
   urlOverrideActive?: boolean;
   onSave: (cfg: SwitchScanSettingsValues) => void;
@@ -135,16 +148,19 @@ export class SwitchScanSettings {
   private readonly switchBCaptureBtn: HTMLButtonElement | null;
   private readonly switchBGroup: HTMLElement | null;
   private readonly modeRadios: NodeListOf<HTMLInputElement>;
+  private readonly audioToggle: HTMLInputElement | null;
 
   /** Committed (last-saved) values — what Cancel reverts to. */
   private committedAdvance: string;
   private committedSelect: string;
   private committedMode: SwitchScanMode;
+  private committedAudio: boolean;
 
   /** Pending values — what's currently shown in the dialog. */
   private currentAdvance: string;
   private currentSelect: string;
   private currentMode: SwitchScanMode;
+  private currentAudio: boolean;
 
   /**
    * True iff URL params are overriding saved settings on this page
@@ -176,9 +192,11 @@ export class SwitchScanSettings {
     this.committedAdvance = options.initialAdvanceKey;
     this.committedSelect = options.initialSelectKey;
     this.committedMode = options.initialMode ?? 'step';
+    this.committedAudio = options.initialAudio ?? false;
     this.currentAdvance = this.committedAdvance;
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
+    this.currentAudio = this.committedAudio;
     this.urlOverrideActive = options.urlOverrideActive ?? false;
 
     // Mirrors the pattern used by `shortcutsDialog` in index.ts so
@@ -218,6 +236,9 @@ export class SwitchScanSettings {
     this.modeRadios = document.querySelectorAll<HTMLInputElement>(
       'input[name="switchScanMode"]',
     );
+    this.audioToggle = document.getElementById(
+      'audioFeedbackToggle',
+    ) as HTMLInputElement | null;
 
     // Capture buttons were inert (disabled) in Step A; enable them now.
     if (this.switchACaptureBtn) {
@@ -242,6 +263,17 @@ export class SwitchScanSettings {
       });
     });
 
+    // Phase 5: audio toggle. Previously inert (disabled stub with a
+    // "Coming soon" note in markup — removed in Phase 5). The change
+    // is pending until Save: Cancel reverts to the committed value
+    // via revertPending(); Save promotes it via the existing flow.
+    if (this.audioToggle) {
+      this.audioToggle.checked = this.currentAudio;
+      this.audioToggle.addEventListener('change', () => {
+        this.currentAudio = this.audioToggle!.checked;
+      });
+    }
+
     if (this.cancelBtn) {
       this.cancelBtn.addEventListener('click', () => {
         this.revertPending();
@@ -255,10 +287,12 @@ export class SwitchScanSettings {
         this.committedAdvance = this.currentAdvance;
         this.committedSelect = this.currentSelect;
         this.committedMode = this.currentMode;
+        this.committedAudio = this.currentAudio;
         this.onSave({
           switchAdvance: this.committedAdvance,
           switchSelect: this.committedSelect,
           mode: this.committedMode,
+          audio: this.committedAudio,
         });
         this.hide();
       });
@@ -312,9 +346,11 @@ export class SwitchScanSettings {
     this.currentAdvance = this.committedAdvance;
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
+    this.currentAudio = this.committedAudio;
     this.modeRadios.forEach((r) => {
       r.checked = r.value === this.currentMode;
     });
+    if (this.audioToggle) this.audioToggle.checked = this.currentAudio;
     this.refreshDisplay();
     this.refreshModeVisibility();
     this.renderUrlOverrideNote();
@@ -359,9 +395,11 @@ export class SwitchScanSettings {
     this.currentAdvance = this.committedAdvance;
     this.currentSelect = this.committedSelect;
     this.currentMode = this.committedMode;
+    this.currentAudio = this.committedAudio;
     this.modeRadios.forEach((r) => {
       r.checked = r.value === this.currentMode;
     });
+    if (this.audioToggle) this.audioToggle.checked = this.currentAudio;
     this.refreshDisplay();
     this.refreshModeVisibility();
     this.clearErrors();
