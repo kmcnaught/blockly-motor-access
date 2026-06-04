@@ -430,14 +430,21 @@ export class SwitchScanController {
       console.warn('[switch-scan] toolbox region not found');
     }
 
-    // Workspace — outermost Blockly injection div. We're highlighting
-    // the region as a whole here, not individual blocks (block scan
-    // arrives in Step 7), so injectionDiv is the right granularity.
+    // Workspace — the visible workspace area MINUS the toolbox/flyout.
+    // The injectionDiv contains both the toolbox/flyout AND the main
+    // workspace SVG, so its raw bounding rect would over-cover the
+    // region and visually overlap the toolbox region's outline.
+    // Instead, use Blockly's own metrics: viewWidth/viewHeight describe
+    // the visible workspace (flyout excluded), and absoluteLeft/
+    // absoluteTop give that view's offset within the injection div.
+    // Translate to viewport coords by anchoring to the injection div's
+    // bounding rect. This matches the workspace focus ring used by
+    // src/index.ts:resizeFocusRingInternal.
     const injectionDiv = this.workspace.getInjectionDiv();
     if (injectionDiv) {
       regions.push({
         name: 'workspace',
-        getRect: () => injectionDiv.getBoundingClientRect(),
+        getRect: () => this.getWorkspaceViewportRect(injectionDiv),
       });
     } else {
       console.warn('[switch-scan] workspace region not found');
@@ -457,6 +464,36 @@ export class SwitchScanController {
     }
 
     return regions;
+  }
+
+  /**
+   * Compute the viewport-coordinate rect of the main workspace view
+   * area, excluding the toolbox/flyout. Used by the `workspace` top-
+   * level region so its outline hugs the workspace and doesn't bleed
+   * into the toolbox region (which already has its own highlight).
+   *
+   * Combines:
+   *  - `injectionDiv.getBoundingClientRect()` for viewport anchoring,
+   *  - `workspace.getMetrics()` `absoluteLeft`/`absoluteTop` for the
+   *    offset of the visible workspace within the injection div,
+   *  - `viewWidth`/`viewHeight` for the visible workspace's size.
+   *
+   * Returns `null` if metrics aren't yet measurable (rare — defends
+   * against an unrendered workspace; the renderer hides the outline
+   * for null rects).
+   *
+   * @param injectionDiv
+   */
+  private getWorkspaceViewportRect(injectionDiv: Element): DOMRect | null {
+    const m = this.workspace.getMetrics();
+    if (!m) return null;
+    const divRect = injectionDiv.getBoundingClientRect();
+    return new DOMRect(
+      divRect.left + m.absoluteLeft,
+      divRect.top + m.absoluteTop,
+      m.viewWidth,
+      m.viewHeight,
+    );
   }
 
   /**
