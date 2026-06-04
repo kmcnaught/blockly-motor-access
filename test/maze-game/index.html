@@ -31,6 +31,11 @@
           <span class="mute-icon sound-on">&#128266;</span>
           <span class="mute-icon sound-off">&#128263;</span>
         </button>
+        <!-- Switch Scan settings: hidden by default; shown only when
+             ?inputMode=switch-scan is active (index.ts removes .hidden).
+             Tagged data-scan-item so the switch-scan controller picks
+             it up alongside the other header buttons. -->
+        <button id="switchSettingsBtn" class="icon-button hidden" title="Switch scan settings" aria-label="Switch scan settings" data-scan-item>&#9881;</button>
         <div class="selector-group">
           <select id="languageSelect">
             <option value="en">English</option>
@@ -258,6 +263,85 @@
         </button>
       </div>
       <a href="https://kmcnaught.co.uk/block-coding/new-curriculum" target="_blank" rel="noopener" class="about-link">About</a>
+    </dialog>
+
+    <!-- Switch Scan Settings Modal (Phase 2 Step A scaffold).
+         Structurally mirrors #shortcutsModal so it picks up the same
+         dialog.result-modal styling + animation. Controls are stubs
+         in this step; capture (Step B), persistence (Step C), and
+         scan tagging (Step D) follow. -->
+    <dialog id="switchSettingsModal" class="result-modal switch-settings-modal" aria-labelledby="switchSettingsModalTitle">
+      <h2 id="switchSettingsModalTitle" class="result-modal-title">Switch Scan Settings</h2>
+
+      <div class="switch-settings-list">
+        <!-- 1. Switch mode -->
+        <fieldset class="switch-settings-group">
+          <legend class="switch-settings-heading">Switch mode</legend>
+          <label class="switch-settings-row">
+            <input type="radio" name="switchScanMode" value="step" checked>
+            <span>Two-switch (step scan)</span>
+          </label>
+          <label class="switch-settings-row">
+            <input type="radio" name="switchScanMode" value="auto">
+            <span>One-switch (auto scan)</span>
+          </label>
+        </fieldset>
+
+        <!-- 2. Switch A capture -->
+        <div class="switch-settings-group">
+          <h3 class="switch-settings-heading">Switch A (Advance)</h3>
+          <div class="switch-settings-row">
+            <span id="switchACurrent" class="switch-settings-current">Space</span>
+            <button id="switchACaptureBtn" type="button" class="switch-settings-capture" disabled>
+              Click to capture
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Switch B capture (visible in step mode only — visibility
+             logic lands in Step B). -->
+        <div class="switch-settings-group" id="switchBGroup">
+          <h3 class="switch-settings-heading">Switch B (Select)</h3>
+          <div class="switch-settings-row">
+            <span id="switchBCurrent" class="switch-settings-current">Enter</span>
+            <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" disabled>
+              Click to capture
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Scan speed (auto-scan mode — Phase 4). -->
+        <div class="switch-settings-group switch-settings-disabled">
+          <h3 class="switch-settings-heading">Scan speed</h3>
+          <div class="switch-settings-row">
+            <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500" disabled>
+            <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
+          </div>
+          <p class="switch-settings-note">Coming soon &mdash; single-switch mode</p>
+        </div>
+
+        <!-- 5. Audio feedback (TTS — Phase 5). -->
+        <div class="switch-settings-group switch-settings-disabled">
+          <h3 class="switch-settings-heading">Audio feedback</h3>
+          <div class="switch-settings-row">
+            <label class="switch-settings-toggle">
+              <input id="audioFeedbackToggle" type="checkbox" disabled>
+              <span>Speak highlighted item</span>
+            </label>
+          </div>
+          <p class="switch-settings-note">Coming soon &mdash; TTS</p>
+        </div>
+      </div>
+
+      <div class="result-modal-buttons">
+        <button id="switchSettingsCancel" class="result-modal-cancel">
+          <span class="cancel-text">Cancel</span>
+          <span class="cancel-hint">[Esc]</span>
+        </button>
+        <button id="switchSettingsSave" class="result-modal-ok">
+          <span class="ok-text">Save</span>
+        </button>
+      </div>
     </dialog>
 
     <!-- Build SHA label -->

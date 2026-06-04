@@ -32,6 +32,7 @@ import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messa
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
 import {SwitchScanController} from './switch-scan-mode';
+import {SwitchScanSettings} from './switch-scan-settings';
 import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
 import {launchConfetti} from './confetti';
@@ -2699,12 +2700,25 @@ initializeGridCodingMode();
 // Initialize switch-scan controller if active (Phase 1 scaffold).
 // Mutually exclusive with grid coding mode; instantiation above is guarded.
 let switchScanController: SwitchScanController | null = null;
+let switchScanSettings: SwitchScanSettings | null = null;
 if (isSwitchScanMode) {
   switchScanController = new SwitchScanController(workspace, mazeGame, {
     switchAdvance: switchAdvanceKey,
     switchSelect: switchSelectKey,
   });
   switchScanController.enable();
+
+  // Phase 2 Step A: surface the dedicated Switch Scan Settings button
+  // in the header (it's `.hidden` in markup so non-switch-scan users
+  // never see it) and wire it to open the settings modal.
+  switchScanSettings = new SwitchScanSettings();
+  const switchSettingsBtn = document.getElementById('switchSettingsBtn');
+  if (switchSettingsBtn) {
+    switchSettingsBtn.classList.remove('hidden');
+    switchSettingsBtn.addEventListener('click', () => {
+      switchScanSettings?.show();
+    });
+  }
 }
 
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)
