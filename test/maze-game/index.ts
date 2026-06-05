@@ -28,7 +28,7 @@ import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
 import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
-import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
+import {loadMessages, getBrowserLocale, msg, applyDataMsg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
 import {PaddingControlsManager} from './padding-controls';
@@ -111,14 +111,14 @@ let isTransitioning = false;
 // Initialize locale (URL param > localStorage > browser detection)
 const urlLang = getStringParamFromUrl('lang', '');
 let currentLocale: SupportedLocale =
-  (urlLang === 'en' || urlLang === 'fr') ? urlLang :
+  (urlLang === 'en' || urlLang === 'fr' || urlLang === 'es') ? urlLang :
   (localStorage.getItem('mazeGameLocale') as SupportedLocale) || getBrowserLocale();
 
-// Load internationalized messages
+// Load internationalized messages. This now also loads Blockly's built-in
+// msg pack for the active locale (so the right-click context menu, variable
+// dialogs, trash tooltips, etc. follow the language) and re-applies our
+// MAZE_HELP_PROMPT override on top of HELP_PROMPT.
 loadMessages(currentLocale);
-
-// Override help prompt to focus on field navigation instead of general help
-Blockly.Msg['HELP_PROMPT'] = 'Press → to move to block fields';
 
 // Register maze-specific blocks
 registerMazeBlocks();
@@ -194,6 +194,15 @@ function restoreProgram(savedXml: string, workspaceRef: Blockly.WorkspaceSvg): v
  * Update all UI text elements with internationalized messages
  */
 function updateUIText() {
+  // Sweep every element annotated with data-msg* attributes. Runs first so the
+  // explicit textContent/aria-label assignments below can still override any
+  // computed value (e.g. "Stage:" with the trailing colon) without being
+  // clobbered.
+  applyDataMsg();
+
+  // Update browser tab title (HTML <title> doesn't observe data-msg)
+  document.title = msg('MAZE_TITLE');
+
   // Update page title
   const pageTitle = document.querySelector('h1');
   if (pageTitle) {
@@ -676,7 +685,7 @@ function showClickMoveModeHint(block: Blockly.BlockSvg) {
   if (clickConnectionHintShown) return;
   clickConnectionHintShown = true;
   Blockly.Toast.show(workspace, {
-    message: 'Click a connection to move block there',
+    message: msg('MAZE_TOAST_CLICK_TO_MOVE'),
     id: 'maze_move_mode_hint',
   });
 }
@@ -689,7 +698,7 @@ function showKeyboardMoveModeHint() {
   if (keyboardMoveHintShown) return;
 
   Blockly.Toast.show(workspace, {
-    message: 'Use arrows to move block, or Esc to exit move mode',
+    message: msg('MAZE_TOAST_KEYBOARD_MOVE'),
     id: 'maze_move_mode_hint',
   });
 
@@ -746,11 +755,11 @@ function updateMuteButtonUI(): void {
   if (soundEnabled) {
     muteButton.classList.remove('muted');
     muteButton.setAttribute('aria-pressed', 'false');
-    muteButton.setAttribute('aria-label', msg('MAZE_UNMUTE') || 'Mute sound');
+    muteButton.setAttribute('aria-label', msg('MAZE_UNMUTE'));
   } else {
     muteButton.classList.add('muted');
     muteButton.setAttribute('aria-pressed', 'true');
-    muteButton.setAttribute('aria-label', msg('MAZE_MUTE') || 'Unmute sound');
+    muteButton.setAttribute('aria-label', msg('MAZE_MUTE'));
   }
 }
 
@@ -823,7 +832,14 @@ if (isGridCodingMode) {
   gridCodingModeController.onBlockCountChange((count) => {
     const blockCountEl = document.getElementById('gridCodingBlockCount');
     if (blockCountEl) {
-      blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', count);
+      // The element is structured as: <label data-msg> <span class="count">N</span>
+      // Update only the count span so the localized label survives.
+      const countSpan = blockCountEl.querySelector('.count');
+      if (countSpan) {
+        countSpan.textContent = String(count);
+      } else {
+        blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', count);
+      }
     }
   });
 }
@@ -833,7 +849,12 @@ if (isGridMode) {
   immediateModeController.onInstructionCountChange((count) => {
     const instructionCountEl = document.getElementById('gridModeInstructionCount');
     if (instructionCountEl) {
-      instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', count);
+      const countSpan = instructionCountEl.querySelector('.count');
+      if (countSpan) {
+        countSpan.textContent = String(count);
+      } else {
+        instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', count);
+      }
     }
   });
 }
@@ -1135,19 +1156,20 @@ function updateLevelDisplay() {
 
 /**
  * Update the level instruction text based on the current level.
+ * Reads the level's semantic instruction key from its config; falls back to a
+ * generic instruction if none is defined (shouldn't normally happen since every
+ * level in maze.ts defines an `instruction` key).
  */
 function updateLevelInstruction(level: number) {
   const instructionEl = document.getElementById('levelInstruction');
-  if (instructionEl) {
-    const instructionKey = `MAZE_INSTRUCTION_${level}`;
-    const instruction = msg(instructionKey);
-    // Only show if we have a valid instruction (not just the key back)
-    if (instruction !== instructionKey) {
-      instructionEl.textContent = instruction;
-    } else {
-      // Fallback to a generic instruction
-      instructionEl.textContent = msg('MAZE_INSTRUCTION_1');
-    }
+  if (!instructionEl) return;
+
+  const levelConfig = getLevelConfig(level - 1, false);
+  if (levelConfig?.instruction) {
+    instructionEl.textContent = msg(levelConfig.instruction);
+  } else {
+    // Safety net: generic instruction if level config is missing one.
+    instructionEl.textContent = msg('MAZE_INSTRUCTION_1');
   }
 }
 
@@ -1345,7 +1367,7 @@ function cycleCharacterPrevious() {
  * Cycle to the next language.
  */
 function cycleLanguage() {
-  const locales: SupportedLocale[] = ['en', 'fr'];
+  const locales: SupportedLocale[] = ['en', 'fr', 'es'];
   const currentIndex = locales.indexOf(currentLocale);
   const nextIndex = (currentIndex + 1) % locales.length;
   const newLocale = locales[nextIndex];
@@ -1576,12 +1598,13 @@ function updateInstructionBar() {
   if (currentExecutionMode === 'practice') {
     levelInstruction.textContent = msg('MAZE_PRACTICE_INSTRUCTION');
   } else {
-    // Coding mode - use instruction from level config if available, fall back to MAZE_INSTRUCTION_N
+    // Coding mode - use the semantic instruction key from the level config.
+    // Fall back to a generic instruction if the level lacks one.
     const levelConfig = getLevelConfig(level - 1, false);
     if (levelConfig?.instruction) {
       levelInstruction.textContent = msg(levelConfig.instruction);
     } else {
-      levelInstruction.textContent = msg(`MAZE_INSTRUCTION_${level}`);
+      levelInstruction.textContent = msg('MAZE_INSTRUCTION_1');
     }
   }
 
@@ -2219,8 +2242,8 @@ function dismissOpenDialogs(): void {
 const deleteUserDataBtn = document.getElementById('deleteUserDataBtn')!;
 deleteUserDataBtn.addEventListener('click', () => {
   showConfirmationModal(
-    'Delete All Data',
-    'Delete all saved programs and settings? This cannot be undone.',
+    msg('MAZE_DELETE_DATA_TITLE'),
+    msg('MAZE_DELETE_DATA_MESSAGE'),
     () => {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
@@ -2255,7 +2278,7 @@ function showGridModeSuccess(instructionCount: number): void {
   // Set localized text with instruction count
   resultModalTitle.textContent = msg('MAZE_GRID_SUCCESS_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_SUCCESS_MESSAGE', instructionCount);
-  okText.textContent = 'OK';
+  okText.textContent = msg('MAZE_OK');
 
   // Add success styling
   resultModal.classList.add('success');
@@ -2334,7 +2357,7 @@ function showGridModeGraduation(): void {
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_GRADUATION_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_GRADUATION_MESSAGE');
-  okText.textContent = 'OK';
+  okText.textContent = msg('MAZE_OK');
 
   // Add success styling
   resultModal.classList.add('success');
@@ -2398,7 +2421,7 @@ function showGridCodingA1Complete(): void {
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_A1_COMPLETE_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_CODING_A1_COMPLETE_MESSAGE');
-  okText.textContent = 'OK';
+  okText.textContent = msg('MAZE_OK');
 
   // Add success styling
   resultModal.classList.add('success');
@@ -2465,7 +2488,7 @@ function showGridCodingModeStageGraduation(): void {
   // Set localized text
   resultModalTitle.textContent = msg('MAZE_GRID_CODING_STAGE_COMPLETE_TITLE');
   resultModalMessage.textContent = msg('MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE');
-  okText.textContent = 'OK';
+  okText.textContent = msg('MAZE_OK');
 
   // Add success styling
   resultModal.classList.add('success');
@@ -2597,7 +2620,12 @@ function initializeGridMode(): void {
   const instructionCountEl = document.getElementById('gridModeInstructionCount');
   if (instructionCountEl) {
     instructionCountEl.classList.remove('hidden');
-    instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', 0);
+    const countSpan = instructionCountEl.querySelector('.count');
+    if (countSpan) {
+      countSpan.textContent = '0';
+    } else {
+      instructionCountEl.textContent = msg('MAZE_GRID_INSTRUCTIONS', 0);
+    }
   }
 
   // Update instruction bar text for grid mode
@@ -2633,7 +2661,12 @@ function initializeGridCodingMode(): void {
   const blockCountEl = document.getElementById('gridCodingBlockCount');
   if (blockCountEl) {
     blockCountEl.classList.remove('hidden');
-    blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', 0);
+    const countSpan = blockCountEl.querySelector('.count');
+    if (countSpan) {
+      countSpan.textContent = '0';
+    } else {
+      blockCountEl.textContent = msg('MAZE_GRID_BLOCKS', 0);
+    }
   }
 
   // Show grid coding controls
