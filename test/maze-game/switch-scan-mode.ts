@@ -1335,18 +1335,15 @@ export class SwitchScanController {
     const isSelect = e.key === this.switchSelect;
     if (!isAdvance && !isSelect) return;
 
-    // While a move is in flight (move-candidates frame), our switch
-    // keys collide with Blockly's own move-mode bindings — Space/Enter
-    // are `finish_move`, arrow keys are constrained candidate steps.
-    // Stop propagation here (capture phase) so Blockly's container-
-    // level handler never sees the press and doesn't commit/abort
-    // independently of us. Other frames intentionally do NOT stop
-    // propagation — pre-existing flows assume Blockly continues to
-    // receive non-switch keys, and we don't want to regress anything.
-    if (frame.kind === 'move-candidates') {
-      e.stopPropagation();
-      e.preventDefault();
-    }
+    // The controller has decided to consume this event — swallow it
+    // unconditionally so the bound switch keys never leak to Blockly's
+    // keyboard-nav handler or native field popovers. Previously only the
+    // move-candidates frame called preventDefault/stopPropagation, which
+    // let the configured advance/select keys fall through from every other
+    // frame (action-menu, dropdown-values, toolbox, workspace, top) and
+    // inadvertently trigger Blockly shortcuts or browser-native behavior.
+    e.stopPropagation();
+    e.preventDefault();
 
     if (this.scanMode === 'auto') {
       // Phase 4: single-switch auto-scan. The advance key is the ONLY
