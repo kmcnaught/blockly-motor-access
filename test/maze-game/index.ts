@@ -111,6 +111,9 @@ const isSwitchScanMode = inputMode === 'switch-scan';
 const SWITCH_SCAN_LS_KEYS = {
   advance: 'mazeSwitchScan.switchAdvance',
   select: 'mazeSwitchScan.switchSelect',
+  // Optional third "Back" switch — pops one frame up the scan stack.
+  // Default 'Escape'; empty string disables the binding.
+  back: 'mazeSwitchScan.switchBack',
   mode: 'mazeSwitchScan.mode',
   // Phase 5: TTS on/off. Stored as the literal string 'on' / 'off'
   // so the resolver helper can compare without parsing.
@@ -178,6 +181,7 @@ function resolveSwitchScanSetting(
 const switchScanUrlOverrideActive =
   getStringParamFromUrl('switchAdvance', '') !== '' ||
   getStringParamFromUrl('switchSelect', '') !== '' ||
+  getStringParamFromUrl('switchBack', '') !== '' ||
   getStringParamFromUrl('scanMode', '') !== '' ||
   // Phase 5: scanAudio joins the URL-override family so the modal's
   // "URL settings active" note appears whenever audio is being forced.
@@ -197,6 +201,27 @@ const switchSelectKey = resolveSwitchScanSetting(
   SWITCH_SCAN_LS_KEYS.select,
   'Enter',
 );
+// Optional Back switch. URL param `?switchBack=` (empty value) disables
+// the binding; an explicit `Escape` (default) or any other key enables.
+// We can't reuse resolveSwitchScanSetting here because that helper
+// treats '' as "not set" and falls through to default — but for back
+// '' is a meaningful "disabled" value (the user clicked Clear in the
+// settings panel and we persisted that choice). So we read URL ->
+// localStorage -> 'Escape' manually, treating '' as a real value at
+// both URL and LS levels.
+const switchBackKey: string = (() => {
+  // URL wins even when empty: ?switchBack= explicitly disables.
+  const urlPresent = window.location.search.includes('switchBack=');
+  if (urlPresent) return getStringParamFromUrl('switchBack', '');
+  try {
+    const lsVal = window.localStorage?.getItem(SWITCH_SCAN_LS_KEYS.back);
+    // null === never written; '' === explicitly disabled.
+    if (lsVal !== null) return lsVal;
+  } catch (e) {
+    // SecurityError contexts — fall through to default.
+  }
+  return 'Escape';
+})();
 const switchScanInitialMode: SwitchScanModeValue = (() => {
   const v = resolveSwitchScanSetting(
     'scanMode',
@@ -3017,6 +3042,7 @@ if (!isGridMode && !isGridCodingMode) {
   switchScanController = new SwitchScanController(workspace, mazeGame, {
     switchAdvance: switchAdvanceKey,
     switchSelect: switchSelectKey,
+    switchBack: switchBackKey,
     scanMode: switchScanInitialMode,
     scanSpeedMs: switchScanInitialScanSpeedMs,
     headerDropdowns: buildHeaderDropdownSources(),
@@ -3026,6 +3052,7 @@ if (!isGridMode && !isGridCodingMode) {
   switchScanSettings = new SwitchScanSettings({
     initialAdvanceKey: switchAdvanceKey,
     initialSelectKey: switchSelectKey,
+    initialBackKey: switchBackKey,
     initialMode: switchScanInitialMode,
     initialAudio: switchScanInitialAudio,
     initialScanSpeedMs: switchScanInitialScanSpeedMs,
@@ -3042,6 +3069,13 @@ if (!isGridMode && !isGridCodingMode) {
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.select,
           cfg.switchSelect,
+        );
+        // Back key is stored as the literal value, including '' when
+        // disabled — load path treats '' identically to "not set" via
+        // the resolver default, but persisting it explicitly is correct.
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.back,
+          cfg.switchBack,
         );
         window.localStorage.setItem(SWITCH_SCAN_LS_KEYS.mode, cfg.mode);
         window.localStorage.setItem(
@@ -3065,6 +3099,7 @@ if (!isGridMode && !isGridCodingMode) {
       switchScanController?.setKeyBindings(
         cfg.switchAdvance,
         cfg.switchSelect,
+        cfg.switchBack,
       );
       switchScanController?.setMode(cfg.mode, cfg.scanSpeedMs);
 

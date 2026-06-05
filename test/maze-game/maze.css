@@ -1211,6 +1211,28 @@ body.grid-coding-mode .switch-access-section {
   display: none;
 }
 
+/* Switch C (Back) clear button — same chrome as the capture button so
+   the row reads as two paired affordances rather than mixing button
+   styles. */
+.switch-settings-clear {
+  padding: 6px 12px;
+  font-size: 0.9em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #333;
+  cursor: pointer;
+}
+
+.switch-settings-clear:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.switch-settings-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Capture-button "Press a key..." state. Distinctive border + tint
    so the user knows the modal is listening — without animating (eye-
    gaze users find blinking borders hard to track). */

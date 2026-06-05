@@ -177,6 +177,16 @@ export interface HeaderDropdownSource {
 export interface SwitchScanOptions {
   switchAdvance?: string;
   switchSelect?: string;
+  /**
+   * Optional third "Back" switch. When pressed, pops one frame off the
+   * scan stack — finer-grained than the sub-scan sentinel, which pops
+   * straight to the top frame. Useful when the user dropped into the
+   * wrong nested menu (e.g. entered Edit when they meant Delete) and
+   * wants to back out one level without losing the workspace block they
+   * had selected. Default `'Escape'`. Set to `''` to disable the binding
+   * entirely.
+   */
+  switchBack?: string;
   scanMode?: 'step' | 'auto';
   scanSpeedMs?: number;
   headerDropdowns?: Record<string, HeaderDropdownSource>;
@@ -344,9 +354,13 @@ export class SwitchScanController {
   // so re-enable doesn't double-register on the maze's callback list.
   private executionStateSubscribed = false;
 
-  // Key bindings (KeyboardEvent.key values). Defaults: Space / Enter.
+  // Key bindings (KeyboardEvent.key values). Defaults: Space / Enter /
+  // Escape. `switchBack` is optional — set to '' (empty string) to
+  // disable; the keydown dispatch treats an empty back-key as
+  // "no binding" since no real `KeyboardEvent.key` value is ever empty.
   private switchAdvance = ' ';
   private switchSelect = 'Enter';
+  private switchBack = 'Escape';
 
   // Phase 4 — single-switch auto-scan state.
   //
@@ -443,6 +457,14 @@ export class SwitchScanController {
     }
     if (options.switchSelect !== undefined) {
       this.switchSelect = normalizeKey(options.switchSelect);
+    }
+    if (options.switchBack !== undefined) {
+      // Empty string is intentional ("no back key"); preserve it without
+      // running through normalizeKey so callers can disable the binding
+      // by passing '' rather than having to guess a sentinel value.
+      this.switchBack = options.switchBack === ''
+        ? ''
+        : normalizeKey(options.switchBack);
     }
     if (options.scanMode !== undefined) {
       this.scanMode = options.scanMode;
@@ -638,42 +660,58 @@ export class SwitchScanController {
   }
 
   /**
-   * Update the advance / select key bindings.
+   * Update the advance / select / back key bindings.
    * Keys use `KeyboardEvent.key` string values; aliases like `'Space'`
-   * are normalized.
+   * are normalized. Pass `''` for `switchBack` to disable the back
+   * binding.
    *
    * @param switchAdvance
    * @param switchSelect
+   * @param switchBack    Optional. Defaults to leaving the existing back
+   *     binding in place if omitted.
    */
-  setKeys(switchAdvance: string, switchSelect: string): void {
-    this.setKeyBindings(switchAdvance, switchSelect);
+  setKeys(
+    switchAdvance: string,
+    switchSelect: string,
+    switchBack?: string,
+  ): void {
+    this.setKeyBindings(switchAdvance, switchSelect, switchBack);
   }
 
   /**
-   * Live re-bind the advance / select keys without tearing down scan
-   * state. Used by the settings panel's Save handler so the user sees
-   * their new bindings take effect immediately, no reload required.
+   * Live re-bind the advance / select / back keys without tearing down
+   * scan state. Used by the settings panel's Save handler so the user
+   * sees their new bindings take effect immediately, no reload required.
    *
-   * Even though `handleKeyDown` reads `this.switchAdvance` /
-   * `this.switchSelect` at event time (so mutating the fields would be
-   * enough), we explicitly detach + re-attach the listener here. That
-   * keeps the contract obvious to future readers ("re-bind" really
-   * means re-bind) and gives us a clean hook if we ever want to swap
-   * the handler shape (e.g. capture-phase vs bubble).
+   * Even though `handleKeyDown` reads the field values at event time
+   * (so mutating the fields would be enough), we explicitly detach +
+   * re-attach the listener here. That keeps the contract obvious to
+   * future readers ("re-bind" really means re-bind) and gives us a
+   * clean hook if we ever want to swap the handler shape (e.g.
+   * capture-phase vs bubble).
    *
    * Scan state — the frame stack, cursor index, highlight overlay —
    * is left untouched so the user resumes exactly where they were.
    *
    * Accepts either a raw `KeyboardEvent.key` value (`' '`) or the
    * friendly alias `'Space'`; the same `normalizeKey` helper used at
-   * construction time handles both.
+   * construction time handles both. Back key accepts `''` to disable.
    *
    * @param switchAdvance New advance key (raw or alias).
    * @param switchSelect New select key (raw or alias).
+   * @param switchBack   Optional new back key. Pass `''` to disable.
+   *     When omitted, the existing back binding is preserved.
    */
-  setKeyBindings(switchAdvance: string, switchSelect: string): void {
+  setKeyBindings(
+    switchAdvance: string,
+    switchSelect: string,
+    switchBack?: string,
+  ): void {
     this.switchAdvance = normalizeKey(switchAdvance);
     this.switchSelect = normalizeKey(switchSelect);
+    if (switchBack !== undefined) {
+      this.switchBack = switchBack === '' ? '' : normalizeKey(switchBack);
+    }
 
     // Re-attach the keydown listener so the rebind is explicit even
     // though the handler reads `this.switchAdvance` / `this.switchSelect`
@@ -1365,7 +1403,11 @@ export class SwitchScanController {
 
     const isAdvance = e.key === this.switchAdvance;
     const isSelect = e.key === this.switchSelect;
-    if (!isAdvance && !isSelect) return;
+    // Empty back-key string means the back binding is disabled; the `&&`
+    // short-circuits before comparing to a real keypress so `key === ''`
+    // (impossible in practice but defensive) doesn't accidentally match.
+    const isBack = this.switchBack !== '' && e.key === this.switchBack;
+    if (!isAdvance && !isSelect && !isBack) return;
 
     // The controller has decided to consume this event — swallow it
     // unconditionally so the bound switch keys never leak to Blockly's
@@ -1374,8 +1416,25 @@ export class SwitchScanController {
     // let the configured advance/select keys fall through from every other
     // frame (action-menu, dropdown-values, toolbox, workspace, top) and
     // inadvertently trigger Blockly shortcuts or browser-native behavior.
+    //
+    // NB: when the back key is Escape AND a native <dialog> (e.g. the
+    // settings modal) is open, the dialog's own Esc-to-close handler
+    // still fires because it lives on the dialog element itself, not on
+    // document. So pressing Esc inside the modal closes it AND pops our
+    // frame — the modal's `close` event triggers popModalSubScan which
+    // is a no-op if our pop already cleared the frame, so the two paths
+    // coexist without fighting.
     e.stopPropagation();
     e.preventDefault();
+
+    if (isBack) {
+      // Back is mode-agnostic — works the same way in step and auto. In
+      // auto mode an idle press still doesn't make sense as "back" (the
+      // scanner hasn't started cycling yet), but popping to top is a
+      // sensible no-op there: the user is already at the top frame.
+      this.popOneFrame();
+      return;
+    }
 
     if (this.scanMode === 'auto') {
       // Phase 4: single-switch auto-scan. The advance key is the ONLY
@@ -1908,6 +1967,85 @@ export class SwitchScanController {
    *
    * @param resumeIndex
    */
+  /**
+   * Pop exactly one frame off the scan stack — the "back" switch
+   * handler.
+   *
+   * Different from {@link popSubScan} (which drains every non-top frame
+   * in one go): this advances the user UP one level only. Examples:
+   *  - `dropdown-values` on top of `action-menu` → pops the dropdown,
+   *    restores the action menu underneath so the user can pick a
+   *    different action without losing their workspace block selection.
+   *  - `action-menu` on top of workspace `blocks` → pops the menu,
+   *    re-renders the workspace block highlight so the user can pick a
+   *    different block.
+   *  - first-level sub-scan (toolbox / workspace / dom-items) on top of
+   *    `top` → pops to top, leaving the user on whichever region they
+   *    entered from.
+   *  - already at `top` → no-op. The back switch has nowhere further
+   *    up to go; quietly doing nothing is preferable to wrapping or
+   *    crashing.
+   *
+   * Special cases:
+   *  - `move-candidates`: aborts Blockly's in-flight move first (via
+   *    `cancelActiveMoveIfAny`) so Blockly's drag-strategy patch /
+   *    connection highlights are cleaned up before our own overlay is
+   *    removed. The user lands back on the action-menu they came from.
+   *  - `dropdown-values` whose parent is `action-menu`: re-render the
+   *    action menu when we land on it, because
+   *    {@link enterDropdownValues} tore it down on the way in. Same for
+   *    `move-candidates` re-entering its parent action-menu, since
+   *    {@link enterMoveCandidates} also tears the action menu down.
+   */
+  private popOneFrame(): void {
+    if (this.frameStack.length <= 1) {
+      // Already at top — nothing to pop. The back switch quietly does
+      // nothing rather than wrapping or making noise; that's the natural
+      // "I'm at the highest level" affordance.
+      return;
+    }
+
+    const popped = this.frameStack.pop();
+
+    // Teardown for the popped frame's overlay DOM, mirroring the per-
+    // frame branches in popSubScan but without draining the rest of
+    // the stack.
+    if (popped?.kind === 'action-menu') {
+      this.actionMenuEl?.remove();
+      this.actionMenuEl = null;
+    } else if (popped?.kind === 'dropdown-values') {
+      this.dropdownMenuEl?.remove();
+      this.dropdownMenuEl = null;
+    } else if (popped?.kind === 'move-candidates') {
+      // Abort the in-flight Blockly move BEFORE removing our overlay so
+      // Blockly's own cleanup (drag strategy patch, connection-preview
+      // node, click-stick listeners) runs against still-coherent state.
+      this.cancelActiveMoveIfAny();
+      this.moveMenuEl?.remove();
+      this.moveMenuEl = null;
+    }
+
+    // If the new top frame is an action-menu whose overlay was torn
+    // down on the way INTO the just-popped frame (dropdown-values or
+    // move-candidates), re-render it so the user can see the menu they're
+    // landing back on. Other parents (top, blocks, dom-items) own no
+    // standalone overlay — their highlight repaints via renderHighlight.
+    const parent = this.activeFrame();
+    if (
+      parent?.kind === 'action-menu' &&
+      (popped?.kind === 'dropdown-values' || popped?.kind === 'move-candidates')
+    ) {
+      this.actionMenuEl = renderActionMenu(
+        this.actionMenuEl,
+        parent.block,
+        parent.items,
+        (b) => getSingleBlockViewportRect(b, this.workspace),
+      );
+    }
+
+    this.renderHighlight();
+  }
+
   private popSubScan(resumeIndex: number): void {
     while (
       this.frameStack.length > 0 &&

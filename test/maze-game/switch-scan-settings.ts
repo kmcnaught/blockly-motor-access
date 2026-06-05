@@ -36,6 +36,12 @@ export type SwitchScanMode = 'step' | 'auto';
 export interface SwitchScanSettingsValues {
   switchAdvance: string;
   switchSelect: string;
+  /**
+   * Optional third "Back" switch — pops one frame off the scan stack.
+   * Empty string means the back binding is disabled. Always emitted so
+   * the host can persist + live-apply unconditionally.
+   */
+  switchBack: string;
   mode: SwitchScanMode;
   /**
    * Whether TTS audio feedback should be on. The host page persists
@@ -55,6 +61,8 @@ export interface SwitchScanSettingsValues {
 export interface SwitchScanSettingsOptions {
   initialAdvanceKey: string;
   initialSelectKey: string;
+  /** Initial back-switch key. Defaults to `'Escape'`. Empty string disables. */
+  initialBackKey?: string;
   /** Initial scan mode. Defaults to `'step'`. */
   initialMode?: SwitchScanMode;
   /** Initial audio toggle. Defaults to off. */
@@ -80,12 +88,16 @@ export interface SwitchScanSettingsOptions {
  *
  * `KeyboardEvent.key` returns the literal character produced — `" "`
  * for Space, `"ArrowLeft"` for the left arrow, etc. We show those as
- * "Space" / "Left" so the settings panel reads naturally.
+ * "Space" / "Left" so the settings panel reads naturally. An empty
+ * string is rendered as "(none)" so the back-switch row reads sensibly
+ * when the binding is disabled.
  *
- * @param key Raw `KeyboardEvent.key` value (e.g. `" "`, `"ArrowLeft"`).
+ * @param key Raw `KeyboardEvent.key` value (e.g. `" "`, `"ArrowLeft"`,
+ *     `""` for "no binding").
  * @returns Human-readable label for display in the settings UI.
  */
 function keyLabel(key: string): string {
+  if (key === '') return '(none)';
   if (key === ' ') return 'Space';
   if (key.startsWith('Arrow')) return key.slice('Arrow'.length);
   if (key.length === 1) return key.toUpperCase();
@@ -110,8 +122,11 @@ function keyLabel(key: string): string {
 export class SwitchScanSettings {
   private readonly switchACurrentEl: HTMLElement | null;
   private readonly switchBCurrentEl: HTMLElement | null;
+  private readonly switchCCurrentEl: HTMLElement | null;
   private readonly switchACaptureBtn: HTMLButtonElement | null;
   private readonly switchBCaptureBtn: HTMLButtonElement | null;
+  private readonly switchCCaptureBtn: HTMLButtonElement | null;
+  private readonly switchCClearBtn: HTMLButtonElement | null;
   private readonly switchBGroup: HTMLElement | null;
   private readonly modeRadios: NodeListOf<HTMLInputElement>;
   private readonly audioToggle: HTMLInputElement | null;
@@ -123,6 +138,7 @@ export class SwitchScanSettings {
   /** Live values. Auto-applied on every accepted change. */
   private currentAdvance: string;
   private currentSelect: string;
+  private currentBack: string;
   private currentMode: SwitchScanMode;
   private currentAudio: boolean;
   private currentScanSpeedMs: number;
@@ -136,7 +152,7 @@ export class SwitchScanSettings {
 
   /** Active key-capture state. Null when no capture is in flight. */
   private captureContext: {
-    which: 'advance' | 'select';
+    which: 'advance' | 'select' | 'back';
     button: HTMLButtonElement;
     originalLabel: string;
     keydownHandler: (e: KeyboardEvent) => void;
@@ -149,6 +165,7 @@ export class SwitchScanSettings {
     this.onChange = options.onChange;
     this.currentAdvance = options.initialAdvanceKey;
     this.currentSelect = options.initialSelectKey;
+    this.currentBack = options.initialBackKey ?? 'Escape';
     this.currentMode = options.initialMode ?? 'step';
     this.currentAudio = options.initialAudio ?? false;
     this.currentScanSpeedMs = options.initialScanSpeedMs ?? 1500;
@@ -157,11 +174,18 @@ export class SwitchScanSettings {
     this.panelEl = document.getElementById('switchAccessPanel');
     this.switchACurrentEl = document.getElementById('switchACurrent');
     this.switchBCurrentEl = document.getElementById('switchBCurrent');
+    this.switchCCurrentEl = document.getElementById('switchCCurrent');
     this.switchACaptureBtn = document.getElementById(
       'switchACaptureBtn',
     ) as HTMLButtonElement | null;
     this.switchBCaptureBtn = document.getElementById(
       'switchBCaptureBtn',
+    ) as HTMLButtonElement | null;
+    this.switchCCaptureBtn = document.getElementById(
+      'switchCCaptureBtn',
+    ) as HTMLButtonElement | null;
+    this.switchCClearBtn = document.getElementById(
+      'switchCClearBtn',
     ) as HTMLButtonElement | null;
     this.switchBGroup = document.getElementById('switchBGroup');
     this.modeRadios = document.querySelectorAll<HTMLInputElement>(
@@ -187,6 +211,23 @@ export class SwitchScanSettings {
       this.switchBCaptureBtn.addEventListener('click', () =>
         this.beginCapture('select'),
       );
+    }
+    if (this.switchCCaptureBtn) {
+      this.switchCCaptureBtn.disabled = false;
+      this.switchCCaptureBtn.addEventListener('click', () =>
+        this.beginCapture('back'),
+      );
+    }
+    if (this.switchCClearBtn) {
+      this.switchCClearBtn.disabled = false;
+      this.switchCClearBtn.addEventListener('click', () => {
+        // Disabling the back key — no capture loop, just commit '' and
+        // refresh. The capture button keeps its "Click to capture"
+        // label so the user can re-bind later.
+        this.currentBack = '';
+        this.refreshDisplay();
+        this.emitChange();
+      });
     }
 
     this.modeRadios.forEach((radio) => {
@@ -273,6 +314,7 @@ export class SwitchScanSettings {
     this.onChange({
       switchAdvance: this.currentAdvance,
       switchSelect: this.currentSelect,
+      switchBack: this.currentBack,
       mode: this.currentMode,
       audio: this.currentAudio,
       scanSpeedMs: this.currentScanSpeedMs,
@@ -302,13 +344,23 @@ export class SwitchScanSettings {
     this.panelEl.insertBefore(note, this.panelEl.firstChild);
   }
 
-  /** Sync `#switchACurrent` / `#switchBCurrent` to the current state. */
+  /**
+   * Sync the displayed binding labels for switches A / B / C to the
+   * current state. The clear button is greyed when there's nothing to
+   * clear (back binding already empty) so users get a clearer affordance.
+   */
   private refreshDisplay(): void {
     if (this.switchACurrentEl) {
       this.switchACurrentEl.textContent = keyLabel(this.currentAdvance);
     }
     if (this.switchBCurrentEl) {
       this.switchBCurrentEl.textContent = keyLabel(this.currentSelect);
+    }
+    if (this.switchCCurrentEl) {
+      this.switchCCurrentEl.textContent = keyLabel(this.currentBack);
+    }
+    if (this.switchCClearBtn) {
+      this.switchCClearBtn.disabled = this.currentBack === '';
     }
   }
 
@@ -354,13 +406,15 @@ export class SwitchScanSettings {
    *
    * @param which Which switch this capture is rebinding.
    */
-  private beginCapture(which: 'advance' | 'select'): void {
+  private beginCapture(which: 'advance' | 'select' | 'back'): void {
     this.cancelCapture();
 
     const button =
       which === 'advance'
         ? this.switchACaptureBtn
-        : this.switchBCaptureBtn;
+        : which === 'select'
+          ? this.switchBCaptureBtn
+          : this.switchCCaptureBtn;
     if (!button) return;
 
     const originalLabel = button.textContent ?? 'Click to capture';
@@ -374,25 +428,38 @@ export class SwitchScanSettings {
       event.stopImmediatePropagation();
       event.stopPropagation();
 
-      if (event.key === 'Tab' || event.key === 'Escape') {
+      // Tab still can't be a switch key — captures focus traversal and
+      // breaks the modal's keyboard accessibility. Escape is rejected
+      // for advance/select because pressing it during the capture would
+      // otherwise both rebind AND fire the back action; the back-switch
+      // capture itself ALLOWS Escape since that's its default binding.
+      if (event.key === 'Tab') {
         errorEl.textContent =
-          "Tab/Escape can't be used as a switch key. Try again.";
+          "Tab can't be used as a switch key. Try again.";
+        return;
+      }
+      if (event.key === 'Escape' && which !== 'back') {
+        errorEl.textContent =
+          "Escape can't be used for Advance/Select — it's reserved for the Back switch. Try a different key.";
         return;
       }
 
-      const other =
-        which === 'advance' ? this.currentSelect : this.currentAdvance;
-      if (event.key === other) {
-        const otherLabel = which === 'advance' ? 'Switch B' : 'Switch A';
-        errorEl.textContent = `That key is already bound to ${otherLabel}. Pick a different key.`;
+      // Reject if the chosen key duplicates one of the other bindings.
+      // The lookup tells the user WHICH switch already owns it so they
+      // can decide whether to remap that one instead.
+      const conflict = this.findConflict(which, event.key);
+      if (conflict) {
+        errorEl.textContent = `That key is already bound to ${conflict}. Pick a different key.`;
         return;
       }
 
       // Accepted — commit live + apply.
       if (which === 'advance') {
         this.currentAdvance = event.key;
-      } else {
+      } else if (which === 'select') {
         this.currentSelect = event.key;
+      } else {
+        this.currentBack = event.key;
       }
       this.refreshDisplay();
       this.cancelCapture();
@@ -408,6 +475,34 @@ export class SwitchScanSettings {
       keydownHandler,
       errorEl,
     };
+  }
+
+  /**
+   * Check whether `key` is already bound to one of the OTHER switches.
+   * Returns a human-readable label ("Switch A" / "Switch B" / "Switch C")
+   * or null when there's no conflict.
+   *
+   * The back-switch bindings can be empty (`''`) when disabled; we
+   * explicitly skip the empty comparison so binding Advance to a real
+   * key isn't blocked just because Back is disabled.
+   *
+   * @param which Capture target — which switch we're rebinding.
+   * @param key   The pressed key being considered.
+   */
+  private findConflict(
+    which: 'advance' | 'select' | 'back',
+    key: string,
+  ): string | null {
+    if (which !== 'advance' && key === this.currentAdvance) return 'Switch A';
+    if (which !== 'select' && key === this.currentSelect) return 'Switch B';
+    if (
+      which !== 'back' &&
+      this.currentBack !== '' &&
+      key === this.currentBack
+    ) {
+      return 'Switch C';
+    }
+    return null;
   }
 
   /** Tear down any in-flight capture. Safe when no capture is active. */
@@ -426,19 +521,30 @@ export class SwitchScanSettings {
    * Look up (or lazily create) the inline error element below the
    * capture row for `which`.
    */
-  private ensureErrorEl(which: 'advance' | 'select'): HTMLElement {
+  private ensureErrorEl(
+    which: 'advance' | 'select' | 'back',
+  ): HTMLElement {
     const id =
       which === 'advance'
         ? 'switchSettingsErrorA'
-        : 'switchSettingsErrorB';
+        : which === 'select'
+          ? 'switchSettingsErrorB'
+          : 'switchSettingsErrorC';
     let el = document.getElementById(id);
     if (el) return el;
 
-    const groupId = which === 'advance' ? null : 'switchBGroup';
-    const group =
-      groupId !== null
-        ? document.getElementById(groupId)
-        : this.switchACaptureBtn?.closest('.switch-settings-group') ?? null;
+    // Advance has no fixed group container in the markup (it's the
+    // first row), so we hop up to the nearest `.switch-settings-group`
+    // from its capture button. Select / back have explicit group IDs.
+    const group = (() => {
+      if (which === 'advance') {
+        return (
+          this.switchACaptureBtn?.closest('.switch-settings-group') ?? null
+        );
+      }
+      const groupId = which === 'select' ? 'switchBGroup' : 'switchCGroup';
+      return document.getElementById(groupId);
+    })();
 
     el = document.createElement('p');
     el.id = id;

@@ -299,6 +299,21 @@
             </div>
           </div>
 
+          <!-- 3b. Switch C (Back) — optional third switch that pops one
+               sub-scan frame. Default Esc; clear-button disables. -->
+          <div class="switch-settings-group" id="switchCGroup">
+            <h3 class="switch-settings-heading">Switch C (Back, optional)</h3>
+            <div class="switch-settings-row">
+              <span id="switchCCurrent" class="switch-settings-current">Esc</span>
+              <button id="switchCCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                Click to capture
+              </button>
+              <button id="switchCClearBtn" type="button" class="switch-settings-clear" data-scan-item disabled>
+                Clear
+              </button>
+            </div>
+          </div>
+
           <!-- 4. Scan speed (auto-scan mode). -->
           <div class="switch-settings-group" id="scanSpeedGroup">
             <h3 class="switch-settings-heading">Scan speed</h3>
