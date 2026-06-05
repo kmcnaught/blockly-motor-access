@@ -75,6 +75,11 @@
 import * as Blockly from 'blockly/core';
 import {MazeGame} from './maze';
 import {insertBlockAfterCursor} from './block-insertion';
+import {
+  renderActionMenu,
+  renderMoveMenu,
+  renderDropdownMenu,
+} from './switch-scan-menus';
 
 /**
  * Minimal contract the controller needs from the settings panel. Kept
@@ -2318,7 +2323,12 @@ export class SwitchScanController {
       index: 0,
       topLevelIndex,
     });
-    this.renderActionMenu(block, items);
+    this.actionMenuEl = renderActionMenu(
+      this.actionMenuEl,
+      block,
+      items,
+      (b) => this.getSingleBlockViewportRect(b),
+    );
     this.renderHighlight();
   }
 
@@ -2399,7 +2409,12 @@ export class SwitchScanController {
       index: 0,
       topLevelIndex,
     });
-    this.renderDropdownMenu(block, options);
+    this.dropdownMenuEl = renderDropdownMenu(
+      this.dropdownMenuEl,
+      block,
+      options,
+      (b) => this.getSingleBlockViewportRect(b),
+    );
     this.renderHighlight();
   }
 
@@ -2457,7 +2472,12 @@ export class SwitchScanController {
       topLevelIndex,
       commitHandler: (value) => source.commit(value),
     });
-    this.renderDropdownMenu(anchor, options);
+    this.dropdownMenuEl = renderDropdownMenu(
+      this.dropdownMenuEl,
+      anchor,
+      options,
+      (b) => this.getSingleBlockViewportRect(b),
+    );
     this.renderHighlight();
   }
 
@@ -2631,7 +2651,12 @@ export class SwitchScanController {
       index: 0,
       topLevelIndex,
     });
-    this.renderMoveMenu(block, items);
+    this.moveMenuEl = renderMoveMenu(
+      this.moveMenuEl,
+      block,
+      items,
+      (b) => this.getSingleBlockViewportRect(b),
+    );
     this.renderHighlight();
   }
 
@@ -2702,188 +2727,6 @@ export class SwitchScanController {
     } catch (err) {
       console.warn(`[switch-scan] shortcut "${name}" threw:`, err);
       return false;
-    }
-  }
-
-  /**
-   * (Re)build the action-menu overlay DOM and anchor it adjacent to
-   * `block`. We rebuild on every entry rather than keeping a long-lived
-   * element so the item list can change per block (Edit is conditional).
-   *
-   * Anchoring heuristic: default below-left of the block; if that would
-   * overflow the viewport bottom, switch to right-of the block. Simple
-   * two-fallback rule is enough for the maze game's compact layout.
-   *
-   * @param block
-   * @param items
-   */
-  private renderActionMenu(
-    block: Blockly.BlockSvg,
-    items: ActionItem[],
-  ): void {
-    this.actionMenuEl?.remove();
-    const el = document.createElement('div');
-    el.className = 'switch-scan-action-menu';
-    for (let i = 0; i < items.length; i++) {
-      const row = document.createElement('div');
-      row.className = 'switch-scan-menu-item';
-      row.setAttribute('data-scan-action-item', String(i));
-      row.textContent = items[i].label;
-      el.appendChild(row);
-    }
-    document.body.appendChild(el);
-    this.actionMenuEl = el;
-    this.anchorMenuToBlock(el, block);
-  }
-
-  /**
-   * (Re)build the move-candidates overlay DOM ("Next" / "Place") and
-   * anchor it next to `block`. Reuses the action-menu CSS class for
-   * styling consistency so the two overlays look like siblings rather
-   * than visually competing widgets. The candidate-connection itself
-   * is highlighted by Blockly's own move-mode preview, so this overlay
-   * just hosts the "which switch action did the user pick" affordance.
-   *
-   * @param block
-   * @param items
-   */
-  private renderMoveMenu(
-    block: Blockly.BlockSvg,
-    items: MoveCandidatesItem[],
-  ): void {
-    this.moveMenuEl?.remove();
-    const el = document.createElement('div');
-    // Share the action-menu class for visual consistency; an extra
-    // marker class lets us narrow CSS overrides later if needed.
-    el.className = 'switch-scan-action-menu switch-scan-move-menu';
-    for (let i = 0; i < items.length; i++) {
-      const row = document.createElement('div');
-      row.className = 'switch-scan-menu-item';
-      row.setAttribute('data-scan-move-item', String(i));
-      row.textContent = items[i].label;
-      el.appendChild(row);
-    }
-    document.body.appendChild(el);
-    this.moveMenuEl = el;
-    this.anchorMenuToBlock(el, block);
-  }
-
-  /**
-   * (Re)build the dropdown-values overlay DOM and anchor it adjacent to
-   * `anchor`. Image options render as `<img>` so direction arrows etc.
-   * show pictographically; string options render as text.
-   *
-   * `anchor` is either a workspace `BlockSvg` (Block-Edit path) or an
-   * `HTMLElement` (header-dropdown path — the `#pegmanButton` /
-   * `<select id="languageSelect">`). Both yield a viewport rect via
-   * different helpers; the same below-the-anchor / fallback-right
-   * placement applies.
-   *
-   * @param anchor
-   * @param options
-   */
-  private renderDropdownMenu(
-    anchor: HTMLElement | Blockly.BlockSvg,
-    options: Array<
-      [string | {src: string; width: number; height: number; alt: string}, string]
-    >,
-  ): void {
-    this.dropdownMenuEl?.remove();
-    const el = document.createElement('div');
-    el.className = 'switch-scan-dropdown-menu';
-    for (let i = 0; i < options.length; i++) {
-      const row = document.createElement('div');
-      row.className = 'switch-scan-menu-item';
-      row.setAttribute('data-scan-dropdown-item', String(i));
-      const label = options[i][0];
-      if (typeof label === 'string') {
-        row.textContent = label;
-      } else {
-        const img = document.createElement('img');
-        img.src = label.src;
-        img.width = label.width;
-        img.height = label.height;
-        img.alt = label.alt;
-        row.appendChild(img);
-      }
-      el.appendChild(row);
-    }
-    document.body.appendChild(el);
-    this.dropdownMenuEl = el;
-    this.anchorMenuToAnchor(el, anchor);
-  }
-
-  /**
-   * Position `menuEl` (fixed-positioned by CSS) adjacent to `block`.
-   * Default: just below the block, left-aligned. Fallback: if the menu
-   * would overflow the viewport bottom, anchor to the right of the
-   * block instead.
-   *
-   * @param menuEl
-   * @param block
-   */
-  private anchorMenuToBlock(
-    menuEl: HTMLElement,
-    block: Blockly.BlockSvg,
-  ): void {
-    // Use the single-block viewport rect (not `getSvgRoot().getBoundingClientRect()`):
-    // the SVG `<g>` root visually contains the entire connected stack, so
-    // anchoring off it drops the menu at the bottom of the chain instead of
-    // directly below the block being acted on. The helper returns null only
-    // when the block has no rendered SVG root — same guard as before.
-    const r = this.getSingleBlockViewportRect(block);
-    if (!r) return;
-    this.placeMenuByRect(menuEl, r);
-  }
-
-  /**
-   * Position `menuEl` adjacent to a polymorphic `anchor` — either a
-   * Blockly `BlockSvg` (Block-Edit dropdown) or an `HTMLElement` (header
-   * dropdown). Both resolve to a viewport rect; the same below-the-anchor
-   * / fallback-right placement applies.
-   *
-   * Kept separate from {@link anchorMenuToBlock} so the action-menu /
-   * move-menu callers continue to pass a `BlockSvg` directly without
-   * the TypeScript widening dance.
-   *
-   * @param menuEl
-   * @param anchor
-   */
-  private anchorMenuToAnchor(
-    menuEl: HTMLElement,
-    anchor: HTMLElement | Blockly.BlockSvg,
-  ): void {
-    let rect: DOMRect | null = null;
-    if (anchor instanceof HTMLElement) {
-      rect = anchor.getBoundingClientRect();
-    } else {
-      rect = this.getSingleBlockViewportRect(anchor);
-    }
-    if (!rect) return;
-    this.placeMenuByRect(menuEl, rect);
-  }
-
-  /**
-   * Shared placement heuristic: drop the menu below the anchor with an
-   * 8px gap; if that would overflow the viewport bottom, anchor right
-   * of the anchor instead. The fixed-position styling on the menu
-   * itself means viewport coords are what we want.
-   *
-   * @param menuEl
-   * @param r
-   */
-  private placeMenuByRect(menuEl: HTMLElement, r: DOMRect): void {
-    // Measure menu after appending so the fallback heuristic has real
-    // dimensions to compare against the viewport.
-    const menuRect = menuEl.getBoundingClientRect();
-    const viewportH = window.innerHeight;
-    const wouldOverflowBottom = r.bottom + 8 + menuRect.height > viewportH;
-    if (wouldOverflowBottom) {
-      menuEl.style.top = `${r.top}px`;
-      menuEl.style.left = `${r.right + 8}px`;
-    } else {
-      menuEl.style.top = `${r.bottom + 8}px`;
-      menuEl.style.left = `${r.left}px`;
     }
   }
 
