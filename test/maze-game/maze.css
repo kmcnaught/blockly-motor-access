@@ -4,6 +4,34 @@ html {
   overscroll-behavior: none;
 }
 
+/* iOS Skip Nav — visually hidden but still in the accessibility tree
+   so Grid 3 on iOS (which can't emulate keyboard input) can find and
+   activate these actions. Standard clip-path technique: zero visual
+   footprint, fully tabbable/clickable. */
+.ios-skip-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ios-skip-nav button {
+  /* Reset to look like the surrounding clipped region — only the
+     accessible name matters here. */
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+
 #build-sha {
   position: fixed;
   top: 4px;

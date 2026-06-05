@@ -7,6 +7,23 @@
     <link rel="stylesheet" href="maze.css">
   </head>
   <body>
+  <!--
+    iOS Skip Nav — visually-hidden but traversable buttons for assistive tech
+    (specifically Grid 3 on iOS, which exposes the accessibility tree but
+    cannot emulate keyboard input). Placed first in the DOM so Grid finds
+    these before the visible header controls. Hidden by default; unhidden
+    by index.ts in grid mode and practice mode. Each button dispatches the
+    keyboard event that the existing handlers already understand.
+  -->
+  <nav id="iosSkipNav" class="ios-skip-nav" aria-label="Maze actions" hidden>
+    <button type="button" data-ios-action="forward">Move forward ⬆️</button>
+    <button type="button" data-ios-action="turnLeft">Turn left ⬅️</button>
+    <button type="button" data-ios-action="turnRight">Turn right ➡️</button>
+    <button type="button" data-ios-action="prevLevel">Previous level</button>
+    <button type="button" data-ios-action="nextLevel">Next level</button>
+    <button type="button" data-ios-action="enter">Continue</button>
+    <button type="button" data-ios-action="reset">Reset</button>
+  </nav>
   <div id="page-scale-wrapper">
     <div id="leftPadding" class="screen-padding left-padding"></div>
     <div class="main-content-wrapper">

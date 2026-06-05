@@ -2756,6 +2756,64 @@ function initializeGridMode(): void {
 initializeGridMode();
 
 /**
+ * Initialize the iOS Skip Nav — visually-hidden buttons that mirror the
+ * keyboard shortcuts so Grid 3 on iOS (which can't emulate keyboard
+ * input) can reach the same actions via the accessibility tree.
+ *
+ * Active in practice mode and any grid mode flavour. Each button
+ * dispatches the keyboard event the existing handlers already
+ * understand, so action dispatch stays in one place.
+ */
+function initializeIosSkipNav(): void {
+  const inPracticeMode = MazeGame.isPracticeModeEnabled();
+  if (!isGridMode && !isGridCodingMode && !inPracticeMode) return;
+
+  const nav = document.getElementById('iosSkipNav');
+  if (!nav) return;
+  nav.hidden = false;
+
+  // Reset semantics differ by mode: practice mode uses 'r', grid
+  // coding mode uses Shift+R (plain 'r' = run there).
+  const resetKey: {key: string; shiftKey: boolean} = isGridCodingMode
+    ? {key: 'R', shiftKey: true}
+    : {key: 'r', shiftKey: false};
+
+  const actions: Record<string, {key: string; shiftKey?: boolean}> = {
+    forward: {key: 'ArrowUp', shiftKey: true},
+    turnLeft: {key: 'ArrowLeft', shiftKey: true},
+    turnRight: {key: 'ArrowRight', shiftKey: true},
+    prevLevel: {key: '['},
+    nextLevel: {key: ']'},
+    enter: {key: 'Enter'},
+    reset: resetKey,
+  };
+
+  nav.querySelectorAll<HTMLButtonElement>('button[data-ios-action]').forEach((btn) => {
+    const action = btn.dataset.iosAction;
+    if (!action || !(action in actions)) return;
+    const {key, shiftKey = false} = actions[action];
+    btn.addEventListener('click', () => {
+      // Enter targets the topmost open <dialog> when present so
+      // dialog-scoped keydown listeners actually fire; everything
+      // else goes to document for the global / controller handlers.
+      let target: EventTarget = document;
+      if (action === 'enter') {
+        const openDialog = document.querySelector<HTMLDialogElement>('dialog[open]');
+        if (openDialog) target = openDialog;
+      }
+      target.dispatchEvent(new KeyboardEvent('keydown', {
+        key,
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+  });
+}
+
+initializeIosSkipNav();
+
+/**
  * Initialize Grid coding mode UI if active.
  */
 function initializeGridCodingMode(): void {
