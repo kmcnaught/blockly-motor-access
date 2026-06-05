@@ -2902,6 +2902,36 @@ function buildHeaderDropdownSources(): Record<string, HeaderDropdownSource> {
         select.dispatchEvent(new Event('change'));
       },
     },
+    // Stage picker in the instruction bar. Same shape as `language`:
+    // a real <select> whose options carry the user-visible label and
+    // the option `value` (a stage id). Switch users can reach the
+    // instruction-bar sub-scan and would otherwise hit the bare
+    // <select>, which opens a native popover the scanner can't drive.
+    // The mouse-path change handler at line ~1303 reads `select.value`
+    // and runs the level transition, so dispatching a synthetic
+    // `change` after assigning the value reuses that flow verbatim.
+    stage: {
+      getOptions: () => {
+        const select = document.getElementById(
+          'stageDropdown',
+        ) as HTMLSelectElement | null;
+        if (!select) return [];
+        const opts: Array<[string, string]> = [];
+        for (const opt of Array.from(select.options)) {
+          const label = opt.textContent?.trim() || opt.value;
+          opts.push([label, opt.value]);
+        }
+        return opts;
+      },
+      commit: (value) => {
+        const select = document.getElementById(
+          'stageDropdown',
+        ) as HTMLSelectElement | null;
+        if (!select) return;
+        select.value = value;
+        select.dispatchEvent(new Event('change'));
+      },
+    },
   };
 }
 

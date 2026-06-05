@@ -68,12 +68,11 @@ export function discoverRegions(
 
   // Instruction bar — separate DOM region from <header> (lives below
   // it visually). Hosts the `?` info button (keyboard-shortcuts modal
-  // entry). Tagged in Phase 1 Step 2 as deferred; closed by this
-  // polish pass. Only scannable items here are tagged with
-  // `data-scan-item`; the bare instruction text + stage selector are
-  // not scan items (the instruction text isn't actionable; the stage
-  // dropdown is a separate consideration if we want it reachable
-  // later — see `data-scan-dropdown-source` pattern).
+  // entry) plus the stage dropdown. Both are tagged `data-scan-item`;
+  // the stage dropdown additionally carries
+  // `data-scan-dropdown-source="stage"` so a switch select opens a
+  // dropdown-values sub-scan over its options instead of trying to
+  // drive the native popover.
   const instructionBarEl = document.querySelector<HTMLElement>(
     '[data-scan-region="instruction-bar"]',
   );
