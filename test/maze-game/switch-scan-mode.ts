@@ -224,9 +224,10 @@ function normalizeKey(key: string): string {
  *    buttons inside the header region) plus a sentinel at
  *    index === items.length. `topLevelIndex` is the index of the
  *    top-level region the user entered THIS sub-scan from — pop helpers
- *    derive the resume index from it (same region for sentinel pops, the
- *    NEXT region for action-completed pops). See {@link popToSameRegion}
- *    and {@link popToNextRegion}.
+ *    resume on that region for both sentinel pops AND action-commit
+ *    pops, so pressing Select again re-enters the same sub-scan. See
+ *    {@link popToSameRegion}. {@link popToNextRegion} is reserved for
+ *    degenerate empty-region skips only.
  *  - `parentRegionName` is informational only (used for logging /
  *    future diagnostics) — frame routing is purely positional.
  */
@@ -1357,12 +1358,13 @@ export class SwitchScanController {
    * that region (DOM-item, toolbox-blocks, workspace-blocks).
    * - sub-scan at item     → commit the action (click button / insert
    * block / pick value / Select / Delete / Edit) and pop via
-   * {@link popToNextRegion} so the user advances to the next top
-   * region.
-   * - sub-scan at sentinel → pop via {@link popToSameRegion} so the
-   * user lands back on the SAME top-level region they entered the
-   * sub-scan from, ready to re-enter it. (Action-completed pops go
-   * to the NEXT region; sentinel pops stay on the same region.)
+   * {@link popToSameRegion} so the user lands back on the region
+   * they came from — pressing Select again immediately re-enters
+   * the same sub-scan (chain inserts, chain edits, etc.).
+   * - sub-scan at sentinel → also pops via {@link popToSameRegion}:
+   * sentinel and action-commit have the same pop target by design,
+   * differing only in side effect (commit vs. no-op). The "Up one
+   * level, stay where you were" model is consistent across both.
    *
    * Defensive: bails if disabled (the listener is removed on disable,
    * but the guard keeps state and listener-binding decoupled) and skips
@@ -1614,9 +1616,11 @@ export class SwitchScanController {
       try {
         item?.click();
       } finally {
-        // Action completed: advance to the next top-level region so the
-        // user keeps moving forward through the scan cycle.
-        this.popToNextRegion(frame.topLevelIndex);
+        // Action completed: pop back to the SAME top-level region the
+        // user entered from so pressing Select again re-enters the
+        // sub-scan they were in — see popToSameRegion docstring for
+        // the rationale.
+        this.popToSameRegion(frame.topLevelIndex);
       }
       return;
     }
@@ -1661,18 +1665,10 @@ export class SwitchScanController {
             });
           }
         } finally {
-          // Toolbox insert is the ONE action-commit exception that pops
-          // to the SAME top-level region instead of advancing: users
-          // building a program typically chain inserts (turn → move →
-          // turn → ...), and advancing to workspace after every insert
-          // forces them to cycle all the way back through workspace +
-          // maze-actions + sentinel + header just to insert again.
-          // Staying on toolbox lets them re-enter the flyout sub-scan
-          // immediately for the next insert. Every other action-commit
-          // site (header button click, action-menu Select/Delete/Edit
-          // commit, maze-actions click, dropdown-values pick) still
-          // uses popToNextRegion — only the chain-insert ergonomics
-          // here warrant the override.
+          // Pop back to the SAME region so the user can chain inserts
+          // without re-cycling through every other region first. This
+          // matches the general action-commit rule: pressing Select
+          // again lands back in the same sub-scan they were just in.
           this.popToSameRegion(frame.topLevelIndex);
         }
         return;
@@ -1714,8 +1710,9 @@ export class SwitchScanController {
           // anyway so the user isn't stranded.
           console.warn('[switch-scan] focusNode failed:', err);
         }
-        // Action committed → next region.
-        this.popToNextRegion(frame.topLevelIndex);
+        // Action committed → land back on workspace so the user can
+        // act on another block immediately (press Select to re-enter).
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       if (item.key === 'delete') {
@@ -1733,8 +1730,9 @@ export class SwitchScanController {
         } catch (err) {
           console.warn('[switch-scan] block.dispose failed:', err);
         }
-        // Action committed → next region.
-        this.popToNextRegion(frame.topLevelIndex);
+        // Action committed → land back on workspace so the user can
+        // act on another block immediately (press Select to re-enter).
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       if (item.key === 'edit') {
@@ -1806,11 +1804,12 @@ export class SwitchScanController {
       }
       if (item.key === 'place') {
         // Commit the move at whatever candidate Blockly is currently
-        // previewing. If commit succeeds (or fails defensively), pop
-        // to the next top-level region — Move counts as a committed
-        // action just like Select / Delete / Edit-commit.
+        // previewing. Pop back to the SAME top-level region (workspace)
+        // — Move counts as a committed action just like Select / Delete
+        // / Edit-commit, and they all land back where the user came
+        // from so pressing Select again re-enters the sub-scan.
         this.commitMoveAtCurrentCandidate();
-        this.popToNextRegion(frame.topLevelIndex);
+        this.popToSameRegion(frame.topLevelIndex);
         return;
       }
       return;
@@ -1843,14 +1842,14 @@ export class SwitchScanController {
           console.warn('[switch-scan] dropdown commit failed:', err);
         }
       }
-      // Edit committed → advance to next region (v1 design: treat the
-      // whole edit flow as a single committed action that lands the user
-      // past the workspace region, not back inside it). For the language
-      // dropdown this pop is technically moot because commit triggers a
-      // full page reload (URL changes with the new lang param), but
-      // popping anyway leaves the controller in a consistent state in
-      // case the reload is deferred or aborted by the browser.
-      this.popToNextRegion(frame.topLevelIndex);
+      // Edit committed → land back on the SAME top-level region so the
+      // user can immediately act again (re-edit, edit a sibling block,
+      // re-open a header dropdown). For the language dropdown this pop
+      // is technically moot because commit triggers a full page reload
+      // (URL changes with the new lang param), but popping anyway
+      // leaves the controller in a consistent state if the reload is
+      // deferred or aborted by the browser.
+      this.popToSameRegion(frame.topLevelIndex);
       return;
     }
   }
@@ -1875,10 +1874,10 @@ export class SwitchScanController {
    *
    * @param regionName     The region's `data-scan-region` value.
    * @param topLevelIndex  Top-level index of the region the user entered
-   *     from. Stored on the frame so the pop helpers can derive the
-   *     correct resume index (same region for sentinel pops, next region
-   *     for action-completed pops — see {@link popToSameRegion} /
-   *     {@link popToNextRegion}).
+   *     from. Stored on the frame so {@link popToSameRegion} can resume
+   *     the user on the same region after both sentinel-bail and
+   *     action-commit pops, leaving Select pressed twice in a row as a
+   *     "re-enter this sub-scan" gesture.
    */
   private enterDomRegionSubScan(
     regionName: string,
@@ -1887,12 +1886,13 @@ export class SwitchScanController {
     const items = discoverDomRegionItems(regionName);
 
     if (items.length === 0) {
-      // Nothing to scan — advance past the region so the user isn't
-      // stuck. Treat the empty sub-scan as a no-op "action" and advance
-      // to the next top-level region (matches what a successful item
-      // click would have done). For maze-actions this still correctly
-      // lands on the top-level sentinel via the modulo inside
-      // popToNextRegion.
+      // Nothing to scan — advance PAST the region so the user isn't
+      // stuck. This is the one place we still call popToNextRegion:
+      // it's a degenerate "this region is empty, skip it" path, not a
+      // user-initiated action, so the "stay on same region" rule
+      // doesn't apply — re-entering an empty region would just loop
+      // here. The same fallback is used by the empty-toolbox and
+      // empty-workspace branches in their respective enter* helpers.
       this.popToNextRegion(topLevelIndex);
       return;
     }
@@ -1911,11 +1911,12 @@ export class SwitchScanController {
    * Pop every non-`top` frame off the stack and resume the top frame at
    * the SAME top-level region the user entered the sub-scan from.
    *
-   * Used for sentinel-driven pops ("Back to top"): the user is
-   * explicitly bailing out of the sub-scan and wants to land back on the
-   * region they were on, so they can re-enter it (e.g. re-open the
-   * toolbox if they entered it by mistake, or pick a different workspace
-   * block after backing out of the action menu).
+   * Used for BOTH sentinel pops AND action-commit pops — the scan focus
+   * always pops "up one level" without moving forward, so pressing
+   * Select again re-enters the sub-scan the user just came from. This
+   * matters for chained actions: chain-inserting blocks from the
+   * toolbox, chain-editing dropdowns on different workspace blocks,
+   * clicking multiple maze-actions in a row, etc.
    *
    * @param topLevelIndex Top-level region the sub-scan was entered from.
    */
@@ -1928,14 +1929,11 @@ export class SwitchScanController {
    * the NEXT top-level region (wrapping past the sentinel, modulo cycle
    * length).
    *
-   * Used after an action commits — a clicked DOM button, a toolbox
-   * block insertion, a workspace block action (Select / Delete / Edit
-   * value chosen). Moving forward keeps the scan cycle progressing
-   * rather than parking the user on a region they just finished with.
-   *
-   * For the last real region (maze-actions) the next index wraps back to
-   * the first region — the top-level cycle has no sentinel slot, so the
-   * wrap is the only "you reached the end" affordance.
+   * Reserved for degenerate empty-region skips: when a user enters a
+   * sub-scan whose item list turns out to be empty, advancing past the
+   * region prevents an infinite "select → empty → re-enter empty" loop.
+   * All user-initiated action commits use {@link popToSameRegion}
+   * instead, so the scan focus consistently pops up exactly one level.
    *
    * @param topLevelIndex Top-level region the sub-scan was entered from.
    */
@@ -1962,8 +1960,8 @@ export class SwitchScanController {
    *
    * Prefer the named helpers {@link popToSameRegion} /
    * {@link popToNextRegion} at call sites — they encode the semantic
-   * intent (sentinel bail vs action commit) and compute the right
-   * resume index from the entry top-level index.
+   * intent (real user pop vs degenerate empty-region skip) and compute
+   * the right resume index from the entry top-level index.
    *
    * @param resumeIndex
    */
