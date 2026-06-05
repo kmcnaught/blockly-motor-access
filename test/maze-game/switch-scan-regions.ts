@@ -83,9 +83,33 @@ export function discoverRegions(
     });
   }
 
+  // Practice-mode controls panel (Forward / Turn Left / Turn Right).
+  // Only visible in practice mode — when `#immediateModePanel.hidden`
+  // is in effect (coding mode) `offsetParent` is null and we skip the
+  // region entirely so the scan cycle doesn't pause on an invisible
+  // step. Conversely, in practice mode `#blocklyDiv.hidden` hides the
+  // workspace/toolbox so those regions are skipped below; the two are
+  // mutually exclusive in display, matching the mode toggle.
+  const practiceEl = document.querySelector<HTMLElement>(
+    '[data-scan-region="practice-controls"]',
+  );
+  if (practiceEl && practiceEl.offsetParent !== null) {
+    regions.push({
+      name: 'practice-controls',
+      getRect: () => practiceEl.getBoundingClientRect(),
+    });
+  }
+
   // Toolbox — prefer Blockly's flyout SVG group, fall back to the
   // toolbox HtmlDiv if a category-style Toolbox is in use. Both are
   // private-ish APIs; the cast pattern matches `src/index.ts:157`.
+  //
+  // In practice mode the blocklyDiv is `display: none`, so the flyout
+  // / workspace SVG are unmeasurable AND meaningless — there's nothing
+  // for the user to scan inside them. Skip both regions outright in
+  // that case so the cycle doesn't include dead steps.
+  const blocklyDiv = document.getElementById('blocklyDiv');
+  const blocklyVisible = !!blocklyDiv && blocklyDiv.offsetParent !== null;
   const flyout = workspace.getFlyout();
   const toolbox = workspace.getToolbox();
   let toolboxRectFn: (() => DOMRect | null) | null = null;
@@ -103,7 +127,7 @@ export function discoverRegions(
       toolboxRectFn = () => htmlDiv.getBoundingClientRect();
     }
   }
-  if (toolboxRectFn) {
+  if (blocklyVisible && toolboxRectFn) {
     // We deliberately don't sample the rect here — Blockly's flyout
     // may not be measured yet at `enable()` time (e.g. if discovery
     // runs before first layout / on a hidden tab). The thunk re-reads
@@ -112,7 +136,7 @@ export function discoverRegions(
     // self-recovers on the next cycle instead of being permanently
     // dropped.
     regions.push({name: 'toolbox', getRect: toolboxRectFn});
-  } else {
+  } else if (blocklyVisible) {
     console.warn('[switch-scan] toolbox region not found');
   }
 
@@ -135,7 +159,7 @@ export function discoverRegions(
   // width), fall through to the unmodified workspace rect.
   const injectionDiv = workspace.getInjectionDiv();
   const capturedToolboxRectFn = toolboxRectFn;
-  if (injectionDiv) {
+  if (blocklyVisible && injectionDiv) {
     regions.push({
       name: 'workspace',
       getRect: () => {
@@ -154,7 +178,7 @@ export function discoverRegions(
         );
       },
     });
-  } else {
+  } else if (blocklyVisible) {
     console.warn('[switch-scan] workspace region not found');
   }
 

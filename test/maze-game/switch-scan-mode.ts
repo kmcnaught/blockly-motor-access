@@ -615,6 +615,29 @@ export class SwitchScanController {
   }
 
   /**
+   * Re-discover top-level regions and reset to a clean top-level frame.
+   *
+   * The region list is determined by which DOM elements are visible
+   * (blocklyDiv toggling between coding/practice changes which of
+   * toolbox/workspace vs. practice-controls is in the cycle). Mode
+   * changes don't re-enable the controller, so the regions list would
+   * otherwise stay frozen from the last `enable()` call. Call this from
+   * the host page after `setExecutionMode` flips visibility.
+   *
+   * Frame stack is reset to top/index=0 because any sub-scan frame
+   * referenced regions or elements that may no longer exist (e.g. a
+   * workspace-blocks frame after switching into practice mode).
+   * Re-enabling is more disruptive than necessary — we keep listeners
+   * + overlay DOM and just refresh the discoverable set.
+   */
+  rediscoverRegions(): void {
+    if (!this.enabled) return;
+    this.regions = discoverRegions(this.workspace);
+    this.frameStack = [{kind: 'top', index: 0}];
+    this.renderHighlight({speak: false});
+  }
+
+  /**
    * Update the advance / select key bindings.
    * Keys use `KeyboardEvent.key` string values; aliases like `'Space'`
    * are normalized.

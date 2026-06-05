@@ -1110,6 +1110,12 @@ function setExecutionMode(mode: ExecutionMode): void {
   updateUrlState();
   // Update padding controls visibility based on mode
   paddingManager?.setMode(false, false); // Neither grid mode nor grid coding mode in normal toggle
+  // The set of scannable regions depends on which panel is visible
+  // (workspace/toolbox in coding mode vs. practice-controls in practice
+  // mode). The controller's region list is frozen at enable() time, so
+  // it needs an explicit kick to pick up the new visibility state.
+  // No-op when the controller is disabled (e.g. grid modes).
+  switchScanController?.rediscoverRegions();
 }
 
 /**
