@@ -1572,7 +1572,29 @@ export class SwitchScanController {
         // instance.
         try {
           if (block) {
-            insertBlockAfterCursor(this.workspace, block.type);
+            const inserted = insertBlockAfterCursor(this.workspace, block.type);
+            // Commit the FocusManager cursor to the new block before
+            // returning scan focus to the toolbox. Two reasons:
+            //  1. The next insert chains after this block — the
+            //     insertion heuristic in block-insertion.ts reads the
+            //     FocusManager cursor, so without this update each
+            //     chained insert would re-walk to the tail of the first
+            //     top-block instead of advancing the cursor.
+            //  2. Visual confirmation — Blockly paints its own focus
+            //     indicator on the new block, giving the user a brief
+            //     "you just added THIS one" signal that's distinct from
+            //     the switch-scan highlight returning to the toolbox.
+            // Wait for the render to settle so the focusable element
+            // exists when focusNode looks for it (same pattern enter.ts
+            // uses for its Enter-on-flyout insert).
+            const newBlock = inserted as Blockly.BlockSvg;
+            Blockly.renderManagement.finishQueuedRenders().then(() => {
+              try {
+                Blockly.getFocusManager().focusNode(newBlock);
+              } catch (err) {
+                console.warn('[switch-scan] focusNode after insert failed:', err);
+              }
+            });
           }
         } finally {
           // Toolbox insert is the ONE action-commit exception that pops
