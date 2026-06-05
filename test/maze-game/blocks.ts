@@ -150,7 +150,12 @@ export function registerMazeBlocks() {
           width: 24,
           height: 28,
           name: 'ICON',
-          alt: 'forward',
+          // Decorative — the surrounding "move forward" text already
+          // describes the block. A non-empty alt would be doubled into
+          // assistive output (e.g. switch-scan TTS reads block.toString
+          // which concatenates message + field text → "move forward
+          // forward").
+          alt: '',
         },
       ],
       previousStatement: null,
