@@ -931,12 +931,19 @@ export class SwitchScanController {
   }
 
   /**
-   * Cycle length for a given frame (real slots + 1 sentinel slot).
+   * Cycle length for a given frame.
+   *
+   * Sub-scan frames append a sentinel "Back to top" slot so the user has
+   * an explicit way to bail out without committing an action. The top-
+   * level frame does NOT carry a sentinel — wrapping past the last real
+   * region already returns the user to the start, so an extra
+   * "back to top" step would just add a dead beat to the cycle every
+   * pass.
    *
    * @param frame
    */
   private cycleLen(frame: ScanFrame): number {
-    if (frame.kind === 'top') return this.regions.length + 1;
+    if (frame.kind === 'top') return this.regions.length;
     if (frame.kind === 'dom-items') return frame.items.length + 1;
     if (frame.kind === 'blocks') return frame.blocks.length + 1;
     if (frame.kind === 'action-menu') return frame.items.length + 1;
@@ -946,12 +953,14 @@ export class SwitchScanController {
   }
 
   /**
-   * `true` iff the frame's index points at its sentinel slot.
+   * `true` iff the frame's index points at its sentinel slot. Always
+   * `false` for `top` frames, since the top-level cycle has no sentinel
+   * (see {@link cycleLen}).
    *
    * @param frame
    */
   private atSentinel(frame: ScanFrame): boolean {
-    if (frame.kind === 'top') return frame.index === this.regions.length;
+    if (frame.kind === 'top') return false;
     if (frame.kind === 'dom-items') return frame.index === frame.items.length;
     if (frame.kind === 'blocks') return frame.index === frame.blocks.length;
     if (frame.kind === 'action-menu') return frame.index === frame.items.length;
@@ -1485,18 +1494,14 @@ export class SwitchScanController {
    */
   private handleSelect(frame: ScanFrame): void {
     if (frame.kind === 'top') {
-      if (this.atSentinel(frame)) {
-        console.log('[switch-scan] selected sentinel: back to top');
-        frame.index = 0;
-        this.renderHighlight();
-        return;
-      }
+      // No sentinel at the top level — every index is a real region.
       const region = this.regions[frame.index];
       if (!region) return;
       if (
         region.name === 'header' ||
         region.name === 'maze-actions' ||
-        region.name === 'instruction-bar'
+        region.name === 'instruction-bar' ||
+        region.name === 'practice-controls'
       ) {
         this.enterDomRegionSubScan(region.name, frame.index);
       } else if (region.name === 'toolbox') {
@@ -1869,14 +1874,14 @@ export class SwitchScanController {
    * value chosen). Moving forward keeps the scan cycle progressing
    * rather than parking the user on a region they just finished with.
    *
-   * For the last real region (maze-actions) the next index lands on the
-   * top-level sentinel, which is the desired "you reached the end, now
-   * wrap" affordance.
+   * For the last real region (maze-actions) the next index wraps back to
+   * the first region — the top-level cycle has no sentinel slot, so the
+   * wrap is the only "you reached the end" affordance.
    *
    * @param topLevelIndex Top-level region the sub-scan was entered from.
    */
   private popToNextRegion(topLevelIndex: number): void {
-    const topCycleLen = this.regions.length + 1;
+    const topCycleLen = this.regions.length;
     const nextIndex = topCycleLen > 0 ? (topLevelIndex + 1) % topCycleLen : 0;
     this.popSubScan(nextIndex);
   }
@@ -1929,7 +1934,7 @@ export class SwitchScanController {
     }
     const topFrame = this.frameStack[0];
     if (topFrame && topFrame.kind === 'top') {
-      const topCycleLen = this.regions.length + 1;
+      const topCycleLen = this.regions.length;
       topFrame.index =
         topCycleLen > 0 ? ((resumeIndex % topCycleLen) + topCycleLen) % topCycleLen : 0;
     }
