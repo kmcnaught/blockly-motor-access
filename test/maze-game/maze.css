@@ -879,8 +879,12 @@ header.christmas h1::after {
   display: none;
 }
 
-/* Info button in instruction bar */
-#instructionBar .info-btn {
+/* Settings button (cog) in instruction bar — replaces the older "?"
+   info button. Same id slot in the bar; class renamed from .info-btn
+   to .settings-btn so the cog glyph + label semantics are clearer.
+   The grid-mode / grid-coding-mode override rules at the bottom of
+   this file still target .settings-btn for the same hide behavior. */
+#instructionBar .settings-btn {
   background: #1976d2;
   color: white;
   border: none;
@@ -900,11 +904,11 @@ header.christmas h1::after {
   line-height: 1;
 }
 
-#instructionBar .info-btn:hover {
+#instructionBar .settings-btn:hover {
   background: #1565c0;
 }
 
-#instructionBar .info-btn:focus {
+#instructionBar .settings-btn:focus {
   outline: 2px solid #90caf9;
   outline-offset: 2px;
 }
@@ -968,7 +972,14 @@ header.christmas h1::after {
   user-select: none;
 }
 
-/* Shortcuts modal content */
+/* Unified settings modal — give it room for the expanded switch-access
+   panel without overflowing on smaller viewports. */
+.shortcuts-modal {
+  min-width: 360px;
+  max-width: 520px;
+  text-align: left;
+}
+
 .shortcuts-modal .shortcuts-list {
   display: flex;
   flex-direction: column;
@@ -1022,35 +1033,84 @@ header.christmas h1::after {
   text-decoration: underline;
 }
 
-/* ========== SWITCH SCAN SETTINGS BUTTON + MODAL ==========
-   The button lives in the header next to mute. It's `.hidden` by
-   default (markup ships hidden so non-switch-scan users see nothing
-   change) and only revealed by index.ts when `inputMode=switch-scan`
-   is active. */
-#switchSettingsBtn.hidden {
-  display: none;
+/* ========== UNIFIED SETTINGS MODAL: SWITCH ACCESS SECTION ==========
+   Switch-scan controls now live inline inside #shortcutsModal under
+   the "Switch access" checkbox row. When the checkbox is checked,
+   #switchAccessPanel un-hides itself and the SwitchScanController
+   enable() is called. */
+.switch-access-section {
+  /* No extra spacing rules here — inherits .settings-section. */
 }
 
-#switchSettingsBtn {
-  font-size: 18px;
+.switch-access-row {
+  /* Slightly heavier than a normal setting row so the toggle reads
+     as a section header for the panel below. */
+  font-weight: 600;
 }
 
-/* The settings modal itself mirrors #shortcutsModal's overall shape
-   (result-modal base styling provides border / shadow / animation).
-   This block adds the section list layout + the "coming soon"
-   visual treatment for stubbed (Phase 4 / 5) controls. */
-.switch-settings-modal {
-  min-width: 360px;
-  max-width: 520px;
-  text-align: left;
+.switch-access-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.switch-settings-list {
+.switch-access-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.switch-access-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
 }
+
+.switch-access-panel.hidden {
+  display: none;
+}
+
+/* In grid mode, switch scan is mutually exclusive — hide the whole
+   switch-access section. */
+body.grid-mode .switch-access-section,
+body.grid-coding-mode .switch-access-section {
+  display: none !important;
+}
+
+/* Keyboard shortcuts demoted to a collapsible disclosure inside the
+   unified settings modal. The summary acts as the "Keyboard shortcuts"
+   link the user asked for. */
+.shortcuts-disclosure {
+  /* Inherits .settings-section spacing. */
+}
+
+.shortcuts-disclosure-summary {
+  cursor: pointer;
+  font-size: 0.95em;
+  font-weight: 600;
+  color: #1976d2;
+  list-style: revert; /* keep the default disclosure triangle */
+  padding: 4px 0;
+}
+
+.shortcuts-disclosure-summary:hover {
+  text-decoration: underline;
+}
+
+.shortcuts-disclosure[open] .shortcuts-disclosure-summary {
+  margin-bottom: 8px;
+}
+
+/* Switch-scan settings (carried over from the previous standalone
+   #switchSettingsModal). The classes are unchanged so the existing
+   capture / row / heading styles all keep applying. */
 
 .switch-settings-group {
   display: flex;
@@ -1783,7 +1843,7 @@ body.grid-mode .level-selector,
 body.grid-mode #runButton,
 body.grid-mode #ghostRunButton,
 body.grid-mode #resetButton,
-body.grid-mode .info-btn {
+body.grid-mode .settings-btn {
   display: none !important;
 }
 
@@ -1892,7 +1952,7 @@ body.grid-coding-mode .level-selector,
 body.grid-coding-mode #runButton,
 body.grid-coding-mode #ghostRunButton,
 body.grid-coding-mode #resetButton,
-body.grid-coding-mode .info-btn,
+body.grid-coding-mode .settings-btn,
 body.grid-coding-mode #capacityBubble,
 body.grid-coding-mode #immediateModePanel {
   display: none !important;

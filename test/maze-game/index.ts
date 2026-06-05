@@ -119,6 +119,11 @@ const SWITCH_SCAN_LS_KEYS = {
   // resolveSwitchScanSetting helper can reuse its string-typed plumbing;
   // parsing / clamping happens at the call site.
   scanSpeedMs: 'mazeSwitchScan.scanSpeedMs',
+  // Whether the user has switch access enabled (the unified settings
+  // modal's "Switch access" checkbox). 'on' / 'off' for symmetry with
+  // the audio flag. Migrated from the older URL-only ?inputMode=
+  // switch-scan gate by the settings refactor (todo.md #1).
+  enabled: 'mazeSwitchScan.enabled',
 } as const;
 
 // Phase 4 — auto-scan timing bounds. Match the slider's `min`/`max`/
@@ -232,6 +237,25 @@ const switchScanInitialScanSpeedMs: number = (() => {
     SCAN_SPEED_MAX_MS,
     Math.max(SCAN_SPEED_MIN_MS, parsed),
   );
+})();
+
+// Settings refactor (todo.md #1): the "Switch access" checkbox in the
+// unified settings modal is now the live source of truth for whether
+// switch scan is enabled. On first load we resolve its initial state
+// from:
+//   - `?inputMode=switch-scan` URL param (back-compat with old links),
+//   - localStorage `mazeSwitchScan.enabled` ('on' / 'off'),
+//   - else default OFF.
+// Grid mode is mutually exclusive and forces this to false.
+const switchScanInitialEnabled: boolean = (() => {
+  if (isGridMode || isGridCodingMode) return false;
+  if (isSwitchScanMode) return true;
+  try {
+    const v = window.localStorage?.getItem(SWITCH_SCAN_LS_KEYS.enabled);
+    return v === 'on';
+  } catch (e) {
+    return false;
+  }
 })();
 
 // Current grid stage (1 = immediate execution, 2 = delayed execution)
@@ -2230,23 +2254,30 @@ gridPracticeIntroModal.addEventListener('click', () => {
   gridPracticeIntroDialog.hide();
 });
 
-// ========== SHORTCUTS INFO MODAL ==========
+// ========== UNIFIED SETTINGS MODAL ==========
+// (Was the shortcuts/info modal — now hosts general settings, the
+// switch-access checkbox + sub-panel, the delete-data action, and a
+// collapsible Keyboard shortcuts disclosure. Entry point is the
+// instruction-bar cog button `#settingsBtn`; see todo.md #1.)
 
 const shortcutsModal = document.getElementById('shortcutsModal')!;
 const shortcutsModalClose = document.getElementById('shortcutsModalClose')!;
-const infoBtn = document.getElementById('infoBtn')!;
+const settingsBtn = document.getElementById('settingsBtn')!;
 
-// Initialize shortcuts dialog using Dialog class
+// Initialize the unified settings dialog using Dialog class.
+// We keep the existing `shortcutsModal` element id + the
+// `shortcutsDialog` variable name so the dozens of `showConfirmationModal` /
+// `dismissOpenDialogs` references that already check it keep working.
 const shortcutsDialog = new Dialog('shortcutsModal', {
   focusSelector: '#shortcutsModalClose',
   closeOnEscape: true,
   closeOnBackdropClick: true
 });
 
-// Info button click handler
-infoBtn.addEventListener('click', () => shortcutsDialog.show());
+// Settings cog click handler.
+settingsBtn.addEventListener('click', () => shortcutsDialog.show());
 
-// Close button handler
+// Close button handler.
 shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 
 // ========== BLOCK MOVEMENT MODE DROPDOWN ==========
@@ -2935,67 +2966,68 @@ function buildHeaderDropdownSources(): Record<string, HeaderDropdownSource> {
   };
 }
 
-// Initialize switch-scan controller if active (Phase 1 scaffold).
-// Mutually exclusive with grid coding mode; instantiation above is guarded.
+// ========== SWITCH-SCAN CONTROLLER + INLINE SETTINGS WIRING ==========
+// After the todo.md #1 refactor the controller is constructed
+// unconditionally (so the unified-settings checkbox can flip it on
+// at runtime), except in grid-mode / grid-coding-mode where switch
+// scan is mutually exclusive and the controller would just consume
+// keys the grid integration needs.
+//
+// The "Switch access" checkbox is the live source of truth: checking
+// it calls `enable()` + un-hides the inline sub-panel; unchecking
+// calls `disable()` + hides the panel. The checkbox state is
+// persisted to localStorage so the next page load remembers it.
+//
+// `?inputMode=switch-scan` URL param is still honored on first load
+// (seeds the checkbox checked, takes precedence over LS — see
+// `switchScanInitialEnabled`).
 let switchScanController: SwitchScanController | null = null;
 let switchScanSettings: SwitchScanSettings | null = null;
-// Phase 5: a single TTS helper instance owned by the page for the
-// life of the session. The controller speaks via setTts(); the
-// settings panel persists the on/off state via onSave + setEnabled.
-// Constructed unconditionally even though it's only used in switch-
-// scan mode — the helper is cheap and feature-detects internally.
+// TTS helper — owned by the page for the life of the session. Cheap
+// to construct (feature-detects internally); cached here so audio-
+// toggle changes mid-session don't need re-instantiation.
 let switchScanTts: SwitchScanTts | null = null;
-if (isSwitchScanMode) {
+
+const switchAccessCheckbox = document.getElementById(
+  'switchAccessCheckbox',
+) as HTMLInputElement | null;
+const switchAccessSection = document.getElementById(
+  'switchAccessSection',
+);
+
+// In grid / grid-coding mode the switch-scan stack is mutually
+// exclusive (it would intercept the same keys the grid integration
+// uses). Hide the section entirely so the checkbox can't even be
+// toggled. CSS already enforces display:none via body.grid-mode but
+// belt-and-braces here keeps the JS branch obvious.
+if ((isGridMode || isGridCodingMode) && switchAccessSection) {
+  switchAccessSection.classList.add('hidden');
+}
+
+if (!isGridMode && !isGridCodingMode) {
   switchScanTts = new SwitchScanTts();
   switchScanTts.setEnabled(switchScanInitialAudio);
 
   switchScanController = new SwitchScanController(workspace, mazeGame, {
     switchAdvance: switchAdvanceKey,
     switchSelect: switchSelectKey,
-    // Phase 4: seed the auto-scan state machine. `step` is the default
-    // so existing two-switch users see zero behavior change; `auto`
-    // starts idle and waits for the user's first press to begin
-    // cycling.
     scanMode: switchScanInitialMode,
     scanSpeedMs: switchScanInitialScanSpeedMs,
-    // Phase 3 Step 2: providers for the Character (#pegmanButton) and
-    // Language (<select id="languageSelect">) header dropdowns. Both
-    // normally open native popovers that switch users can't reach;
-    // registering them here makes the controller intercept a switch-
-    // scan select on the tagged element and open a values sub-scan
-    // over our own dark .switch-scan-dropdown-menu instead.
     headerDropdowns: buildHeaderDropdownSources(),
   });
-  // Wire TTS BEFORE enable() so the initial highlight render — which
-  // doesn't speak anyway (see SwitchScanController.enable) — already
-  // sees the helper, and the very first user keypress can fire a
-  // speak call without a re-attach race.
   switchScanController.setTts(switchScanTts);
-  switchScanController.enable();
 
-  // Phase 2 Step A: surface the dedicated Switch Scan Settings button
-  // in the header (it's `.hidden` in markup so non-switch-scan users
-  // never see it) and wire it to open the settings modal.
-  // Phase 2 Step B: pass current keybindings + an onSave callback so
-  // the modal has live key-capture.
-  // Phase 2 Step C: Save now persists to localStorage and lives re-binds
-  // the controller via setKeyBindings(). The `urlOverrideActive` flag
-  // tells the modal to render the "URL settings active" note so users
-  // understand why their saved values won't show up after reload while
-  // URL params remain in the address bar.
   switchScanSettings = new SwitchScanSettings({
     initialAdvanceKey: switchAdvanceKey,
     initialSelectKey: switchSelectKey,
     initialMode: switchScanInitialMode,
-    // Phase 5: seed the audio checkbox from URL > LS > 'off'.
     initialAudio: switchScanInitialAudio,
-    // Phase 4: seed the scan-speed slider from URL > LS > 1500.
     initialScanSpeedMs: switchScanInitialScanSpeedMs,
     urlOverrideActive: switchScanUrlOverrideActive,
-    onSave: (cfg) => {
-      // Persist all five values. Wrapped in try/catch because
-      // localStorage can throw in private-browsing / quota-exceeded
-      // contexts — settings work for this session, just not the next.
+    onChange: (cfg) => {
+      // Persist every accepted change (live-apply semantics: there
+      // is no Save / Cancel paradigm in the inline panel — every
+      // control change commits immediately).
       try {
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.advance,
@@ -3005,22 +3037,11 @@ if (isSwitchScanMode) {
           SWITCH_SCAN_LS_KEYS.select,
           cfg.switchSelect,
         );
-        // Phase 4: mode is now live — the controller's setMode()
-        // applies it without a reload (see below). Persistence keeps
-        // the radio aligned with the user's pick across sessions.
         window.localStorage.setItem(SWITCH_SCAN_LS_KEYS.mode, cfg.mode);
-        // Phase 5: TTS persists as 'on' / 'off'. We don't write a
-        // boolean — keeps the LS layer consistent with the rest of
-        // the maze game's string-typed flags and matches the URL
-        // param's accepted values.
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.audio,
           cfg.audio ? 'on' : 'off',
         );
-        // Phase 4: scanSpeedMs persists as a string for symmetry with
-        // the other LS values. The resolver helper handles parseInt
-        // + clamp on read so a hand-edited LS entry can't crash the
-        // timer.
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.scanSpeedMs,
           String(cfg.scanSpeedMs),
@@ -3032,64 +3053,78 @@ if (isSwitchScanMode) {
         );
       }
 
-      // Live re-bind so the new keys take effect mid-session without
-      // requiring a reload. Scan position + frame stack are preserved
-      // by setKeyBindings() — the user resumes exactly where they were.
+      // Live re-bind. `setKeyBindings` / `setMode` are safe to call
+      // on a disabled controller — they just update internal state
+      // so the next `enable()` picks them up.
       switchScanController?.setKeyBindings(
         cfg.switchAdvance,
         cfg.switchSelect,
       );
-      // Phase 4: live-apply the mode + speed. setMode() clears the
-      // auto timer on any transition (so step→auto goes idle and waits
-      // for press, auto→step freezes the highlight wherever it was)
-      // and restarts the interval at the new period if we were already
-      // scanning. Scan position is preserved either way.
       switchScanController?.setMode(cfg.mode, cfg.scanSpeedMs);
-      // Phase 5: live-apply the audio choice. Toggling enabled → on
-      // does NOT auto-replay the previous label (would be confusing
-      // out of context); instead, we ask the controller to speak the
-      // CURRENT highlight so the user hears immediate confirmation
-      // that the toggle worked. Disabling silences any in-progress
-      // utterance via SwitchScanTts.setEnabled(false) → cancel().
+
       const wasEnabled = switchScanTts?.isEnabled() ?? false;
       switchScanTts?.setEnabled(cfg.audio);
       if (cfg.audio && !wasEnabled) {
         switchScanController?.speakCurrentItemLabel();
       }
     },
-    // Phase 2 Step D: when the modal opens, push a sub-scan frame over
-    // the modal's `data-scan-region="settings-modal"` so the scanner
-    // re-targets itself INSIDE the modal — otherwise a switch user who
-    // opened the modal would be stranded (the top-level cycle keeps
-    // scanning the page underneath, but the modal's controls aren't on
-    // it). Pop is the symmetric close hook below.
-    onOpen: () => {
-      switchScanController?.pushModalSubScan('settings-modal');
-    },
-    // Phase 2 Step D: fires for EVERY close path (Cancel, Save, ESC,
-    // backdrop click — Dialog funnels them all through this single
-    // callback). Pops the modal frame and restores the user to whatever
-    // top-level region they came from (typically `header`, where the
-    // settings button lives).
-    onClose: () => {
-      switchScanController?.popModalSubScan();
-    },
   });
 
-  // Phase 2 Step D: wire the controller → settings reference so its
-  // keydown handler can short-circuit while a live key-capture is in
-  // flight. See SwitchScanController.setSettings for the why.
+  // Controller checks `isCapturing()` in its keydown handler so a key
+  // pressed during capture doesn't double-fire as a switch action.
   switchScanController.setSettings(switchScanSettings);
 
-  const switchSettingsBtn = document.getElementById('switchSettingsBtn');
-  if (switchSettingsBtn) {
-    switchSettingsBtn.classList.remove('hidden');
-    switchSettingsBtn.addEventListener('click', () => {
-      // `show()` itself fires the onOpen hook (after the dialog is
-      // actually visible), which pushes the modal sub-scan frame.
-      switchScanSettings?.show();
+  // Hook the "Switch access" checkbox to the controller. This is now
+  // the live source of truth for whether switch scan is on.
+  if (switchAccessCheckbox) {
+    const applyEnabled = (enabled: boolean) => {
+      switchScanSettings?.setPanelVisible(enabled);
+      if (enabled) {
+        switchScanController?.enable();
+      } else {
+        switchScanController?.disable();
+      }
+      // Persist. Note that URL ?inputMode=switch-scan still wins
+      // over this on first load (see switchScanInitialEnabled).
+      try {
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.enabled,
+          enabled ? 'on' : 'off',
+        );
+      } catch (e) {
+        // Ignore storage errors — checkbox still works for the session.
+      }
+    };
+
+    // Seed initial state.
+    switchAccessCheckbox.checked = switchScanInitialEnabled;
+    applyEnabled(switchScanInitialEnabled);
+
+    switchAccessCheckbox.addEventListener('change', () => {
+      applyEnabled(switchAccessCheckbox.checked);
     });
   }
+
+  // Push / pop the modal sub-scan frame around the unified settings
+  // modal's lifecycle so a switch user can reach the modal's controls.
+  // Only meaningful while the controller is enabled (push checks
+  // `this.enabled` and no-ops otherwise), so non-switch users see no
+  // change.
+  shortcutsModal.addEventListener('close', () => {
+    switchScanController?.popModalSubScan();
+  });
+  // Dialog.show() is what opens the modal; the modal element fires a
+  // native `close` event on close, but there's no symmetric `open`
+  // event. Wrap the settings button click handler to push the frame
+  // after the dialog has rendered.
+  settingsBtn.addEventListener('click', () => {
+    // The earlier listener (registered at "SHORTCUTS INFO MODAL"
+    // setup) already shows the dialog; we just push the sub-scan
+    // frame here after a microtask so the items are visible.
+    queueMicrotask(() => {
+      switchScanController?.pushModalSubScan('settings-modal');
+    });
+  });
 }
 
 // Trigger hints on workspace changes (with debouncing via the timeout in levelHelp)

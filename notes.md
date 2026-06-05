@@ -71,3 +71,49 @@ Deferred gaps:
   Out of scope.
 - **#pegmanMenu** — already covered by the `character` dropdown
   source. Not a gap.
+
+## todo.md #1 — settings UI refactor (2026-06-05)
+
+Replaced the `?` info button with a settings cog (`#settingsBtn`,
+glyph `&#9881;`) in the instruction bar. Dropped the URL-gated
+`#switchSettingsBtn` and its dedicated `#switchSettingsModal`
+dialog. The cog now opens a single unified settings modal
+(`#shortcutsModal` element id retained for minimal churn) that
+contains, in order:
+
+1. The existing block-movement + connection-highlight selects.
+2. A "Switch access" checkbox row. Checking it calls
+   `SwitchScanController.enable()` and un-hides the inline
+   `#switchAccessPanel`; unchecking calls `disable()` and hides the
+   panel. State persists to `localStorage` key
+   `mazeSwitchScan.enabled` ('on' / 'off').
+3. The keyboard shortcuts list, demoted to a `<details>` collapsible
+   disclosure.
+4. Delete-all-data + Close buttons.
+
+**Design choice — keyboard shortcuts disclosure pattern:** chose a
+plain `<details>` element over a sub-dialog. Less new code (zero
+JS, zero focus-trap work, no extra Dialog wiring), plays well with
+the existing modal's scroll, and switch-scan reaches it as a
+`data-scan-item` summary which already toggles the disclosure on
+"Enter" via the browser default.
+
+**Live toggle wiring:** SwitchScanController is now constructed
+unconditionally (except in grid / grid-coding modes, where it
+remains mutually exclusive). `enable()` / `disable()` are
+idempotent and safe to call repeatedly — confirmed against the
+existing implementation in `switch-scan-mode.ts`. Settings panel
+was refactored to drop the dialog + Save/Cancel paradigm: every
+accepted control change fires `onChange` which persists + live-
+applies via `setKeyBindings` / `setMode` / `SwitchScanTts.setEnabled`.
+
+`?inputMode=switch-scan` is still honored on first load — it
+seeds the checkbox checked, taking precedence over the persisted
+LS value (see `switchScanInitialEnabled`).
+
+Grid-mode mutual exclusion: the whole switch-access section is
+hidden via CSS (`body.grid-mode .switch-access-section`) AND the
+JS controller is not constructed at all in grid modes.
+
+**Not tested live** — verified by build + tsc + code-reading only;
+no browser run was attempted in this session.

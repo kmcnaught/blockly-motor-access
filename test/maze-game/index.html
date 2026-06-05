@@ -31,11 +31,6 @@
           <span class="mute-icon sound-on">&#128266;</span>
           <span class="mute-icon sound-off">&#128263;</span>
         </button>
-        <!-- Switch Scan settings: hidden by default; shown only when
-             ?inputMode=switch-scan is active (index.ts removes .hidden).
-             Tagged data-scan-item so the switch-scan controller picks
-             it up alongside the other header buttons. -->
-        <button id="switchSettingsBtn" class="icon-button hidden" title="Switch scan settings" aria-label="Switch scan settings" data-scan-item>&#9881;</button>
         <div class="selector-group">
           <select id="languageSelect" data-scan-item data-scan-dropdown-source="language" aria-label="Language">
             <option value="en">English</option>
@@ -53,7 +48,7 @@
           <!-- Options populated dynamically by JavaScript -->
         </select>
       </div>
-      <button id="infoBtn" class="info-btn" aria-label="Show keyboard shortcuts" data-scan-item>?</button>
+      <button id="settingsBtn" class="settings-btn" aria-label="Open settings" title="Settings" data-scan-item>&#9881;</button>
     </div>
 
     <div class="container">
@@ -220,24 +215,25 @@
       <p id="gridPracticeIntroLine3" class="result-modal-message"></p>
     </dialog>
 
-    <!-- Shortcuts Info Modal -->
-    <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle">
-      <h2 id="shortcutsModalTitle" class="result-modal-title">Keyboard Shortcuts</h2>
-      <div class="shortcuts-list">
-        <div class="shortcut-item"><kbd>R</kbd> Run program</div>
-        <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
-        <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
-        <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
-        <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
-        <div class="shortcut-item"><kbd>L</kbd> Change language</div>
-        <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
-      </div>
+    <!-- Unified Settings Modal.
+         Always-visible from the instruction-bar settings cog (#settingsBtn).
+         Contains: general settings, the Switch access checkbox which expands
+         the embedded switch-scan controls inline, the delete-data action,
+         and a collapsible keyboard-shortcuts disclosure at the bottom.
+
+         data-scan-region="settings-modal" so the SwitchScanController can
+         push a sub-scan frame over the modal while it's open. The region
+         carries every scannable control in the modal — discovery skips
+         items with `offsetParent === null` so the switch-access sub-panel
+         contributes nothing while it's collapsed. -->
+    <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle" data-scan-region="settings-modal">
+      <h2 id="shortcutsModalTitle" class="result-modal-title">Settings</h2>
+
       <div class="settings-section">
-        <h3 class="settings-heading">Settings</h3>
         <div class="settings-group">
           <div class="setting-row">
             <label for="blockMovementSelect">Rearrange blocks using</label>
-            <select id="blockMovementSelect">
+            <select id="blockMovementSelect" data-scan-item>
               <option value="both">Drag or click</option>
               <option value="click-to-move">Click-to-move</option>
               <option value="drag">Drag</option>
@@ -245,7 +241,7 @@
           </div>
           <div class="setting-row" id="highlightSizeRow">
             <label for="highlightSizeSelect">Connection highlight size</label>
-            <select id="highlightSizeSelect">
+            <select id="highlightSizeSelect" data-scan-item>
               <option value="minimal">Minimal</option>
               <option value="medium">Medium</option>
               <option value="large">Large</option>
@@ -253,109 +249,100 @@
           </div>
         </div>
       </div>
+
+      <!-- Switch access section. The checkbox is the live source of truth
+           for whether the SwitchScanController is enabled. When checked,
+           #switchAccessPanel reveals the embedded sub-settings (key
+           bindings, scan mode, scan speed, audio). The whole section is
+           hidden in grid mode (mutually exclusive) by CSS. -->
+      <div class="settings-section switch-access-section" id="switchAccessSection">
+        <div class="setting-row switch-access-row">
+          <label class="switch-access-toggle" data-scan-item>
+            <input id="switchAccessCheckbox" type="checkbox">
+            <span>Switch access</span>
+          </label>
+        </div>
+
+        <div class="switch-access-panel hidden" id="switchAccessPanel" aria-label="Switch scan settings controls">
+          <!-- 1. Switch mode -->
+          <fieldset class="switch-settings-group">
+            <legend class="switch-settings-heading">Switch mode</legend>
+            <label class="switch-settings-row" data-scan-item>
+              <input type="radio" name="switchScanMode" value="step" checked>
+              <span>Two-switch (step scan)</span>
+            </label>
+            <label class="switch-settings-row" data-scan-item>
+              <input type="radio" name="switchScanMode" value="auto">
+              <span>One-switch (auto scan)</span>
+            </label>
+          </fieldset>
+
+          <!-- 2. Switch A capture -->
+          <div class="switch-settings-group">
+            <h3 class="switch-settings-heading">Switch A (Advance)</h3>
+            <div class="switch-settings-row">
+              <span id="switchACurrent" class="switch-settings-current">Space</span>
+              <button id="switchACaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                Click to capture
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Switch B capture (step mode only). -->
+          <div class="switch-settings-group" id="switchBGroup">
+            <h3 class="switch-settings-heading">Switch B (Select)</h3>
+            <div class="switch-settings-row">
+              <span id="switchBCurrent" class="switch-settings-current">Enter</span>
+              <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                Click to capture
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. Scan speed (auto-scan mode). -->
+          <div class="switch-settings-group" id="scanSpeedGroup">
+            <h3 class="switch-settings-heading">Scan speed</h3>
+            <div class="switch-settings-row">
+              <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500">
+              <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
+            </div>
+          </div>
+
+          <!-- 5. Audio feedback (TTS). -->
+          <div class="switch-settings-group">
+            <h3 class="switch-settings-heading">Audio feedback</h3>
+            <div class="switch-settings-row">
+              <label class="switch-settings-toggle" data-scan-item>
+                <input id="audioFeedbackToggle" type="checkbox">
+                <span>Speak highlighted item</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyboard shortcuts — demoted to a collapsible disclosure. -->
+      <details class="settings-section shortcuts-disclosure">
+        <summary class="shortcuts-disclosure-summary" data-scan-item>Keyboard shortcuts</summary>
+        <div class="shortcuts-list">
+          <div class="shortcut-item"><kbd>R</kbd> Run program</div>
+          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
+          <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
+          <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
+          <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
+          <div class="shortcut-item"><kbd>L</kbd> Change language</div>
+          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
+        </div>
+      </details>
+
       <div class="result-modal-buttons">
-        <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn">Delete all saved data</button>
-        <button id="shortcutsModalClose" class="result-modal-ok">
+        <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn" data-scan-item>Delete all saved data</button>
+        <button id="shortcutsModalClose" class="result-modal-ok" data-scan-item>
           <span class="ok-text">Close</span>
           <span class="ok-hint">[Esc]</span>
         </button>
       </div>
       <a href="https://kmcnaught.co.uk/block-coding/new-curriculum" target="_blank" rel="noopener" class="about-link">About</a>
-    </dialog>
-
-    <!-- Switch Scan Settings Modal (Phase 2 Step A scaffold).
-         Structurally mirrors #shortcutsModal so it picks up the same
-         dialog.result-modal styling + animation. Step D: the
-         .switch-settings-list wrapper carries data-scan-region so the
-         switch-scan controller can push a sub-scan frame over it while
-         the modal is open; scannable controls inside carry
-         data-scan-item. The scan-speed slider remains untagged because
-         it's a Phase 4 disabled stub; the audio toggle is Phase 5
-         live as of this build and carries data-scan-item. -->
-    <dialog id="switchSettingsModal" class="result-modal switch-settings-modal" aria-labelledby="switchSettingsModalTitle">
-      <h2 id="switchSettingsModalTitle" class="result-modal-title">Switch Scan Settings</h2>
-
-      <div class="switch-settings-list" role="region" aria-label="Switch scan settings controls" data-scan-region="settings-modal">
-        <!-- 1. Switch mode -->
-        <fieldset class="switch-settings-group">
-          <legend class="switch-settings-heading">Switch mode</legend>
-          <label class="switch-settings-row" data-scan-item>
-            <input type="radio" name="switchScanMode" value="step" checked>
-            <span>Two-switch (step scan)</span>
-          </label>
-          <label class="switch-settings-row" data-scan-item>
-            <input type="radio" name="switchScanMode" value="auto">
-            <span>One-switch (auto scan)</span>
-          </label>
-        </fieldset>
-
-        <!-- 2. Switch A capture -->
-        <div class="switch-settings-group">
-          <h3 class="switch-settings-heading">Switch A (Advance)</h3>
-          <div class="switch-settings-row">
-            <span id="switchACurrent" class="switch-settings-current">Space</span>
-            <button id="switchACaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
-              Click to capture
-            </button>
-          </div>
-        </div>
-
-        <!-- 3. Switch B capture (visible in step mode only — visibility
-             logic lands in Step B). -->
-        <div class="switch-settings-group" id="switchBGroup">
-          <h3 class="switch-settings-heading">Switch B (Select)</h3>
-          <div class="switch-settings-row">
-            <span id="switchBCurrent" class="switch-settings-current">Enter</span>
-            <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
-              Click to capture
-            </button>
-          </div>
-        </div>
-
-        <!-- 4. Scan speed (auto-scan mode — Phase 4). The whole group
-             is hidden via `.hidden` when step mode is selected (the
-             slider has no effect there); the settings panel toggles
-             that class in refreshModeVisibility(). The slider itself
-             is intentionally NOT tagged `data-scan-item`: there's no
-             clean switch-scan UX for adjusting a continuous range
-             with a single advance/select key. Switch users adjust
-             speed via the mouse or a helper for now; if we want full
-             switch-scan adjustment later, +/- buttons next to the
-             slider would be the path. -->
-        <div class="switch-settings-group" id="scanSpeedGroup">
-          <h3 class="switch-settings-heading">Scan speed</h3>
-          <div class="switch-settings-row">
-            <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500">
-            <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
-          </div>
-        </div>
-
-        <!-- 5. Audio feedback (TTS — Phase 5). data-scan-item so it
-             reaches the scan cycle inside the modal; toggling fires a
-             pending state change that takes effect on Save (host page
-             persists + calls SwitchScanTts.setEnabled). -->
-        <div class="switch-settings-group">
-          <h3 class="switch-settings-heading">Audio feedback</h3>
-          <div class="switch-settings-row">
-            <label class="switch-settings-toggle" data-scan-item>
-              <input id="audioFeedbackToggle" type="checkbox">
-              <span>Speak highlighted item</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Cancel / Save live inside the scan region so they're
-             reachable in the same sub-scan as the controls above. -->
-        <div class="result-modal-buttons">
-          <button id="switchSettingsCancel" class="result-modal-cancel" data-scan-item>
-            <span class="cancel-text">Cancel</span>
-            <span class="cancel-hint">[Esc]</span>
-          </button>
-          <button id="switchSettingsSave" class="result-modal-ok" data-scan-item>
-            <span class="ok-text">Save</span>
-          </button>
-        </div>
-      </div>
     </dialog>
 
     <!-- Build SHA label -->
