@@ -35,10 +35,9 @@ export type DropdownOption = [
 ];
 
 /**
- * Minimal contract render functions need from action / move items —
- * just the user-visible label. The richer types (`ActionItem`,
- * `MoveCandidatesItem`) live in the controller where their `key`
- * discriminants drive dispatch.
+ * Minimal contract render functions need from action items — just the
+ * user-visible label. The richer `ActionItem` lives in the controller
+ * where its `key` discriminant drives dispatch.
  */
 interface MenuItem {
   label: string;
@@ -75,42 +74,6 @@ export function renderActionMenu(
     const row = document.createElement('div');
     row.className = 'switch-scan-menu-item';
     row.setAttribute('data-scan-action-item', String(i));
-    row.textContent = items[i].label;
-    el.appendChild(row);
-  }
-  document.body.appendChild(el);
-  anchorMenuToBlock(el, block, getBlockRect);
-  return el;
-}
-
-/**
- * (Re)build the move-candidates overlay ("Next" / "Place") and anchor
- * it next to `block`. Reuses the action-menu CSS class for styling
- * consistency; the candidate-connection itself is highlighted by
- * Blockly's own move-mode preview, so this overlay just hosts the
- * "which switch action did the user pick" affordance.
- *
- * @param previous Previous menu element to remove (caller-owned), or null.
- * @param block The block currently being moved.
- * @param items Rows to render, in display order.
- * @param getBlockRect Resolver for the block's viewport rect.
- * @returns The newly created menu element; caller stores it.
- */
-export function renderMoveMenu(
-  previous: HTMLDivElement | null,
-  block: Blockly.BlockSvg,
-  items: ReadonlyArray<MenuItem>,
-  getBlockRect: BlockRectResolver,
-): HTMLDivElement {
-  previous?.remove();
-  const el = document.createElement('div');
-  // Share the action-menu class for visual consistency; an extra
-  // marker class lets us narrow CSS overrides later if needed.
-  el.className = 'switch-scan-action-menu switch-scan-move-menu';
-  for (let i = 0; i < items.length; i++) {
-    const row = document.createElement('div');
-    row.className = 'switch-scan-menu-item';
-    row.setAttribute('data-scan-move-item', String(i));
     row.textContent = items[i].label;
     el.appendChild(row);
   }

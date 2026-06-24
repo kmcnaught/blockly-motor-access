@@ -281,6 +281,50 @@ export function getSingleBlockViewportRect(
 }
 
 /**
+ * Compute a small fixed-size viewport-coordinate rect centred on a
+ * connection point. The connection's source block provides its workspace
+ * coordinates; the connection's local offset within that block adds the
+ * connection's position; the same `wsToScreenCoordinates` helper used by
+ * {@link getSingleBlockViewportRect} folds in workspace scale, scroll
+ * and viewport offset to produce a screen-space anchor.
+ *
+ * Returns a {@link CONNECTION_HIGHLIGHT_SIZE}-px square centred on the
+ * connection point so the switch-scan outline visibly hugs the
+ * connection slot, not the whole block. Returns `null` if the source
+ * block has no rendered SVG root (defensive — render path hides null
+ * rects).
+ */
+export function getConnectionViewportRect(
+  conn: Blockly.Connection,
+  workspace: Blockly.WorkspaceSvg,
+): DOMRect | null {
+  const block = conn.getSourceBlock() as Blockly.BlockSvg | null;
+  if (!block || !block.getSvgRoot?.()) return null;
+  // `getOffsetInBlock` is part of the public `RenderedConnection` API;
+  // the base `Connection` typings don't expose it, hence the cast.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const offset = (conn as any).getOffsetInBlock?.() as
+    | Blockly.utils.Coordinate
+    | undefined;
+  if (!offset) return null;
+  const blockXY = block.getRelativeToSurfaceXY();
+  const wsPoint = new Blockly.utils.Coordinate(
+    blockXY.x + offset.x,
+    blockXY.y + offset.y,
+  );
+  const screen = Blockly.utils.svgMath.wsToScreenCoordinates(workspace, wsPoint);
+  const half = CONNECTION_HIGHLIGHT_SIZE / 2;
+  return new DOMRect(
+    screen.x - half,
+    screen.y - half,
+    CONNECTION_HIGHLIGHT_SIZE,
+    CONNECTION_HIGHLIGHT_SIZE,
+  );
+}
+
+const CONNECTION_HIGHLIGHT_SIZE = 24;
+
+/**
  * Discover the visible top blocks in the toolbox/flyout in display
  * order.
  *
