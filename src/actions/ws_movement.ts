@@ -7,6 +7,7 @@
 import {
   ShortcutRegistry,
   utils as BlocklyUtils,
+  getFocusManager,
   keyboardNavigationController,
 } from 'blockly';
 import * as Constants from '../constants';
@@ -114,12 +115,17 @@ export class WorkspaceMovement {
   }
 
   /**
-   * Moves the cursor to the workspace near the origin.
+   * Focus the workspace, restoring the previously-focused node if the
+   * FocusManager remembers one (mirrors the Esc-from-flyout behaviour so
+   * users return to their previous cursor position after visiting the
+   * flyout). Falls back to a sensible default cursor position when no
+   * prior focus is available.
    *
    * @param workspace The workspace the cursor is on.
    */
   createWSCursor(workspace: WorkspaceSvg) {
-    workspace.getCursor().setCurNode(workspace);
+    getFocusManager().focusTree(workspace);
+    this.navigation.defaultWorkspaceCursorPositionIfNeeded(workspace);
     return true;
   }
 }

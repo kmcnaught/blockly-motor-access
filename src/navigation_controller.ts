@@ -231,19 +231,12 @@ export class NavigationController {
         keyboardNavigationController.setIsActive(true);
         switch (this.navigation.getState()) {
           case Constants.STATE.WORKSPACE:
-            const toolbox = workspace.getToolbox();
-            const flyout = workspace.getFlyout();
-
-            if (toolbox) {
-              Blockly.getFocusManager().focusTree(toolbox);
-            } else if (flyout) {
-              // Initialize the flyout cursor position before focusing
-              this.navigation.defaultFlyoutCursorIfNeeded(workspace);
-              this.navigation.savePreFlyoutCursor(workspace);
-              Blockly.getFocusManager().focusTree(flyout.getWorkspace());
-            } else {
-              Blockly.getFocusManager().focusTree(workspace);
-            }
+            // Delegate to openToolboxOrFlyout so we get the correct
+            // ordering: savePreFlyoutCursor runs BEFORE
+            // defaultFlyoutCursorIfNeeded (which itself shifts focus
+            // to the flyout, tripping savePreFlyoutCursor's isFlyout
+            // guard and losing the workspace-side cursor).
+            this.navigation.openToolboxOrFlyout(workspace);
             return true;
           default:
             return false;

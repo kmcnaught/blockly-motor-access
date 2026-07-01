@@ -3059,16 +3059,10 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.ctrlKey && e.altKey && e.key === '2') {
     e.preventDefault();
     e.stopPropagation();
-    // Enable keyboard navigation mode
     Blockly.keyboardNavigationController.setIsActive(true);
-    // Focus the toolbox or flyout
-    const toolbox = workspace.getToolbox();
-    const flyout = workspace.getFlyout();
-    if (toolbox) {
-      Blockly.getFocusManager().focusTree(toolbox);
-    } else if (flyout) {
-      Blockly.getFocusManager().focusTree(flyout.getWorkspace());
-    }
+    // Delegate to the plugin so we get savePreFlyoutCursor +
+    // defaultFlyoutCursorIfNeeded, matching the canonical T shortcut.
+    keyboardNavigation.openToolboxOrFlyout();
     return;
   }
 
