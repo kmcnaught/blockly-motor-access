@@ -51,6 +51,19 @@ export class Navigation {
   >();
 
   /**
+   * Records the last workspace-side node that received focus, per
+   * workspace. Used as a fallback by savePreFlyoutCursor when the live
+   * workspace cursor has already shifted to a flyout node (which
+   * happens when the user enters the flyout by clicking its background:
+   * Blockly moves focus first, then dispatches the CLICK event we react
+   * to). Kept fresh by workspaceChangeListener on SELECTED events.
+   */
+  private lastWorkspaceFocusedNode = new Map<
+    Blockly.WorkspaceSvg,
+    Blockly.IFocusableNode
+  >();
+
+  /**
    * Constructor for keyboard navigation.
    */
   constructor() {
@@ -121,6 +134,34 @@ export class Navigation {
     } else if (focusedTree instanceof Blockly.Flyout) {
       return Constants.STATE.FLYOUT;
     }
+
+    // Fallback: FocusManager has no known tree focused (e.g. after a
+    // click on the flyout background dropped focus onto something the
+    // manager can't classify). Look at the DOM to see if focus is
+    // physically inside a flyout or toolbox belonging to a workspace we
+    // manage — if so, report the matching state so arrow-key handlers
+    // can self-heal via defaultFlyoutCursorIfNeeded.
+    const active =
+      typeof document !== 'undefined' ? document.activeElement : null;
+    if (active) {
+      for (const workspace of this.workspaces) {
+        const flyout = workspace.getFlyout();
+        if (flyout && flyout.getWorkspace()) {
+          const flyoutSvg = flyout.getWorkspace().getInjectionDiv();
+          if (flyoutSvg && flyoutSvg.contains(active)) {
+            return Constants.STATE.FLYOUT;
+          }
+        }
+        const toolbox = workspace.getToolbox();
+        if (toolbox) {
+          const toolboxDiv = (toolbox as any).HtmlDiv as HTMLElement | undefined;
+          if (toolboxDiv && toolboxDiv.contains(active)) {
+            return Constants.STATE.TOOLBOX;
+          }
+        }
+      }
+    }
+
     // Either a non-Blockly element currently has DOM focus, or a different
     // workspace holds it.
     return Constants.STATE.NOWHERE;
@@ -177,6 +218,18 @@ export class Navigation {
       if ((e as Blockly.Events.BlockChange).element === 'mutation') {
         this.handleBlockMutation(workspace, e as Blockly.Events.BlockChange);
       }
+    } else if (e.type === Blockly.Events.SELECTED) {
+      // Track the last workspace-side block that received focus, so
+      // savePreFlyoutCursor has something meaningful to snapshot even
+      // when the live workspace cursor has already moved onto a flyout
+      // node.
+      const {newElementId} = e as Blockly.Events.Selected;
+      if (newElementId) {
+        const block = workspace.getBlockById(newElementId);
+        if (block) {
+          this.lastWorkspaceFocusedNode.set(workspace, block);
+        }
+      }
     }
   }
 
@@ -221,6 +274,18 @@ export class Navigation {
             this.handleBlockClickInFlyout(mainWorkspace, block);
           }
         }
+      } else if (
+        e.type === Blockly.Events.CLICK &&
+        (e as Blockly.Events.Click).targetType === 'workspace'
+      ) {
+        // Clicking the flyout background leaves the flyout cursor unset
+        // (breaks arrow navigation) and skips the T-shortcut path (so
+        // preFlyoutCurNode never gets saved, and later insertions have
+        // no workspace-side anchor). Do both here. savePreFlyoutCursor
+        // now falls back to lastWorkspaceFocusedNode when the live
+        // cursor has already shifted to the flyout, so this is safe.
+        this.savePreFlyoutCursor(mainWorkspace);
+        this.defaultFlyoutCursorIfNeeded(mainWorkspace);
       } else if (e.type === Blockly.Events.SELECTED) {
         const {newElementId} = e as Blockly.Events.Selected;
         if (newElementId) {
@@ -330,12 +395,17 @@ export class Navigation {
     const flyoutContents = flyout.getContents();
     if (flyoutContents.length === 0) return false;
 
-    // Find the first non-label item
+    // Find the first navigable item (skip labels and separators — those
+    // aren't valid cursor targets and cause FocusManager to reject the
+    // setCurNode call with "Trying to focus a node that can't be focused").
     let defaultIndex = prefer === 'first' ? 0 : flyoutContents.length - 1;
     const step = prefer === 'first' ? 1 : -1;
     while (defaultIndex >= 0 && defaultIndex < flyoutContents.length) {
       const item = flyoutContents[defaultIndex].getElement();
-      if (!(item instanceof Blockly.FlyoutButton) || !item.isLabel()) {
+      const isLabel =
+        item instanceof Blockly.FlyoutButton && item.isLabel();
+      const isSeparator = item instanceof Blockly.FlyoutSeparator;
+      if (!isLabel && !isSeparator) {
         break;
       }
       defaultIndex += step;
@@ -399,10 +469,18 @@ export class Navigation {
    * Call this immediately before focusTree(flyout.getWorkspace()).
    */
   savePreFlyoutCursor(workspace: Blockly.WorkspaceSvg) {
-    const node = workspace.getCursor().getCurNode();
-    // Only save workspace-side nodes; ignore if already pointing at a flyout block.
-    if (!(node as any)?.workspace?.isFlyout) {
-      this.preFlyoutCurNode.set(workspace, node);
+    const cursorNode = workspace.getCursor().getCurNode();
+    // Prefer the live workspace cursor when it points at a workspace-side
+    // node. If it has already shifted to a flyout node (e.g. the caller
+    // reacts to a click event, and Blockly moved focus to the flyout
+    // before dispatching the event), fall back to the last workspace-side
+    // node we saw receive focus via SELECTED events.
+    const isFlyoutNode = !!(cursorNode as any)?.workspace?.isFlyout;
+    const nodeToSave = isFlyoutNode
+      ? this.lastWorkspaceFocusedNode.get(workspace) ?? null
+      : cursorNode;
+    if (nodeToSave) {
+      this.preFlyoutCurNode.set(workspace, nodeToSave);
     }
   }
 
@@ -905,10 +983,16 @@ export class Navigation {
     if (toolbox) {
       Blockly.getFocusManager().focusTree(toolbox);
     } else if (flyout) {
+      // Order matters: savePreFlyoutCursor must run BEFORE
+      // defaultFlyoutCursorIfNeeded, because the latter shifts focus
+      // onto a flyout block and would trip savePreFlyoutCursor's
+      // isFlyout guard — losing the workspace-side cursor and causing
+      // subsequent insertions to attach to the wrong location.
       this.savePreFlyoutCursor(workspace);
       Blockly.getFocusManager().focusTree(flyout.getWorkspace());
-      // Initialize the flyout cursor position so arrow keys work immediately
       this.defaultFlyoutCursorIfNeeded(workspace);
+    } else {
+      Blockly.getFocusManager().focusTree(workspace);
     }
   }
 

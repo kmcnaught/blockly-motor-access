@@ -387,6 +387,18 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Focus the toolbox (or flyout, if no category toolbox) as if the user
+   * pressed the canonical `T` shortcut: snapshots the pre-flyout cursor
+   * so later insertion knows where to land, and initializes the flyout
+   * cursor so arrow keys work immediately. Embedders wiring their own
+   * "jump to toolbox" hotkey should call this rather than focusing the
+   * flyout tree directly.
+   */
+  openToolboxOrFlyout(): void {
+    this.navigationController.getNavigation().openToolboxOrFlyout(this.workspace);
+  }
+
+  /**
    * Registers a default toolbox implementation that doesn't handle
    * keydown events, since we now handle them in this plugin. If you
    * use the default toolbox, call this function before calling
