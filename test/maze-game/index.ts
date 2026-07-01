@@ -270,16 +270,19 @@ const switchScanInitialScanSpeedMs: number = (() => {
 // from:
 //   - `?inputMode=switch-scan` URL param (back-compat with old links),
 //   - localStorage `mazeSwitchScan.enabled` ('on' / 'off'),
-//   - else default OFF.
+//   - else default ON (two-switch step scan — the target audience for
+//     this build).
 // Grid mode is mutually exclusive and forces this to false.
 const switchScanInitialEnabled: boolean = (() => {
   if (isGridMode || isGridCodingMode) return false;
   if (isSwitchScanMode) return true;
   try {
     const v = window.localStorage?.getItem(SWITCH_SCAN_LS_KEYS.enabled);
-    return v === 'on';
+    if (v === 'on') return true;
+    if (v === 'off') return false;
+    return true;
   } catch (e) {
-    return false;
+    return true;
   }
 })();
 
