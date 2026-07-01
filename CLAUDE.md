@@ -21,6 +21,10 @@ UI via buttons that send keyboard controls.
 
 
 
+## Tunnelled Ports for Human Review
+
+Any ports listed in `ports.txt` are tunnelled to the user. When you need human review of a running app (dev server, preview, etc.), bind to one of those ports so the user can reach it. Don't pick a random port — it won't be reachable.
+
 ## Grid 3 WebView2 Compatibility Issue
 
 **Problem:** When testing in Grid 3's embedded WebView2 browser, clicks may fail with:
