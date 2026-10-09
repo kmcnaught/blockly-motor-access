@@ -326,14 +326,11 @@ export class SwitchScanController {
   private executing = false;
   private boundKeyHandler: (e: KeyboardEvent) => void;
   private boundReflow: () => void;
-  // Subscription registered with mazeGame.onExecutionStateChange.
-  // Stored so disable() can null its inner reference (the maze callback
-  // list itself is owned by MazeGame and we don't have an unsubscribe
-  // API; the no-op closure pattern is the cheapest safe equivalent).
+  // Subscription registered with mazeGame.onExecutionStateChange on
+  // enable() and removed via offExecutionStateChange on disable(). The
+  // reference must be stable across the pair, so it's bound once in the
+  // constructor and reused.
   private boundExecutionStateHandler: (isExecuting: boolean) => void;
-  // Set to true once we've registered the execution-state subscription
-  // so re-enable doesn't double-register on the maze's callback list.
-  private executionStateSubscribed = false;
 
   // Key bindings (KeyboardEvent.key values). Defaults: Space / Enter /
   // Escape. `switchBack` is optional — set to '' (empty string) to
@@ -507,16 +504,11 @@ export class SwitchScanController {
     window.addEventListener('resize', this.boundReflow);
     window.addEventListener('scroll', this.boundReflow, true);
 
-    // Subscribe to maze execution state ONCE — MazeGame stores
-    // callbacks in a list with no unsubscribe API, so re-enabling
-    // would otherwise duplicate our handler. The `enabled` guard in
-    // boundExecutionStateHandler makes re-subscription unnecessary
-    // anyway: a no-op fires when disabled, and the handler fires
-    // correctly again on next enable.
-    if (!this.executionStateSubscribed) {
-      this.mazeGame.onExecutionStateChange(this.boundExecutionStateHandler);
-      this.executionStateSubscribed = true;
-    }
+    // Subscribe to maze execution state for the duration of this enable
+    // session. disable() calls offExecutionStateChange with the same
+    // bound reference so re-enabling never doubles up on MazeGame's
+    // callback list.
+    this.mazeGame.onExecutionStateChange(this.boundExecutionStateHandler);
 
     // If a run is somehow already in flight at enable() time (rare —
     // user toggled into switch-scan during a running program), reflect
@@ -549,6 +541,7 @@ export class SwitchScanController {
     document.removeEventListener('keydown', this.boundKeyHandler, true);
     window.removeEventListener('resize', this.boundReflow);
     window.removeEventListener('scroll', this.boundReflow, true);
+    this.mazeGame.offExecutionStateChange(this.boundExecutionStateHandler);
 
     // Cancel any pending reflow frame.
     if (this.reflowRafHandle !== null) {

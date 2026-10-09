@@ -1276,6 +1276,20 @@ export class MazeGame {
   }
 
   /**
+   * Unregister a previously registered execution-state callback.
+   * The reference must match the one passed to onExecutionStateChange
+   * (so callers should keep a stable bound reference). No-op if the
+   * callback isn't registered.
+   * @param callback The callback to remove.
+   */
+  public offExecutionStateChange(
+    callback: (isExecuting: boolean) => void,
+  ): void {
+    const idx = this.executionStateCallbacks.indexOf(callback);
+    if (idx !== -1) this.executionStateCallbacks.splice(idx, 1);
+  }
+
+  /**
    * Notify all execution-state callbacks. Wrapped in a helper so the
    * three transition sites (start in `execute()`, cancel in `animate()`,
    * finish in `showResult()`, plus reset()) stay consistent and easy to
