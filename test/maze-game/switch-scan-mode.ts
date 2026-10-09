@@ -210,6 +210,18 @@ const KEY_ALIASES: Record<string, string> = {
  *
  * @param key
  */
+/**
+ * Negative-safe modulo for frame-index wrapping. Returns 0 when
+ * `cycleLen` is 0 so a caller doesn't have to pre-check.
+ *
+ * @param index The raw index to wrap (may be negative or >= cycleLen).
+ * @param cycleLen Length of the cycle to wrap within.
+ */
+function wrapIndex(index: number, cycleLen: number): number {
+  if (cycleLen <= 0) return 0;
+  return ((index % cycleLen) + cycleLen) % cycleLen;
+}
+
 function normalizeKey(key: string): string {
   return KEY_ALIASES[key] ?? key;
 }
@@ -561,12 +573,11 @@ export class SwitchScanController {
     this.tts?.cancel();
 
     // Tear down overlay DOM. If a move-candidates frame is on the stack
-    // its cancel chip is removed via the per-frame teardown branches in
-    // popSubScan / popOneFrame; on disable we don't bother walking the
-    // stack — the move-candidates frame's cancel chip is a body child,
-    // so removing the body's other overlay nodes plus resetting the
-    // stack below is enough. Defensive cleanup: walk the stack for any
-    // straggling cancel chips.
+    // its cancel chip is removed via teardownPoppedFrame during normal
+    // pops; on disable we don't drive those pops — the cancel chip is
+    // a body child, so removing the body's other overlay nodes plus
+    // resetting the stack below is enough. Defensive cleanup: walk the
+    // stack for any straggling cancel chips.
     for (const frame of this.frameStack) {
       if (frame.kind === 'move-candidates') {
         frame.cancelChipEl.remove();
@@ -881,8 +892,8 @@ export class SwitchScanController {
    * Called by index.ts from the Dialog's `onClose` hook, which fires
    * for every close path the modal supports (Cancel button, Save
    * button, ESC, backdrop click). We pop every non-`top` frame on the
-   * stack — the same approach {@link popSubScan} uses — so any nested
-   * frame we accidentally accumulated underneath is also cleared.
+   * stack (via {@link pop} with `target: 'top'`) so any nested frame
+   * accumulated underneath is also cleared.
    *
    * Idempotent: a no-op if the stack is already at a clean top frame
    * (e.g. close fired without a corresponding open, or close fired
@@ -903,7 +914,7 @@ export class SwitchScanController {
         break;
       }
     }
-    this.popSubScan(resumeIndex);
+    this.pop({target: 'top', resumeIndex});
   }
 
   /**
@@ -1434,7 +1445,7 @@ export class SwitchScanController {
       // auto mode an idle press still doesn't make sense as "back" (the
       // scanner hasn't started cycling yet), but popping to top is a
       // sensible no-op there: the user is already at the top frame.
-      this.popOneFrame();
+      this.pop({target: 'parent'});
       return;
     }
 
@@ -1496,7 +1507,7 @@ export class SwitchScanController {
     if (!frame) return;
     const len = this.cycleLen(frame);
     if (len <= 0) return;
-    frame.index = (frame.index + 1) % len;
+    frame.index = wrapIndex(frame.index + 1, len);
     this.renderHighlight();
   }
 
@@ -1908,7 +1919,7 @@ export class SwitchScanController {
    * @param topLevelIndex Top-level region the sub-scan was entered from.
    */
   private popToSameRegion(topLevelIndex: number): void {
-    this.popSubScan(topLevelIndex);
+    this.pop({target: 'top', resumeIndex: topLevelIndex});
   }
 
   /**
@@ -1925,97 +1936,94 @@ export class SwitchScanController {
    * @param topLevelIndex Top-level region the sub-scan was entered from.
    */
   private popToNextRegion(topLevelIndex: number): void {
-    const topCycleLen = this.regions.length;
-    const nextIndex = topCycleLen > 0 ? (topLevelIndex + 1) % topCycleLen : 0;
-    this.popSubScan(nextIndex);
+    this.pop({target: 'top', resumeIndex: topLevelIndex + 1});
   }
 
   /**
-   * Pop sub-scan frames off the stack until only the top-level `top`
-   * frame remains, then set that frame's index to `resumeIndex`.
+   * Tear down overlay DOM owned by a frame that's just been popped off
+   * the stack. Centralised so {@link pop} doesn't repeat the per-kind
+   * teardown switch; any future frame kind that owns a standalone
+   * overlay adds its cleanup here.
    *
-   * Popping all non-`top` frames (rather than just the immediate
-   * caller) matters for the action-menu flow: a Select/Delete/sentinel
-   * from `action-menu` lands us back at top, skipping past the
-   * workspace blocks frame underneath. Post-delete the workspace
-   * frame's `blocks[]` holds a stale reference, so resuming it would be
-   * incorrect; and post-select/edit we deliberately pop to top too, for
-   * consistency. Tear down any owned overlay DOM as we go.
-   *
-   * For the simpler dom-items / blocks-from-toolbox case, this is still
-   * a single pop because there's only one non-top frame on the stack.
-   *
-   * Prefer the named helpers {@link popToSameRegion} /
-   * {@link popToNextRegion} at call sites — they encode the semantic
-   * intent (real user pop vs degenerate empty-region skip) and compute
-   * the right resume index from the entry top-level index.
-   *
-   * @param resumeIndex
+   * @param popped The frame that was just removed from `frameStack`.
    */
-  /**
-   * Pop exactly one frame off the scan stack — the "back" switch
-   * handler.
-   *
-   * Different from {@link popSubScan} (which drains every non-top frame
-   * in one go): this advances the user UP one level only. Examples:
-   *  - `dropdown-values` on top of `action-menu` → pops the dropdown,
-   *    restores the action menu underneath so the user can pick a
-   *    different action without losing their workspace block selection.
-   *  - `action-menu` on top of workspace `blocks` → pops the menu,
-   *    re-renders the workspace block highlight so the user can pick a
-   *    different block.
-   *  - first-level sub-scan (toolbox / workspace / dom-items) on top of
-   *    `top` → pops to top, leaving the user on whichever region they
-   *    entered from.
-   *  - already at `top` → no-op. The back switch has nowhere further
-   *    up to go; quietly doing nothing is preferable to wrapping or
-   *    crashing.
-   *
-   * Special cases:
-   *  - `move-candidates`: removes the floating Cancel chip. No Blockly
-   *    move state to unwind — the new flow commits via
-   *    `connection.connect()` directly without entering move mode.
-   *  - `dropdown-values` whose parent is `action-menu`: re-render the
-   *    action menu when we land on it, because
-   *    {@link enterDropdownValues} tore it down on the way in. Same for
-   *    `move-candidates` re-entering its parent action-menu, since
-   *    {@link enterMoveCandidates} also tears the action menu down.
-   */
-  private popOneFrame(): void {
-    if (this.frameStack.length <= 1) {
-      // Already at top — nothing to pop. The back switch quietly does
-      // nothing rather than wrapping or making noise; that's the natural
-      // "I'm at the highest level" affordance.
-      return;
-    }
-
-    const popped = this.frameStack.pop();
-
-    // Teardown for the popped frame's overlay DOM, mirroring the per-
-    // frame branches in popSubScan but without draining the rest of
-    // the stack.
-    if (popped?.kind === 'action-menu') {
+  private teardownPoppedFrame(popped: ScanFrame): void {
+    if (popped.kind === 'action-menu') {
       this.actionMenuEl?.remove();
       this.actionMenuEl = null;
-    } else if (popped?.kind === 'dropdown-values') {
+    } else if (popped.kind === 'dropdown-values') {
       this.dropdownMenuEl?.remove();
       this.dropdownMenuEl = null;
-    } else if (popped?.kind === 'move-candidates') {
-      // Remove the floating Cancel chip we created in
-      // enterMoveCandidates. No Blockly move state to unwind — we never
-      // entered move mode.
+    } else if (popped.kind === 'move-candidates') {
+      // Floating Cancel chip created in enterMoveCandidates. No Blockly
+      // move state to unwind — the new flow commits via
+      // `connection.connect()` directly without entering move mode.
       popped.cancelChipEl.remove();
     }
+  }
 
-    // If the new top frame is an action-menu whose overlay was torn
-    // down on the way INTO the just-popped frame (dropdown-values or
-    // move-candidates), re-render it so the user can see the menu they're
-    // landing back on. Other parents (top, blocks, dom-items) own no
-    // standalone overlay — their highlight repaints via renderHighlight.
+  /**
+   * Pop frames off the scan stack.
+   *
+   * `target: 'parent'` — the "back" switch handler. Pops exactly one
+   * frame so the user walks UP one level: dropdown-values →
+   * action-menu, action-menu → blocks, first-level sub-scan → top.
+   * At `top` already, this is a no-op (quiet "I'm at the highest
+   * level" affordance).
+   *
+   * `target: 'top'` — sub-scan commit / modal close / empty-region
+   * skip. Drains every non-`top` frame and resumes the top frame at
+   * `resumeIndex` (wrapped). Popping all non-`top` frames in one go
+   * matters for the action-menu flow: a Select/Delete from
+   * `action-menu` must skip past the workspace `blocks` frame
+   * underneath, whose `blocks[]` may hold a stale reference post-
+   * delete.
+   *
+   * Overlay teardown fires for every popped frame via
+   * {@link teardownPoppedFrame}. If the frame we land on is an
+   * action-menu whose overlay was torn down on the way INTO the just-
+   * popped frame (dropdown-values or move-candidates), it's re-
+   * rendered here; other parents' highlights repaint via
+   * {@link renderHighlight}.
+   *
+   * Prefer the named helpers {@link popToSameRegion} /
+   * {@link popToNextRegion} for 'top' pops at call sites — they encode
+   * the semantic intent (user action-commit vs degenerate empty-region
+   * skip).
+   *
+   * @param opts Pop target: `'parent'` for one-level back-switch pops,
+   *     or `'top'` with a `resumeIndex` for sub-scan commits and modal
+   *     closes.
+   */
+  private pop(
+    opts: {target: 'parent'} | {target: 'top'; resumeIndex: number},
+  ): void {
+    let lastPopped: ScanFrame | undefined;
+
+    if (opts.target === 'parent') {
+      if (this.frameStack.length <= 1) return;
+      lastPopped = this.frameStack.pop();
+      if (lastPopped) this.teardownPoppedFrame(lastPopped);
+    } else {
+      while (
+        this.frameStack.length > 0 &&
+        this.frameStack[this.frameStack.length - 1].kind !== 'top'
+      ) {
+        const popped = this.frameStack.pop();
+        if (popped) this.teardownPoppedFrame(popped);
+        lastPopped = popped;
+      }
+      const topFrame = this.frameStack[0];
+      if (topFrame?.kind === 'top') {
+        topFrame.index = wrapIndex(opts.resumeIndex, this.regions.length);
+      }
+    }
+
     const parent = this.activeFrame();
     if (
       parent?.kind === 'action-menu' &&
-      (popped?.kind === 'dropdown-values' || popped?.kind === 'move-candidates')
+      (lastPopped?.kind === 'dropdown-values' ||
+        lastPopped?.kind === 'move-candidates')
     ) {
       this.actionMenuEl = renderActionMenu(
         this.actionMenuEl,
@@ -2025,32 +2033,6 @@ export class SwitchScanController {
       );
     }
 
-    this.renderHighlight();
-  }
-
-  private popSubScan(resumeIndex: number): void {
-    while (
-      this.frameStack.length > 0 &&
-      this.frameStack[this.frameStack.length - 1].kind !== 'top'
-    ) {
-      const popped = this.frameStack.pop();
-      // Tear down any DOM that belonged to the popped frame.
-      if (popped?.kind === 'action-menu') {
-        this.actionMenuEl?.remove();
-        this.actionMenuEl = null;
-      } else if (popped?.kind === 'dropdown-values') {
-        this.dropdownMenuEl?.remove();
-        this.dropdownMenuEl = null;
-      } else if (popped?.kind === 'move-candidates') {
-        popped.cancelChipEl.remove();
-      }
-    }
-    const topFrame = this.frameStack[0];
-    if (topFrame && topFrame.kind === 'top') {
-      const topCycleLen = this.regions.length;
-      topFrame.index =
-        topCycleLen > 0 ? ((resumeIndex % topCycleLen) + topCycleLen) % topCycleLen : 0;
-    }
     this.renderHighlight();
   }
 
