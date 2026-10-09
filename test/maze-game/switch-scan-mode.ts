@@ -325,6 +325,152 @@ interface ActionItem {
 }
 
 /**
+ * Structural slice of {@link SwitchScanController} that per-kind frame
+ * strategies are allowed to touch. Keeping it narrow — just the fields
+ * and helpers the strategies actually need — means strategies can be
+ * unit-tested against a hand-rolled stub without constructing a full
+ * controller, and documents the dispatch surface rather than leaving
+ * strategies with free rein over the controller internals.
+ */
+interface StrategyCtx {
+  readonly workspace: Blockly.WorkspaceSvg;
+  readonly regions: ReadonlyArray<ScanRegion>;
+  readonly headerDropdowns: Readonly<Record<string, HeaderDropdownSource>>;
+  actionMenuEl: HTMLDivElement | null;
+  dropdownMenuEl: HTMLDivElement | null;
+  enterDomRegionSubScan(name: string, topLevelIndex: number): void;
+  enterToolboxSubScan(topLevelIndex: number): void;
+  enterWorkspaceSubScan(topLevelIndex: number): void;
+  enterActionMenu(block: Blockly.BlockSvg, topLevelIndex: number): void;
+  enterDropdownValues(
+    block: Blockly.BlockSvg,
+    field: Blockly.FieldDropdown,
+    topLevelIndex: number,
+  ): void;
+  enterHeaderDropdownValues(
+    anchor: HTMLElement,
+    source: HeaderDropdownSource,
+    topLevelIndex: number,
+  ): void;
+  enterMoveCandidates(block: Blockly.BlockSvg, topLevelIndex: number): void;
+  popToSameRegion(topLevelIndex: number): void;
+  popToNextRegion(topLevelIndex: number): void;
+  findFirstEditableDropdown(
+    block: Blockly.BlockSvg,
+  ): Blockly.FieldDropdown | null;
+  getSingleBlockViewportRect(block: Blockly.BlockSvg): DOMRect | null;
+}
+
+/**
+ * Per-kind behaviour bundle. One instance per `ScanFrame` kind; collected
+ * into {@link STRATEGIES} and dispatched via {@link strategyFor}. The
+ * `K` type parameter narrows every method's `frame` argument to the
+ * matching variant, so strategy bodies see concrete fields without an
+ * internal `switch(frame.kind)` guard.
+ *
+ * The five methods mirror the five per-kind dispatches currently
+ * scattered across the controller (`cycleLen`, `atSentinel`,
+ * `currentItemLabel`, `renderHighlight`'s rect pick, `handleSelect`).
+ * Steps 2-4 migrate the branch bodies in; Step 1 (this file's commit)
+ * only installs no-op scaffolding so the mapped-type exhaustiveness
+ * check is live before migration begins.
+ */
+interface FrameStrategy<K extends ScanFrame['kind']> {
+  cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
+  atSentinel(frame: Extract<ScanFrame, {kind: K}>): boolean;
+  labelAt(
+    frame: Extract<ScanFrame, {kind: K}>,
+    ctx: StrategyCtx,
+  ): string | null;
+  rectAt(
+    frame: Extract<ScanFrame, {kind: K}>,
+    ctx: StrategyCtx,
+  ): DOMRect | null;
+  handleSelect(
+    frame: Extract<ScanFrame, {kind: K}>,
+    ctx: StrategyCtx,
+  ): void;
+}
+
+/**
+ * Mapped type that forces one {@link FrameStrategy} entry per
+ * {@link ScanFrame} kind. Adding a 7th kind to the union without
+ * extending {@link STRATEGIES} fails the build with "Property '<kind>'
+ * is missing in type …" — the exhaustiveness guard that motivated the
+ * refactor.
+ */
+type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
+
+/**
+ * Strategy registry. One entry per `ScanFrame` kind. Step 1 ships
+ * no-op defaults (`cycleLen` → 0, `atSentinel` → false, `labelAt`
+ * → null, `rectAt` → null, `handleSelect` → no-op); Steps 2-4 fill in
+ * the real bodies by lifting each branch from the controller's
+ * existing dispatch methods. Nothing in the controller calls
+ * {@link strategyFor} yet, so these no-ops are inert.
+ */
+const STRATEGIES: Strategies = {
+  'top': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+  'dom-items': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+  'blocks': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+  'action-menu': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+  'dropdown-values': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+  'move-candidates': {
+    cycleLen: () => 0,
+    atSentinel: () => false,
+    labelAt: () => null,
+    rectAt: () => null,
+    handleSelect: () => {},
+  },
+};
+
+/**
+ * Dispatch helper: look up the strategy for `frame.kind` and return it
+ * narrowed so the caller can pass `frame` straight through without a
+ * second type assertion. Callers will typically pass `frame as never`
+ * at the call site to satisfy the strategy's `Extract<…>` parameter
+ * — the standard escape for the "narrowed-then-passed-generically"
+ * pattern.
+ *
+ * @param frame The active frame to dispatch on.
+ */
+function strategyFor<F extends ScanFrame>(
+  frame: F,
+): FrameStrategy<F['kind']> {
+  return STRATEGIES[frame.kind] as FrameStrategy<F['kind']>;
+}
+
+/**
  * Controller for two-switch step-scanning input mode.
  * See file-level docstring for design notes.
  */
@@ -2512,4 +2658,27 @@ export class SwitchScanController {
     }
   }
 
+  /**
+   * Wrap the imported {@link getSingleBlockViewportRect} helper as a
+   * method so it's reachable through {@link StrategyCtx} without the
+   * strategies needing to know about the module-scope import or the
+   * `workspace` second argument.
+   *
+   * @param block
+   */
+  private getSingleBlockViewportRect(
+    block: Blockly.BlockSvg,
+  ): DOMRect | null {
+    return getSingleBlockViewportRect(block, this.workspace);
+  }
+
+  /**
+   * Return `this` as the structural {@link StrategyCtx} the strategies
+   * expect. The controller already exposes everything StrategyCtx needs;
+   * the cast narrows to the structural shape without duplicating field
+   * bindings.
+   */
+  private getStrategyCtx(): StrategyCtx {
+    return this as unknown as StrategyCtx;
+  }
 }
