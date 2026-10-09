@@ -1,247 +1,236 @@
-# Plan: Switch-Scanning Mode (Phase 1)
+# Plan: Switch-scan ScanFrame kind polymorphism + handleSelect extraction
 
-Source design doc: `/workspace/PLAN_switch_scanning.md` — execute its Phase 1
-("Two-switch step scan, core flow") only. Phases 2-5 (settings panel, Move,
-header dropdowns, single-switch auto-scan, TTS) are out of scope for this
-session.
+## Context
 
-Phase 1 goal (verbatim): *"a switch user can complete a Stage 1 maze level
-end-to-end."*
+`test/maze-game/switch-scan-mode.ts` defines a discriminated-union `ScanFrame` with six kinds — `top`, `dom-items`, `blocks`, `action-menu`, `dropdown-values`, `move-candidates`. Per-kind behaviour is scattered across five private methods on `SwitchScanController`:
 
-In scope for Phase 1:
-- URL-param key bindings (no settings UI).
-- Regions: header (subset), toolbox, workspace, maze actions.
-- Block action menu: Select, Edit (dropdown), Delete. Move deferred.
-- Pause-during-run.
-- Mutually exclusive with grid-coding-mode.
+| Method              | What it dispatches on `frame.kind`                   |
+| ------------------- | ---------------------------------------------------- |
+| `cycleLen`          | number of items in the cycle (+1 sentinel for subs)  |
+| `atSentinel`        | whether current index is the sentinel slot           |
+| `currentItemLabel`  | TTS label derivation                                 |
+| `renderHighlight`   | which DOM/SVG rect the highlight outlines            |
+| `handleSelect`      | commit the action and pop (~290 lines, 6 branches)   |
 
----
+Teardown-on-pop also used to have per-kind branches but has already been centralised into `teardownPoppedFrame` (see commit history on this branch). The remaining dispatch points are the five above. That's still 5 switch sites; adding a 7th frame kind means touching all of them with no exhaustiveness guard.
 
-## Step 1: Scaffold `SwitchScanController` + URL-param wiring
+### Chosen approach — strategy registry keyed by `frame.kind`
 
-Goal: Create the empty controller class and wire it into `index.ts`.
+Option (a): a `FrameStrategy<K extends ScanFrame['kind']>` interface, and a `const STRATEGIES: {[K in ScanFrame['kind']]: FrameStrategy<K>}` object. Reasons:
 
-- New file `test/maze-game/switch-scan-mode.ts` with a `SwitchScanController`
-  class skeleton exposing `enable()` / `disable()`. No scan logic yet.
-- In `test/maze-game/index.ts`:
-  - Read URL params: `inputMode`, `switchAdvance` (default `Space`),
-    `switchSelect` (default `Enter`).
-  - When `inputMode === 'switch-scan'`, instantiate the controller and
-    enable it after Blockly init. Ensure mutual exclusion with
-    `GridCodingModeController` (don't instantiate both).
-- Controller binds a `keydown` handler that just `console.log`s when the
-  advance/select keys are pressed — proves wiring works.
+- Frames stay plain data (discriminated union of structs), which is how they're serialised into `frameStack`, logged, and narrowed by every call site that isn't dispatching. No conversion / wrapper lifecycle to invent.
+- `Record<Kind, Strategy<Kind>>` typed via mapped type gives TS exhaustiveness: miss a kind in the strategy map and the file doesn't compile. Adding a 7th kind becomes "add the union variant + add one STRATEGIES entry" with the compiler enforcing both.
+- Strategies take an explicit `ctx` (the controller) rather than being bound to `this`. Keeps them pure functions-on-data, easy to unit-test later without needing a full `SwitchScanController`.
+- Option (b) (methods on frames) would force every push-site to instantiate a class, breaking `frameStack`'s JSON-shaped simplicity and complicating the DOM-element references that already live inside frames.
 
-Files: `test/maze-game/switch-scan-mode.ts` (new),
-`test/maze-game/index.ts` (modified).
+Each strategy exposes:
 
-Verify: Load `?inputMode=switch-scan`, press Space/Enter, see console logs.
-No regressions in regular or grid-coding mode.
+```ts
+interface FrameStrategy<K extends ScanFrame['kind']> {
+  cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
+  atSentinel(frame: Extract<ScanFrame, {kind: K}>): boolean;
+  labelAt(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): string | null;
+  rectAt(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): DOMRect | null;
+  handleSelect(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): void;
+}
+```
 
----
+(An earlier draft also included an `onPop` method for overlay teardown. That dispatch has since been centralised into `teardownPoppedFrame`, which has its own per-kind switch of only 3 lines total — moving it into strategies would make the strategy registry 6 entries larger for a 3-line win. Leave it where it is unless the registry's `onPop` story is otherwise motivated.)
 
-## Step 2: Region & item DOM tagging
+Dispatch helper:
 
-Goal: Tag the existing wrappers and buttons so the controller can discover
-regions without hard-coded IDs.
+```ts
+function strategyFor<F extends ScanFrame>(frame: F): FrameStrategy<F['kind']> {
+  return STRATEGIES[frame.kind] as FrameStrategy<F['kind']>;
+}
+```
 
-- In `test/maze-game/index.html`:
-  - Add `data-scan-region="header"` to `<header>`, `role="region"`,
-    `aria-label="Header"`.
-  - Add `data-scan-region="maze-actions"` to the `.game-controls` div,
-    same role/aria-label pattern.
-  - Add `data-scan-item` to each scannable button in those two regions:
-    header (zoom -, zoom +, mode toggle, mute, settings/info), maze-actions
-    (Back, Next, Run, Reset; ghost only when visible — keep attribute,
-    discovery filters hidden).
-- Toolbox and workspace are NOT DOM-tagged; they're discovered via Blockly.
+`StrategyCtx` is a small structural type exposing just what the strategies need from the controller — the workspace, the regions array, the active menu overlay element references, the pop helpers (`popToSameRegion`, `popToNextRegion`), the enter* helpers (`enterActionMenu`, `enterDropdownValues`, …), the shortcut invoker, the `headerDropdowns` provider map, and the private `findFirstEditableDropdown` / `enumerateValidConnectionTargets`. Implemented as a `getStrategyCtx(): StrategyCtx` method on the controller — bind-free (returns `this` behind a narrow interface) and type-checked at the boundary.
 
-Files: `test/maze-game/index.html` (modified).
+### Refactor-1 vs Refactor-2 sequencing
 
-Verify: DOM inspector shows the attributes; no visual change.
+Doing both in one commit would be a ~500-line diff dominated by one giant method move. Splitting:
 
----
+1. **Step 1 (prep):** introduce `FrameStrategy` + `StrategyCtx` interfaces and the empty `STRATEGIES` scaffold with placeholder entries for all 6 kinds. No call-site changes yet. Keeps the diff pure-additive and the compiler green.
+2. **Step 2:** migrate the three "pure-ish" dispatches — `cycleLen`, `atSentinel`, `labelAt` (= `currentItemLabel`). These are small (3–20 lines per kind) and don't touch overlay DOM.
+3. **Step 3:** migrate `renderHighlight`'s rect-picking (= `rectAt`). The post-rect positioning stays in the controller — strategies only answer "what rect?".
+4. **Step 4:** migrate `handleSelect` into strategies (Refactor 2). Largest step; natural pairing with Refactor 1 as the user predicted. Done last because every prior step shrinks the surface area to review here.
 
-## Step 3: Top-level scan loop + highlight overlay + end-of-group sentinel
+Steps 1–3 are independently committable and each reviewable in <200 lines of diff. Step 4 is the big one but only moves the already-sliced methods — the behavioural surface is one method body.
 
-Goal: First visible behavior — switch A cycles a highlight across the four
-top-level regions; switch B does nothing useful yet (just logs which region
-was selected).
+### Verify command (shared across all steps)
 
-- Controller discovers regions on `enable()`:
-  ordered list `[header, toolbox, workspace, maze-actions]`.
-- Maintain `scanIndex` over this list plus a synthetic "back to top"
-  sentinel item at the end of the list (which just resets index to 0).
-- Render a highlight: absolutely-positioned outline `<div>` injected into
-  body, positioned via `getBoundingClientRect()` over the current region.
-  For toolbox/workspace, target the Blockly flyout / workspace div.
-  Sentinel highlight: a small visible chip ("⤴ back to top") near the
-  bottom-right of the page, or a dedicated outline style — pick whichever
-  reads clearer.
-- Advance key moves to the next region/sentinel and re-renders highlight.
-  Select key on a region just logs `selected: <regionName>` for now;
-  select on sentinel resets.
+The maze game is compiled by webpack via ts-loader, which typechecks on build:
 
-Files: `test/maze-game/switch-scan-mode.ts`, plus a small CSS block (inline
-or appended to `maze.css`) for the highlight outline + sentinel chip.
+```
+npm run build:maze
+```
 
-Verify: Space cycles outline through header / toolbox / workspace /
-maze-actions / sentinel; Enter on each logs the right name; on sentinel
-wraps to header.
+Must complete with no TS errors. Additionally, run `npm run lint` after each step to catch any unused-import / unused-local complaints introduced by the move.
 
----
+Manual smoke-test (any step that could affect runtime): `npm run start:maze`, bind to a port from `ports.txt`, activate switch-scan via `?inputMode=switch-scan`, and exercise one of each frame kind:
+- top → advance across regions
+- dom-items → open header, cycle, select a button
+- blocks (toolbox) → insert a block
+- blocks (workspace) → select a block to open action menu
+- action-menu → Select / Edit / Move / Delete each
+- dropdown-values → Edit a `maze_turn` block's direction field
+- move-candidates → Move a block onto a different slot
 
-## Step 4: Header region sub-scan
+Any step that touches runtime (3, 4) MUST do the manual smoke before commit.
 
-Goal: Select header → scan its buttons → select fires the button's click.
+## Risks
 
-- On select of a region, push a sub-scan frame: scan the `data-scan-item`
-  elements within that region (skip `display:none` or `.hidden`).
-- Render the highlight over the individual button.
-- Advance cycles items + sentinel ("back to top" — pop pops back to
-  top-level scan and advances to the next region, per design doc wrap).
-- Select on item calls `.click()` on the underlying button.
-- Select on sentinel pops without firing.
+- **`handleSelect` branch-move loses `this`-binding or ordering** (Step 4). The current method's try/finally blocks around `item.click()`, `block.dispose()`, `pair.target.connect()` have specific ordering that `popToSameRegion` depends on. Mitigation: move each branch verbatim into the strategy's `handleSelect(frame, ctx)` body with `ctx.` substituted for `this.`; no re-ordering, no inlining. The strategy call-site in the controller becomes `strategyFor(frame).handleSelect(frame, this.getStrategyCtx())` — one line replacing the whole dispatch.
+- **TS exhaustiveness regression**: the current `if (kind === 'top') ... return` chains silently default on an unknown kind. The strategy map's mapped type raises a compile error on a missing kind. That's the whole point, but it means any PR that adds a frame kind without updating `STRATEGIES` will break the build — that's intended and the migration note in Step 1 should call it out.
+- **Scope creep**: the controller still owns the frame stack, the push-helpers (`enterActionMenu` etc.), the key dispatch, the TTS wiring. Strategies are "what does this frame mean?" not "how do we transition between frames." Resist the urge to move push-helpers into strategies too — they're called from `handleSelect` strategies via `ctx.enterActionMenu(...)`, so they belong on the controller / `ctx`.
 
-Files: `test/maze-game/switch-scan-mode.ts`.
+## Out of scope (DO NOT do in these steps)
 
-Verify: Switch user can press zoom +/- via two switches.
+- Do not rename any frame kind strings (`'top'`, `'dom-items'`, `'blocks'`, `'action-menu'`, `'dropdown-values'`, `'move-candidates'`). They appear in log messages and the shape is observable in dev-tools.
+- Do not change the external API of `SwitchScanController` — `enable`, `disable`, `pushModalSubScan`, `popModalSubScan`, `setTts`, `setSettings`, `setMode`, `speakCurrentItemLabel` all keep their signatures and semantics. `index.ts` must not require any change.
+- Do not change the `ScanFrame` discriminated-union shape (field names, optional-ness, variant members). The migration is behaviour-preserving.
+- Do not touch `switch-scan-regions.ts`, `switch-scan-menus.ts`, `switch-scan-settings.ts`, `switch-scan-tts.ts`. Those modules are stable collaborators.
+- Do not add a new frame kind to prove the exhaustiveness guard — if the user wants that, it's a follow-up step.
+- Do not re-fold the unified `pop({target})` back into two helpers — the current branch has already consolidated `popSubScan`/`popOneFrame` into one; keep that.
+- Do not reformat / re-wrap unrelated code. Keep the diff focused on the dispatch extraction.
+- Do not add unit tests for strategies in this refactor — the existing wdio tests (`npm run test:maze`) cover the end-to-end behaviour. Unit testing strategies in isolation is a future enhancement enabled by this refactor, not part of it.
 
 ---
 
-## Step 5: Maze-actions region sub-scan
+## Step 1: Introduce `FrameStrategy` interface + empty `STRATEGIES` scaffold
 
-Goal: Same pattern as Step 4 for the maze-actions region.
+**Goal**: Pure-additive scaffold. Define `FrameStrategy<K>`, `StrategyCtx`, and `STRATEGIES: {[K in ScanFrame['kind']]: FrameStrategy<K>}` with every entry present but delegating to the controller's existing methods (via a stub that calls back into the controller). No call-site changes. The point is to prove the typing works and the exhaustiveness check fires on a missing kind — before we start migrating logic.
 
-- Discovery uses the same `data-scan-item` query inside the
-  `data-scan-region="maze-actions"` wrapper.
-- Hidden buttons (`.hidden` class — Ghost run, etc.) are filtered out.
+**Files**:
+- `test/maze-game/switch-scan-mode.ts`
+  - Add `interface StrategyCtx` near the `ScanFrame` type. Exposes:
+    - `readonly workspace: Blockly.WorkspaceSvg;`
+    - `readonly regions: ReadonlyArray<ScanRegion>;`
+    - `readonly headerDropdowns: Readonly<Record<string, HeaderDropdownSource>>;`
+    - `actionMenuEl: HTMLDivElement | null;` (strategies read / write)
+    - `dropdownMenuEl: HTMLDivElement | null;` (same)
+    - `enterDomRegionSubScan(name: string, topLevelIndex: number): void;`
+    - `enterToolboxSubScan(topLevelIndex: number): void;`
+    - `enterWorkspaceSubScan(topLevelIndex: number): void;`
+    - `enterActionMenu(block: Blockly.BlockSvg, topLevelIndex: number): void;`
+    - `enterDropdownValues(block, field, topLevelIndex): void;`
+    - `enterHeaderDropdownValues(anchor, source, topLevelIndex): void;`
+    - `enterMoveCandidates(block, topLevelIndex): void;`
+    - `popToSameRegion(topLevelIndex: number): void;`
+    - `popToNextRegion(topLevelIndex: number): void;`
+    - `findFirstEditableDropdown(block): Blockly.FieldDropdown | null;`
+    - `getSingleBlockViewportRect(block): DOMRect | null;` (wraps the imported helper)
+  - Add `interface FrameStrategy<K extends ScanFrame['kind']>` with the five method signatures.
+  - Add `type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};`
+  - Add `const STRATEGIES: Strategies = { ... };` with every entry's methods returning sensible no-ops (`cycleLen: () => 0`, `atSentinel: () => false`, `labelAt: () => null`, `rectAt: () => null`, `handleSelect: () => {}`). The stubs are temporary — Steps 2-4 fill them in.
+  - Add `strategyFor<F extends ScanFrame>(frame: F): FrameStrategy<F['kind']>` dispatch helper.
+  - Add `private getStrategyCtx(): StrategyCtx { return this; /* via the structural match */ }` on the controller. Easiest: declare `getSingleBlockViewportRect` as a private method on the controller that wraps the import, then `getStrategyCtx` can just `return this as unknown as StrategyCtx` with a comment explaining the structural match.
 
-Files: `test/maze-game/switch-scan-mode.ts` (refactor item-discovery to
-work for any DOM region — already general from Step 4).
+**Verify**:
+- `npm run build:maze` compiles.
+- `npm run lint` passes.
+- Delete one entry from `STRATEGIES` temporarily (e.g. `'move-candidates'`) and confirm `npm run build:maze` errors with "Property 'move-candidates' is missing in type …" — this is the exhaustiveness proof. REVERT before commit.
+- No runtime change — nothing calls `STRATEGIES` or `strategyFor` yet.
 
-Verify: Switch user can press Reset and Run Program via two switches.
-
----
-
-## Step 6: Toolbox scan + heuristic insertion
-
-Goal: Toolbox region scans its flyout blocks; select inserts into the
-workspace using the existing heuristic.
-
-- Discover flyout blocks via Blockly's flyout API
-  (`workspace.getFlyout().getWorkspace().getTopBlocks(true)`).
-- Highlight: outline the block's SVG bounding rect (use Blockly's
-  `block.getSvgRoot().getBoundingClientRect()`).
-- Select inserts a new block of that type into the main workspace.
-  - Extract the insertion heuristic from `grid-coding-mode.ts`
-    (`insertBlock` private method, line 354) into a small shared helper
-    module (e.g. `test/maze-game/block-insertion.ts`) exporting an
-    `insertBlockAfterCursor(workspace, blockType, fields?)` function.
-  - Both `GridCodingModeController` and `SwitchScanController` import it.
-  - The heuristic: if the Blockly `FocusManager` cursor sits on a
-    workspace block, insert after it; else walk to end of first top-block
-    chain. (Per design Q1 — no smart container insertion.)
-- After insertion, pop back to top-level scan.
-
-Files: `test/maze-game/block-insertion.ts` (new),
-`test/maze-game/grid-coding-mode.ts` (use shared helper),
-`test/maze-game/switch-scan-mode.ts`.
-
-Verify: Switch user can insert a "move forward" block from the toolbox.
+**Acceptance criterion**: `git diff --stat` shows only `test/maze-game/switch-scan-mode.ts` modified, ~150 lines added. `npm run build:maze` green. The scaffold exists; `handleKeyDown`, `cycleLen`, etc. are unchanged.
 
 ---
 
-## Step 7: Workspace block scan
+## Step 2: Migrate `cycleLen`, `atSentinel`, `labelAt` into strategies
 
-Goal: Workspace region enumerates its blocks; advance cycles through them.
-Select opens an action sub-scan (implemented in Step 8 — for now, log only).
+**Goal**: Fill in the three cheap dispatches. Each strategy's `cycleLen`, `atSentinel`, `labelAt` body is lifted verbatim from the corresponding branch in the current controller methods. The three controller methods become one-line delegators to `strategyFor(frame)`.
 
-- Walk workspace blocks in tree order: for each top block, descend through
-  `nextConnection` chain, and for each block descend into any statement
-  inputs first before continuing siblings. Yields a stable, predictable
-  enumeration.
-- Highlight: outline the block's SVG (same approach as toolbox scan).
-- For now, select just logs the block's type & id; sub-scan comes next step.
+**Files**:
+- `test/maze-game/switch-scan-mode.ts`
+  - Fill in each `STRATEGIES[kind].cycleLen` by extracting the matching line from `cycleLen`. E.g. `top: { cycleLen: (_f, ctx) => ctx.regions.length, ... }`.
+  - Same for `atSentinel` and `labelAt` (bigger body — just move it, don't inline / collapse).
+  - Replace the controller's `cycleLen(frame)` body with `return strategyFor(frame).cycleLen(frame as never, this.getStrategyCtx());` — `as never` is the standard escape for the "narrowed-then-passed-generically" pattern. Same for `atSentinel`. Rename `currentItemLabel()` to call `strategyFor(frame).labelAt(...)` similarly.
+  - Keep the controller methods — don't inline into callers. They're the public (within-class) seam for TTS, render, and the sentinel checks; leaving them in place minimises the diff elsewhere.
+  - The "move-candidates returns 'Cancel' at sentinel" branch in `currentItemLabel` stays either in the controller's `currentItemLabel` wrapper (as an `atSentinel` short-circuit) OR per-strategy. Prefer per-strategy — cleaner locality. Note in the step status which approach the implementer chose.
 
-Files: `test/maze-game/switch-scan-mode.ts`.
+**Verify**:
+- `npm run build:maze` compiles. `npm run lint` passes.
+- Manual: `npm run start:maze`, enable switch-scan, advance through all frame kinds, confirm highlight cycles identically and TTS speaks the right labels (if enabled via `?scanAudio=on`). Compare side-by-side against `HEAD~1` build if visual regression suspected.
 
-Verify: With several blocks in the workspace, advance steps through them
-top-to-bottom (descending into loop bodies before continuing).
-
----
-
-## Step 8: Block action sub-scan (Select / Edit / Delete)
-
-Goal: Selecting a workspace block opens an inline action menu and lets the
-user pick what to do with the block.
-
-- On select of a workspace block, push an action sub-scan with items:
-  - **Select** — set the Blockly keyboard-nav cursor to this block
-    (so subsequent insertions go after it); pop to top.
-  - **Edit** — only when the block has at least one editable dropdown
-    `Blockly.FieldDropdown`. Opens a value sub-scan over the dropdown's
-    options; selecting a value calls `field.setValue(option[1])` then
-    pops to top.
-  - **Delete** — calls `block.dispose(true, true)` (or routes through
-    `src/actions/delete.ts` if a thin public API exists); pops to top.
-  - Plus sentinel "back to top" to bail out.
-- Render action menu as a small DOM overlay anchored near the block —
-  buttons with `data-scan-item` style so the existing highlight machinery
-  works.
-
-Files: `test/maze-game/switch-scan-mode.ts` (action menu + edit/delete
-flows), tiny CSS for the menu overlay.
-
-Verify: Insert a "turn left" block; switch user can edit the direction to
-right; can delete the block; can mark a block as selected and have the
-next inserted block land after it.
+**Acceptance criterion**: `git diff --stat` ~80-120 lines moved. Controller methods `cycleLen`, `atSentinel`, `currentItemLabel` are now ≤5 lines each (just the strategy delegation). No behaviour change observable.
 
 ---
 
-## Step 9: Pause-during-run integration
+## Step 3: Migrate `renderHighlight`'s rect-picking into `rectAt`
 
-Goal: Halt scanning while the maze program is executing; resume cleanly
-after.
+**Goal**: Move the per-kind "which rect to outline?" logic into each strategy's `rectAt`. `renderHighlight` keeps the surrounding orchestration — the sentinel-chip toggle, the auto-idle chip, the `shouldSpeak` wiring, the "defensive: hide on zero rect" fallback — and only loses the rect-picking switch.
 
-- Mirror the `executing` flag pattern used in `GridCodingModeController`.
-- Hook into existing run lifecycle in `index.ts` / `maze.ts`:
-  - On run start: controller's `pauseForRun()` — clear highlight, ignore
-    key events.
-  - On run finish (success or fail, including reset mid-run):
-    controller's `resumeFromRun()` — restore highlight at top-level /
-    first region.
-- If there's no clean hook, expose `mazeGame.onRunStart` / `onRunEnd`
-  callback fields (or extend an existing event bus) and have the
-  controller subscribe.
+**Files**:
+- `test/maze-game/switch-scan-mode.ts`
+  - Fill in each `STRATEGIES[kind].rectAt`. The `top`, `dom-items`, `blocks`, `action-menu`, `dropdown-values`, `move-candidates` bodies lift directly from the `if/else if` chain in `renderHighlight`. The `blocks` strategy needs `ctx.workspace` and `ctx.getSingleBlockViewportRect(block)`. The `action-menu` / `dropdown-values` strategies need `ctx.actionMenuEl` / `ctx.dropdownMenuEl` to do the overlay-child lookup.
+  - The sentinel case for `move-candidates` (outlines `cancelChipEl`) and the sentinel branches in `renderHighlight` need to be reconciled. Prefer: `rectAt` is only called when `!atSentinel(frame)`, so the sentinel branches stay in `renderHighlight` exactly as they are, and `move-candidates.rectAt` for the non-sentinel case returns the connection rect. Keep the sentinel-vs-non-sentinel split in the controller.
+  - Replace the `if (frame.kind === …)` chain in `renderHighlight` with `rect = strategyFor(frame).rectAt(frame as never, this.getStrategyCtx());`
+- No changes to `switch-scan-menus.ts` or `switch-scan-regions.ts`.
 
-Files: `test/maze-game/switch-scan-mode.ts`, `test/maze-game/index.ts`
-(probably to wire the lifecycle hook), possibly `test/maze-game/maze.ts`.
+**Verify**:
+- `npm run build:maze` compiles. `npm run lint` passes.
+- Manual: open every frame kind in dev server, confirm the highlight outlines the right element in each (regions, header buttons, flyout blocks, workspace blocks, action-menu rows, dropdown rows, move-candidate connection targets, Cancel chip, Back-to-top sentinel chip). Resize the window — reflow should still re-position the highlight (confirms the `speak: false` path still flows through `rectAt`).
 
-Verify: With switch-scan active, press Run; highlight disappears; key
-presses do nothing while running; after completion, highlight comes back
-at top of header.
+**Acceptance criterion**: `git diff --stat` ~60-100 lines moved. `renderHighlight` is shorter by ~45 lines; its remaining body is the orchestration (sentinel toggle, idle chip, speak flag, hide-on-zero, position-apply).
 
 ---
 
-## Step 10: End-to-end manual verification + polish
+## Step 4: Migrate `handleSelect` into strategies (Refactor 2)
 
-Goal: Confirm Phase 1 goal — a switch user can complete a Stage 1 maze
-level end-to-end with only two keys.
+**Goal**: Move the 290-line per-kind `handleSelect` dispatch into `STRATEGIES[kind].handleSelect`. The controller's `handleSelect(frame)` collapses to one line: `strategyFor(frame).handleSelect(frame as never, this.getStrategyCtx());`.
 
-- Test in browser at `?inputMode=switch-scan&switchAdvance=Space&switchSelect=Enter`:
-  - Insert blocks from toolbox to build a solution for Stage 1, Level 1.
-  - Edit a dropdown value.
-  - Run the program.
-  - Reset and try again.
-- Tidy the highlight CSS (visible, accessible contrast — orange/yellow
-  outline, ~4px, with `pointer-events: none`).
-- Add a one-line comment header at the top of `switch-scan-mode.ts`
-  documenting the URL params it accepts.
-- Make sure regular mode (no URL param) is completely unaffected — no
-  visible artifacts, no extra event listeners bound.
+**Files**:
+- `test/maze-game/switch-scan-mode.ts`
+  - For each kind, lift the matching branch body into `STRATEGIES[kind].handleSelect(frame, ctx)`. Rules:
+    - Replace `this.regions` with `ctx.regions`, `this.enterToolboxSubScan` with `ctx.enterToolboxSubScan`, `this.popToSameRegion` with `ctx.popToSameRegion`, etc.
+    - Replace `this.headerDropdowns` with `ctx.headerDropdowns`.
+    - Replace `this.findFirstEditableDropdown` with `ctx.findFirstEditableDropdown`.
+    - `this.atSentinel(frame)` becomes an inlined sentinel check per-strategy (identical to Step 2's `atSentinel` body) OR a call to `STRATEGIES[frame.kind].atSentinel(frame as never)`. Prefer inlining within the strategy — removes a cross-strategy call. One-line duplication per strategy, ~6 lines total, worth it for locality.
+    - Pure Blockly calls (`block.dispose(...)`, `pair.target.connect(local)`, `Blockly.Events.setGroup(...)`, `Blockly.getFocusManager().focusNode(...)`, `insertBlockAfterCursor(workspace, ...)`, `Blockly.renderManagement.finishQueuedRenders()`) move verbatim — they don't need the controller.
+  - Verify the `top` strategy's `handleSelect` branches on `region.name` exactly as the current method does, including the `console.log` fallback for unknown regions.
+  - Verify every try/catch/finally block moves intact — the catch comments describe the defensive intent (e.g. `focusNode can throw if the block was disposed`) and must survive.
+  - The controller's `handleSelect(frame: ScanFrame): void` becomes:
+    ```ts
+    private handleSelect(frame: ScanFrame): void {
+      strategyFor(frame).handleSelect(frame as never, this.getStrategyCtx());
+    }
+    ```
+  - Preserve the method (don't inline into `handleKeyDown`) so the auto-mode select path and the step-mode select path both still have a single-line call to make.
 
-Files: minor tweaks across `switch-scan-mode.ts` and `maze.css`.
+**Verify**:
+- `npm run build:maze` compiles. `npm run lint` passes.
+- Manual (REQUIRED, non-negotiable for this step given the surface area):
+  - **top → region**: advance to each top-level region, Select, confirm correct sub-scan opens for each (header/toolbox/workspace/maze-actions/instruction-bar/practice-controls).
+  - **dom-items → button**: open header, Select a button that doesn't open a dropdown, confirm click fires and sub-scan pops back to the same region.
+  - **dom-items → dropdown source**: open header, Select pegman/language, confirm `dropdown-values` opens anchored off the header button (NOT the native popover).
+  - **blocks (toolbox)**: Select a flyout block, confirm it inserts into the workspace, scan pops back to toolbox, focus-manager cursor lands on the new block.
+  - **blocks (workspace)**: Select a workspace block, confirm action menu appears.
+  - **action-menu → Select**: confirm cursor commits, pop to workspace region.
+  - **action-menu → Edit**: confirm `dropdown-values` opens over a block with a dropdown field.
+  - **action-menu → Move**: confirm `move-candidates` opens with Cancel chip, action menu is torn down.
+  - **action-menu → Delete**: confirm block is disposed, scan pops to workspace region, next Select re-enters the (now-shorter) block list.
+  - **dropdown-values (block Edit)**: confirm field value updates on Select, pop to workspace region.
+  - **dropdown-values (header)**: confirm `commitHandler` fires (changePegman / language reload).
+  - **move-candidates → target**: confirm `target.connect(local)` fires, block moves, cancel chip is removed, pop to workspace.
+  - **move-candidates → Cancel sentinel**: confirm pop with no connection change.
+  - **sentinels**: confirm each sentinel ("Back to top" / "Cancel") pops to `popToSameRegion(frame.topLevelIndex)` identically to before.
+  - **chain-insert / chain-edit**: confirm pressing Select twice in a row re-enters the same sub-scan.
+- Run `npm run test:maze` if the webdriverio harness is set up.
 
-Verify: Manual playthrough of Stage 1 Level 1 succeeds with only Space
-and Enter pressed. No regressions on default-mode page load.
+**Acceptance criterion**: `git diff --stat` shows ~290 lines moved out of `handleSelect` and ~290 lines added into `STRATEGIES`. Controller's `handleSelect` is 3 lines. Behaviour-identical in manual smoke.
+
+---
+
+## Post-step summary (not a step — guidance for reviewer)
+
+After all 4 steps, the controller's dispatch burden for `ScanFrame.kind` is confined to the `STRATEGIES` map. Adding a 7th kind requires:
+1. Add the variant to `type ScanFrame` (one object-literal addition).
+2. Add the entry to `STRATEGIES` (compiler forces this via the mapped type — build fails until you do).
+3. Add a case to `teardownPoppedFrame` IF the new kind owns standalone overlay DOM.
+
+### Critical files for implementation
+- /blockly-keyboard-experimentation/test/maze-game/switch-scan-mode.ts
+- /blockly-keyboard-experimentation/test/maze-game/switch-scan-regions.ts (ScanRegion type, read-only)
+- /blockly-keyboard-experimentation/test/maze-game/index.ts (verify the controller's external API is unchanged)
+- /blockly-keyboard-experimentation/package.json (`build:maze`, `lint`)
