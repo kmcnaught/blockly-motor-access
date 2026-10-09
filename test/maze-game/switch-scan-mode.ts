@@ -5,71 +5,75 @@
  */
 
 /**
- * @fileoverview Switch Scan Controller for Maze game (Phase 1 complete).
+ * @fileoverview Switch Scan Controller for the Maze game.
  *
- * Drives a two-switch step-scanning input mode for users with severe
- * motor impairments who access the page via two physical switches (or
- * two assigned keys, e.g. via Grid 3 sending keyboard events). One key
- * advances a visible highlight across scannable regions/items; the
- * other selects the currently highlighted target.
+ * Drives a step-scanning input mode for users with severe motor
+ * impairments who access the page via physical switches (or assigned
+ * keys sent by assistive software such as Grid 3). An advance key
+ * cycles a visible highlight across scannable regions/items; a select
+ * key acts on the current target; an optional back key pops one frame.
+ * A single-switch auto-scan mode is also supported, where a timer
+ * drives advance and the one bound key doubles as select.
  *
  * Activation + key bindings come from URL params (read in `index.ts`,
- * forwarded to the constructor via {@link SwitchScanOptions}):
+ * forwarded via {@link SwitchScanOptions}); the settings modal lets
+ * the user re-bind keys and toggle mode / audio live without reload.
  *  - `inputMode=switch-scan` — activate the controller. When unset,
  *    the controller is NEVER instantiated and binds NO listeners — the
  *    default-mode page behaves exactly as before.
- *  - `switchAdvance` — advance key, as either a `KeyboardEvent.key`
- *    value (`' '`) or the alias `'Space'`. Default `' '` (Space).
- *  - `switchSelect` — select key, as a `KeyboardEvent.key` value.
- *    Default `'Enter'`.
+ *  - `switchAdvance` — advance key (`KeyboardEvent.key` or the alias
+ *    `'Space'`). Default `' '` (Space).
+ *  - `switchSelect` — select key (two-switch mode only). Default
+ *    `'Enter'`.
+ *  - `switchBack` — optional back key; default `'Escape'`. Set empty
+ *    to disable.
+ *  - `scanMode` — `'step'` (default) or `'auto'` for single-switch.
+ *  - `scanSpeedMs` — auto-scan interval in milliseconds.
+ *  - `scanAudio` — `'on'` to enable TTS announcements.
  *
- * Mutual exclusion: this controller is mutually exclusive with grid
- * coding mode (`?grid=1`). `index.ts` will not instantiate
- * `GridCodingModeController` when `inputMode=switch-scan` is set —
- * only one input-augmentation controller runs at a time.
+ * Mutual exclusion with grid-coding mode (`?grid=1`): `index.ts` only
+ * instantiates one input-augmentation controller at a time.
  *
- * Full design / phased plan: see `PLAN_switch_scanning.md` at the
- * repository root and `.claude/scratchpad/current-plan.md`.
+ * Scannable surface: the top-level cycle discovers DOM regions tagged
+ * `data-scan-region` (header, instruction-bar, practice-controls,
+ * maze-actions) plus the Blockly toolbox and workspace. Selecting a
+ * region enters a sub-scan: a generic DOM-item sub-scan for the DOM
+ * regions, a Blockly-block sub-scan for the toolbox flyout and the
+ * workspace. Selecting a workspace block opens an inline action menu
+ * (Select / Edit / Move / Delete). Edit opens a dropdown-values sub-
+ * scan over the first editable `Blockly.FieldDropdown` on the block;
+ * Move opens a candidate-connections sub-scan with a floating Cancel
+ * chip. Header dropdown-source items (character, language, stage) open
+ * a value-picker overlay instead of the native popover. All action
+ * commits pop straight back to the top-level frame so the next advance
+ * reads as a clean transition rather than dropping the user mid-scan.
  *
- * Behavior summary (Phase 1, completed): top-level scan loop across
- * four regions (header / toolbox / workspace / maze-actions) plus a
- * "back to top" sentinel; generic DOM-item sub-scan for header /
- * maze-actions; a Blockly-block sub-scan for the toolbox flyout
- * (selecting inserts a new instance via the shared
- * {@link insertBlockAfterCursor} helper); a Blockly-block sub-scan
- * for the workspace itself in tree order; and — when the user selects
- * a workspace block — an inline ACTION MENU (Select / Edit / Delete)
- * anchored next to the block. Edit opens a nested dropdown-values
- * sub-scan over the FIRST editable `Blockly.FieldDropdown` on the
- * block (v1 limitation — multi-dropdown blocks would need a
- * field-picker step, deferred). All three actions pop straight back
- * to the top-level frame for consistency: even Select/Edit, where the
- * underlying workspace frame is still valid, pops to top so the
- * cursor-commit / value-change reads as a clean transition rather
- * than dropping the user back into the middle of a workspace scan.
- * Scanning is paused while the maze program runs (highlight, sentinel,
+ * Scanning pauses while the maze program runs (highlight, sentinel,
  * and any open menus are torn down; key input short-circuits) and
  * resumes on a clean top-level frame (header, index 0) when the run
  * finishes via any path — success, failure, timeout, error, or reset
- * interrupt — all of which surface through a single
+ * interrupt — all surfaced through a single
  * `MazeGame.onExecutionStateChange` subscription.
  *
- * Out of scope for Phase 1 (deferred to later phases — see the design
- * doc for the planned rollout):
- *  - No in-page settings UI: keys are URL params only.
- *  - No Move action in the block action menu (Select / Edit / Delete
- *    only).
- *  - No header dropdown sub-scans (level picker etc. — the existing
- *    pegman dropdown is reachable via the header sub-scan but its
- *    sub-menu items aren't yet scannable as a nested region).
- *  - No single-switch auto-scan mode — two-switch step scan only.
+ * TTS (optional, off by default): when wired via
+ * {@link SwitchScanController#setTts}, each advance / sub-scan entry
+ * speaks the current item's label via the Web Speech API. The TTS
+ * helper owns the enabled flag and the cancel-and-replace contract;
+ * this controller derives the label and forwards it on every
+ * interactive render.
  *
- * Phase 5 (TTS) is live: when wired via {@link SwitchScanController#setTts},
- * each advance / sub-scan-entry speaks the current item's label via
- * the Web Speech API. The TTS helper owns the enabled flag (off by
- * default; toggled via the settings modal or the `?scanAudio=on` URL
- * param) and the cancel-and-replace contract; this controller just
- * derives the label and forwards it on every interactive render.
+ * Known limitations (not bugs, scope boundaries):
+ *  - Workspace block editing is dropdown-only. Non-dropdown fields
+ *    (text input, number) can be selected / deleted / moved but not
+ *    edited via switch — the Edit action only wires through to
+ *    `Blockly.FieldDropdown` instances.
+ *  - Multi-dropdown blocks only expose the FIRST editable dropdown.
+ *    Reaching a second dropdown would need a field-picker step.
+ *  - Nested header dropdowns aren't scanned. Top-level pickers
+ *    (character / language / stage) open a value-picker sub-scan, but
+ *    hierarchical sub-menus below those aren't reachable.
+ *  - Auto-scan doesn't auto-descend into sub-scans — a Select is still
+ *    required to enter a region even in single-switch mode.
  */
 
 import * as Blockly from 'blockly/core';
