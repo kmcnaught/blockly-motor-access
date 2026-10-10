@@ -393,6 +393,7 @@ interface FrameStrategy<K extends ScanFrame['kind']> {
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
   ): string | null;
+  // Caller must gate on !atSentinel(frame).
   rectAt(
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
@@ -428,7 +429,7 @@ const STRATEGIES: Strategies = {
       const region = ctx.regions[frame.index];
       return region?.name ?? null;
     },
-    rectAt: () => null,
+    rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
     handleSelect: () => {},
   },
   'dom-items': {
@@ -443,7 +444,8 @@ const STRATEGIES: Strategies = {
       const text = item.textContent?.trim();
       return text || null;
     },
-    rectAt: () => null,
+    rectAt: (frame) =>
+      frame.items[frame.index]?.getBoundingClientRect() ?? null,
     handleSelect: () => {},
   },
   'blocks': {
@@ -470,7 +472,22 @@ const STRATEGIES: Strategies = {
       }
       return block.type || null;
     },
-    rectAt: () => null,
+    rectAt: (frame, ctx) => {
+      const block = frame.blocks[frame.index];
+      if (frame.regionName === 'workspace' && block) {
+        // For workspace blocks we want the outline to hug ONLY the
+        // current block, not the connected stack below it. The block's
+        // SVG root visually contains all descendants/next-blocks, so
+        // its raw bounding rect over-covers. See
+        // {@link getSingleBlockViewportRect} for the conversion.
+        return ctx.getSingleBlockViewportRect(block);
+      } else {
+        // Toolbox flyout blocks aren't stacked, so the SVG root rect
+        // already hugs just the one block.
+        const svgRoot = block?.getSvgRoot();
+        return svgRoot?.getBoundingClientRect() ?? null;
+      }
+    },
     handleSelect: () => {},
   },
   'action-menu': {
@@ -484,7 +501,16 @@ const STRATEGIES: Strategies = {
       const item = frame.items[frame.index];
       return item?.label ?? null;
     },
-    rectAt: () => null,
+    rectAt: (frame, ctx) => {
+      // Highlight the currently-focused menu row inside the overlay.
+      // The block underneath is implicitly the subject of every action,
+      // identifiable by the menu's anchor position next to it — so we
+      // intentionally don't outline the block here.
+      const itemEl = ctx.actionMenuEl?.querySelector<HTMLElement>(
+        `[data-scan-action-item="${frame.index}"]`,
+      );
+      return itemEl?.getBoundingClientRect() ?? null;
+    },
     handleSelect: () => {},
   },
   'dropdown-values': {
@@ -502,7 +528,12 @@ const STRATEGIES: Strategies = {
       // something distinguishable.
       return label.alt || option[1] || null;
     },
-    rectAt: () => null,
+    rectAt: (frame, ctx) => {
+      const itemEl = ctx.dropdownMenuEl?.querySelector<HTMLElement>(
+        `[data-scan-dropdown-item="${frame.index}"]`,
+      );
+      return itemEl?.getBoundingClientRect() ?? null;
+    },
     handleSelect: () => {},
   },
   'move-candidates': {
@@ -530,7 +561,16 @@ const STRATEGIES: Strategies = {
       }
       return blockLabel ? `slot after ${blockLabel}` : 'slot';
     },
-    rectAt: () => null,
+    rectAt: (frame, ctx) => {
+      // 'move-candidates': the scan highlight jumps directly onto each
+      // valid drop slot in the workspace. The sentinel (Cancel chip)
+      // case is handled by `renderHighlight` directly — callers must
+      // gate on `!atSentinel(frame)` before invoking this.
+      const pair = frame.candidates[frame.index];
+      return pair
+        ? getConnectionViewportRect(pair.target, ctx.workspace)
+        : null;
+    },
     handleSelect: () => {},
   },
 };
@@ -1302,7 +1342,8 @@ export class SwitchScanController {
     // disabled-state no-op, so we don't branch on those here.
     const shouldSpeak = options?.speak !== false;
 
-    if (this.atSentinel(frame)) {
+    const sentinel = this.atSentinel(frame);
+    if (sentinel) {
       this.highlightEl.style.display = 'none';
       this.sentinelChip.style.display = 'block';
       if (shouldSpeak) this.speakCurrentLabel();
@@ -1312,52 +1353,7 @@ export class SwitchScanController {
     // Pointing at a concrete target — hide chip, position outline.
     this.sentinelChip.style.display = 'none';
 
-    let rect: DOMRect | null = null;
-    if (frame.kind === 'top') {
-      rect = this.regions[frame.index]?.getRect() ?? null;
-    } else if (frame.kind === 'dom-items') {
-      rect = frame.items[frame.index]?.getBoundingClientRect() ?? null;
-    } else if (frame.kind === 'blocks') {
-      const block = frame.blocks[frame.index];
-      if (frame.regionName === 'workspace' && block) {
-        // For workspace blocks we want the outline to hug ONLY the
-        // current block, not the connected stack below it. The block's
-        // SVG root visually contains all descendants/next-blocks, so
-        // its raw bounding rect over-covers. See
-        // {@link getSingleBlockViewportRect} for the conversion.
-        rect = getSingleBlockViewportRect(block, this.workspace);
-      } else {
-        // Toolbox flyout blocks aren't stacked, so the SVG root rect
-        // already hugs just the one block.
-        const svgRoot = block?.getSvgRoot();
-        rect = svgRoot?.getBoundingClientRect() ?? null;
-      }
-    } else if (frame.kind === 'action-menu') {
-      // Highlight the currently-focused menu row inside the overlay.
-      // The block underneath is implicitly the subject of every action,
-      // identifiable by the menu's anchor position next to it — so we
-      // intentionally don't outline the block here.
-      const itemEl = this.actionMenuEl?.querySelector<HTMLElement>(
-        `[data-scan-action-item="${frame.index}"]`,
-      );
-      rect = itemEl?.getBoundingClientRect() ?? null;
-    } else if (frame.kind === 'dropdown-values') {
-      const itemEl = this.dropdownMenuEl?.querySelector<HTMLElement>(
-        `[data-scan-dropdown-item="${frame.index}"]`,
-      );
-      rect = itemEl?.getBoundingClientRect() ?? null;
-    } else {
-      // 'move-candidates': the scan highlight jumps directly onto each
-      // valid drop slot in the workspace. At the sentinel slot it
-      // outlines the floating Cancel chip; otherwise it outlines a
-      // small square centred on the candidate target connection.
-      if (this.atSentinel(frame)) {
-        rect = frame.cancelChipEl.getBoundingClientRect();
-      } else {
-        const pair = frame.candidates[frame.index];
-        rect = pair ? getConnectionViewportRect(pair.target, this.workspace) : null;
-      }
-    }
+    const rect = strategyFor(frame).rectAt(frame as never, this.getStrategyCtx());
 
     if (!rect || rect.width === 0 || rect.height === 0) {
       // Defensive: rect may briefly be unmeasurable (e.g. element
