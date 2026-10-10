@@ -331,11 +331,22 @@ interface ActionItem {
  * unit-tested against a hand-rolled stub without constructing a full
  * controller, and documents the dispatch surface rather than leaving
  * strategies with free rein over the controller internals.
+ *
+ * Step 2 only exercises `regions`. The rest of the surface (workspace,
+ * headerDropdowns, the menu-element fields, and the enter / pop /
+ * field-lookup helpers) is claimed by Steps 3 and 4 — rectAt reads
+ * workspace plus the two menu-element fields; handleSelect reads every
+ * enter helper, both menu fields, and findFirstEditableDropdown.
+ * Declared up-front so the dispatch surface is stable before migration
+ * widens.
  */
 interface StrategyCtx {
   readonly workspace: Blockly.WorkspaceSvg;
   readonly regions: ReadonlyArray<ScanRegion>;
   readonly headerDropdowns: Readonly<Record<string, HeaderDropdownSource>>;
+  // Mutable: strategies both read these (for `rectAt` overlay-child
+  // lookups) AND write them (for `handleSelect` teardown — null-ing after
+  // `remove()`). Not `readonly` on purpose.
   actionMenuEl: HTMLDivElement | null;
   dropdownMenuEl: HTMLDivElement | null;
   enterDomRegionSubScan(name: string, topLevelIndex: number): void;
