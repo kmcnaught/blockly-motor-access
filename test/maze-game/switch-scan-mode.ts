@@ -411,44 +411,114 @@ type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
  */
 const STRATEGIES: Strategies = {
   'top': {
-    cycleLen: () => 0,
+    cycleLen: (frame, ctx) => ctx.regions.length,
     atSentinel: () => false,
-    labelAt: () => null,
+    labelAt: (frame, ctx) => {
+      const region = ctx.regions[frame.index];
+      return region?.name ?? null;
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
   'dom-items': {
-    cycleLen: () => 0,
-    atSentinel: () => false,
-    labelAt: () => null,
+    cycleLen: (frame) => frame.items.length + 1,
+    atSentinel: (frame) => frame.index === frame.items.length,
+    labelAt: (frame) => {
+      if (frame.index === frame.items.length) return 'Back to top';
+      const item = frame.items[frame.index];
+      if (!item) return null;
+      const aria = item.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria.trim();
+      const text = item.textContent?.trim();
+      return text || null;
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
   'blocks': {
-    cycleLen: () => 0,
-    atSentinel: () => false,
-    labelAt: () => null,
+    cycleLen: (frame) => frame.blocks.length + 1,
+    atSentinel: (frame) => frame.index === frame.blocks.length,
+    labelAt: (frame) => {
+      if (frame.index === frame.blocks.length) return 'Back to top';
+      const block = frame.blocks[frame.index];
+      if (!block) return null;
+      try {
+        // Blockly's `toString` walks the block's message + fields and
+        // produces a sentence-shaped string (e.g. "move forward",
+        // "turn left", "repeat 5 times do") that respects the
+        // localized messages already loaded into `Blockly.Msg`. If a
+        // block has connected children, toString includes their text
+        // too — fine for a scan label since the highlight visually
+        // hugs only the head block; the audio identifies the block
+        // and the visual identifies its scope.
+        const s = block.toString?.();
+        if (s && s.trim()) return s.trim();
+      } catch (e) {
+        // Defensive — toString shouldn't throw, but if it does we fall
+        // through to the type-based fallback below.
+      }
+      return block.type || null;
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
   'action-menu': {
-    cycleLen: () => 0,
-    atSentinel: () => false,
-    labelAt: () => null,
+    cycleLen: (frame) => frame.items.length + 1,
+    atSentinel: (frame) => frame.index === frame.items.length,
+    labelAt: (frame) => {
+      if (frame.index === frame.items.length) return 'Back to top';
+      // The menu rows carry their human-readable label directly. No
+      // i18n today (matches the visual rendering — Phase 5 doesn't
+      // localize menu chrome).
+      const item = frame.items[frame.index];
+      return item?.label ?? null;
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
   'dropdown-values': {
-    cycleLen: () => 0,
-    atSentinel: () => false,
-    labelAt: () => null,
+    cycleLen: (frame) => frame.options.length + 1,
+    atSentinel: (frame) => frame.index === frame.options.length,
+    labelAt: (frame) => {
+      if (frame.index === frame.options.length) return 'Back to top';
+      const option = frame.options[frame.index];
+      if (!option) return null;
+      const label = option[0];
+      if (typeof label === 'string') return label;
+      // Image-labels: use `alt` (the same text Blockly's accessibility
+      // path falls back to). If alt is missing, the option's `value`
+      // string is the next best thing — at least the user hears
+      // something distinguishable.
+      return label.alt || option[1] || null;
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
   'move-candidates': {
-    cycleLen: () => 0,
-    atSentinel: () => false,
-    labelAt: () => null,
+    cycleLen: (frame) => frame.candidates.length + 1,
+    atSentinel: (frame) => frame.index === frame.candidates.length,
+    labelAt: (frame) => {
+      // Move-candidates uses a "Cancel" sentinel chip (it doesn't loop
+      // back to the top — Select on it bails out of the move sub-scan).
+      if (frame.index === frame.candidates.length) return 'Cancel';
+      const pair = frame.candidates[frame.index];
+      if (!pair) return null;
+      const target = pair.target;
+      const sourceBlock = target.getSourceBlock();
+      let blockLabel = '';
+      try {
+        blockLabel = sourceBlock?.toString?.().trim() || sourceBlock?.type || '';
+      } catch {
+        blockLabel = sourceBlock?.type || '';
+      }
+      // Differentiate value-input slots from stack slots so the audio
+      // disambiguates a connection nested INSIDE a block from a
+      // connection AFTER one.
+      if (target.type === Blockly.ConnectionType.INPUT_VALUE) {
+        return blockLabel ? `input on ${blockLabel}` : 'input';
+      }
+      return blockLabel ? `slot after ${blockLabel}` : 'slot';
+    },
     rectAt: () => null,
     handleSelect: () => {},
   },
@@ -1115,13 +1185,7 @@ export class SwitchScanController {
    * @param frame
    */
   private cycleLen(frame: ScanFrame): number {
-    if (frame.kind === 'top') return this.regions.length;
-    if (frame.kind === 'dom-items') return frame.items.length + 1;
-    if (frame.kind === 'blocks') return frame.blocks.length + 1;
-    if (frame.kind === 'action-menu') return frame.items.length + 1;
-    if (frame.kind === 'dropdown-values') return frame.options.length + 1;
-    // 'move-candidates': one slot per valid connection + Cancel sentinel.
-    return frame.candidates.length + 1;
+    return strategyFor(frame).cycleLen(frame as never, this.getStrategyCtx());
   }
 
   /**
@@ -1132,13 +1196,7 @@ export class SwitchScanController {
    * @param frame
    */
   private atSentinel(frame: ScanFrame): boolean {
-    if (frame.kind === 'top') return false;
-    if (frame.kind === 'dom-items') return frame.index === frame.items.length;
-    if (frame.kind === 'blocks') return frame.index === frame.blocks.length;
-    if (frame.kind === 'action-menu') return frame.index === frame.items.length;
-    if (frame.kind === 'dropdown-values') return frame.index === frame.options.length;
-    // 'move-candidates'
-    return frame.index === frame.candidates.length;
+    return strategyFor(frame).atSentinel(frame as never);
   }
 
   /**
@@ -1175,93 +1233,7 @@ export class SwitchScanController {
   private currentItemLabel(): string | null {
     const frame = this.activeFrame();
     if (!frame) return null;
-
-    if (this.atSentinel(frame)) {
-      // Move-candidates uses a "Cancel" sentinel chip (it doesn't loop
-      // back to the top — Select on it bails out of the move sub-scan).
-      // Other frames share the orange "Back to top" sentinel chip; we
-      // mirror its visible text minus the decorative glyph so the audio
-      // matches the visual cue without reading the icon aloud.
-      if (frame.kind === 'move-candidates') return 'Cancel';
-      return 'Back to top';
-    }
-
-    if (frame.kind === 'top') {
-      const region = this.regions[frame.index];
-      return region?.name ?? null;
-    }
-
-    if (frame.kind === 'dom-items') {
-      const item = frame.items[frame.index];
-      if (!item) return null;
-      const aria = item.getAttribute('aria-label');
-      if (aria && aria.trim()) return aria.trim();
-      const text = item.textContent?.trim();
-      return text || null;
-    }
-
-    if (frame.kind === 'blocks') {
-      const block = frame.blocks[frame.index];
-      if (!block) return null;
-      try {
-        // Blockly's `toString` walks the block's message + fields and
-        // produces a sentence-shaped string (e.g. "move forward",
-        // "turn left", "repeat 5 times do") that respects the
-        // localized messages already loaded into `Blockly.Msg`. If a
-        // block has connected children, toString includes their text
-        // too — fine for a scan label since the highlight visually
-        // hugs only the head block; the audio identifies the block
-        // and the visual identifies its scope.
-        const s = block.toString?.();
-        if (s && s.trim()) return s.trim();
-      } catch (e) {
-        // Defensive — toString shouldn't throw, but if it does we fall
-        // through to the type-based fallback below.
-      }
-      return block.type || null;
-    }
-
-    if (frame.kind === 'action-menu') {
-      // The menu rows carry their human-readable label directly. No
-      // i18n today (matches the visual rendering — Phase 5 doesn't
-      // localize menu chrome).
-      const item = frame.items[frame.index];
-      return item?.label ?? null;
-    }
-
-    if (frame.kind === 'move-candidates') {
-      const pair = frame.candidates[frame.index];
-      if (!pair) return null;
-      const target = pair.target;
-      const sourceBlock = target.getSourceBlock();
-      let blockLabel = '';
-      try {
-        blockLabel = sourceBlock?.toString?.().trim() || sourceBlock?.type || '';
-      } catch {
-        blockLabel = sourceBlock?.type || '';
-      }
-      // Differentiate value-input slots from stack slots so the audio
-      // disambiguates a connection nested INSIDE a block from a
-      // connection AFTER one.
-      if (target.type === Blockly.ConnectionType.INPUT_VALUE) {
-        return blockLabel ? `input on ${blockLabel}` : 'input';
-      }
-      return blockLabel ? `slot after ${blockLabel}` : 'slot';
-    }
-
-    if (frame.kind === 'dropdown-values') {
-      const option = frame.options[frame.index];
-      if (!option) return null;
-      const label = option[0];
-      if (typeof label === 'string') return label;
-      // Image-labels: use `alt` (the same text Blockly's accessibility
-      // path falls back to). If alt is missing, the option's `value`
-      // string is the next best thing — at least the user hears
-      // something distinguishable.
-      return label.alt || option[1] || null;
-    }
-
-    return null;
+    return strategyFor(frame).labelAt(frame as never, this.getStrategyCtx());
   }
 
   /**
