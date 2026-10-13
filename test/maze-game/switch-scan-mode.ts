@@ -332,23 +332,17 @@ interface ActionItem {
  * controller, and documents the dispatch surface rather than leaving
  * strategies with free rein over the controller internals.
  *
- * Step 2 only exercises `regions`. The rest of the surface (workspace,
- * headerDropdowns, the menu-element fields, and the enter / pop /
- * field-lookup helpers) is claimed by Steps 3 and 4 — rectAt reads
- * workspace plus the two menu-element fields; handleSelect reads every
- * enter helper, both menu fields, and findFirstEditableDropdown.
- * Declared up-front so the dispatch surface is stable before migration
- * widens.
+ * `rectAt` reads workspace plus the two menu-element fields; `labelAt`
+ * / `cycleLen` only read `regions`; `handleSelect` reads every enter
+ * helper, `popToSameRegion`, both menu fields, `headerDropdowns`, and
+ * `findFirstEditableDropdown`.
  */
 interface StrategyCtx {
   readonly workspace: Blockly.WorkspaceSvg;
-  readonly regions: ReadonlyArray<ScanRegion>;
+  readonly regions: readonly ScanRegion[];
   readonly headerDropdowns: Readonly<Record<string, HeaderDropdownSource>>;
-  // Mutable: strategies both read these (for `rectAt` overlay-child
-  // lookups) AND write them (for `handleSelect` teardown — null-ing after
-  // `remove()`). Not `readonly` on purpose.
-  actionMenuEl: HTMLDivElement | null;
-  dropdownMenuEl: HTMLDivElement | null;
+  readonly actionMenuEl: HTMLDivElement | null;
+  readonly dropdownMenuEl: HTMLDivElement | null;
   enterDomRegionSubScan(name: string, topLevelIndex: number): void;
   enterToolboxSubScan(topLevelIndex: number): void;
   enterWorkspaceSubScan(topLevelIndex: number): void;
@@ -365,7 +359,6 @@ interface StrategyCtx {
   ): void;
   enterMoveCandidates(block: Blockly.BlockSvg, topLevelIndex: number): void;
   popToSameRegion(topLevelIndex: number): void;
-  popToNextRegion(topLevelIndex: number): void;
   findFirstEditableDropdown(
     block: Blockly.BlockSvg,
   ): Blockly.FieldDropdown | null;
@@ -379,12 +372,11 @@ interface StrategyCtx {
  * matching variant, so strategy bodies see concrete fields without an
  * internal `switch(frame.kind)` guard.
  *
- * The five methods mirror the five per-kind dispatches currently
- * scattered across the controller (`cycleLen`, `atSentinel`,
- * `currentItemLabel`, `renderHighlight`'s rect pick, `handleSelect`).
- * Steps 2-4 migrate the branch bodies in; Step 1 (this file's commit)
- * only installs no-op scaffolding so the mapped-type exhaustiveness
- * check is live before migration begins.
+ * The five methods are the full per-kind dispatch surface: cycle length,
+ * sentinel detection, TTS label, highlight rect, and Select action. The
+ * controller's `cycleLen` / `atSentinel` / `currentItemLabel` /
+ * `renderHighlight` / `handleSelect` methods are thin delegators onto
+ * these.
  */
 interface FrameStrategy<K extends ScanFrame['kind']> {
   cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
@@ -414,13 +406,15 @@ interface FrameStrategy<K extends ScanFrame['kind']> {
 type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
 
 /**
- * Strategy registry. One entry per `ScanFrame` kind. Step 1 ships
- * no-op defaults (`cycleLen` → 0, `atSentinel` → false, `labelAt`
- * → null, `rectAt` → null, `handleSelect` → no-op); Steps 2-4 fill in
- * the real bodies by lifting each branch from the controller's
- * existing dispatch methods. Nothing in the controller calls
- * {@link strategyFor} yet, so these no-ops are inert.
+ * Strategy registry. One entry per `ScanFrame` kind, enforced
+ * exhaustive by the mapped-type annotation (`: Strategies`). Each
+ * entry owns the per-kind body for cycle length, sentinel detection,
+ * TTS label, highlight rect, and Select action; the controller's
+ * delegators dispatch here via {@link strategyFor}.
  */
+/* eslint-disable @typescript-eslint/naming-convention
+   -- frame.kind strings are kebab-case by design; renaming them would
+   break the discriminated-union discriminator everywhere else. */
 const STRATEGIES: Strategies = {
   'top': {
     cycleLen: (frame, ctx) => ctx.regions.length,
@@ -842,6 +836,7 @@ const STRATEGIES: Strategies = {
     },
   },
 };
+/* eslint-enable @typescript-eslint/naming-convention */
 
 /**
  * Dispatch helper: look up the strategy for `frame.kind` and return it
@@ -866,8 +861,9 @@ function strategyFor<F extends ScanFrame>(
 // inferred type drifts). The companion demo in
 // `scripts/verify-strategy-exhaustiveness.ts` documents the pattern with
 // `@ts-expect-error` assertions for anyone wanting to see the mechanism.
-const _strategiesExhaustivenessGuard: Strategies = STRATEGIES;
-void _strategiesExhaustivenessGuard;
+// eslint-disable-next-line @typescript-eslint/naming-convention
+const _STRATEGIES_EXHAUSTIVENESS_GUARD: Strategies = STRATEGIES;
+void _STRATEGIES_EXHAUSTIVENESS_GUARD;
 
 /**
  * Controller for two-switch step-scanning input mode.
