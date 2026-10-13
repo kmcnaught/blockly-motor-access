@@ -859,6 +859,16 @@ function strategyFor<F extends ScanFrame>(
   return STRATEGIES[frame.kind] as FrameStrategy<F['kind']>;
 }
 
+// Regression guard. STRATEGIES already carries the exhaustive `Strategies`
+// annotation at its declaration site; this redundant assignment catches the
+// specific regression of someone *weakening* that annotation in a future
+// refactor (e.g. to `Partial<Strategies>` or dropping it entirely so the
+// inferred type drifts). The companion demo in
+// `scripts/verify-strategy-exhaustiveness.ts` documents the pattern with
+// `@ts-expect-error` assertions for anyone wanting to see the mechanism.
+const _strategiesExhaustivenessGuard: Strategies = STRATEGIES;
+void _strategiesExhaustivenessGuard;
+
 /**
  * Controller for two-switch step-scanning input mode.
  * See file-level docstring for design notes.
