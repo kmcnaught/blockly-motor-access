@@ -430,7 +430,28 @@ const STRATEGIES: Strategies = {
       return region?.name ?? null;
     },
     rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      // No sentinel at the top level — every index is a real region.
+      const region = ctx.regions[frame.index];
+      if (!region) return;
+      if (
+        region.name === 'header' ||
+        region.name === 'maze-actions' ||
+        region.name === 'instruction-bar' ||
+        region.name === 'practice-controls'
+      ) {
+        ctx.enterDomRegionSubScan(region.name, frame.index);
+      } else if (region.name === 'toolbox') {
+        ctx.enterToolboxSubScan(frame.index);
+      } else if (region.name === 'workspace') {
+        ctx.enterWorkspaceSubScan(frame.index);
+      } else {
+        // Unknown region — keep the Step-3 log behavior so any future
+        // region added to `discoverRegions` without a routing branch
+        // surfaces in the console rather than silently no-op'ing.
+        console.log('[switch-scan] selected region:', region.name);
+      }
+    },
   },
   'dom-items': {
     cycleLen: (frame) => frame.items.length + 1,
@@ -446,7 +467,51 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame) =>
       frame.items[frame.index]?.getBoundingClientRect() ?? null,
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      if (frame.index === frame.items.length) {
+        // Sentinel: bail out of the sub-scan without firing anything.
+        // Land on the SAME region the user just left so they can re-enter
+        // it (matches user's mental model of "back to top = let me try
+        // again from where I was").
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const item = frame.items[frame.index];
+      // Phase 3 Step 2: header dropdowns. Some header items open a
+      // native popover (`<select>`, the custom #pegmanMenu) that the
+      // switch scanner can't reach. Those items are tagged with
+      // `data-scan-dropdown-source="<name>"`; if a matching provider
+      // was registered, open a dropdown-values sub-scan over its
+      // options instead of firing `.click()`. Mouse users still get
+      // the native popover because they never go through this dispatch
+      // path — they click the element directly.
+      const source = item?.getAttribute('data-scan-dropdown-source');
+      if (source) {
+        const provider = ctx.headerDropdowns[source];
+        if (provider) {
+          ctx.enterHeaderDropdownValues(
+            item as HTMLElement,
+            provider,
+            frame.topLevelIndex,
+          );
+          return;
+        }
+        // No provider registered for this source name — fall through to
+        // the default click() path. Logging would be noisy on every
+        // mis-tag; the silent fallback keeps mouse users unaffected.
+      }
+      // Click first, then pop — if click() throws we still escape the
+      // sub-scan rather than getting stuck on a broken item.
+      try {
+        item?.click();
+      } finally {
+        // Action completed: pop back to the SAME top-level region the
+        // user entered from so pressing Select again re-enters the
+        // sub-scan they were in — see popToSameRegion docstring for
+        // the rationale.
+        ctx.popToSameRegion(frame.topLevelIndex);
+      }
+    },
   },
   'blocks': {
     cycleLen: (frame) => frame.blocks.length + 1,
@@ -488,7 +553,62 @@ const STRATEGIES: Strategies = {
         return svgRoot?.getBoundingClientRect() ?? null;
       }
     },
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      if (frame.index === frame.blocks.length) {
+        // Sentinel pop → stay on the same region for re-entry.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const block = frame.blocks[frame.index];
+      if (frame.regionName === 'toolbox') {
+        // Insert a new block of the same type into the MAIN workspace
+        // (not the flyout workspace) via the shared heuristic. We do
+        // not clone or move the flyout block itself — `block.type` plus
+        // the insertion helper produces a fresh, properly-connected
+        // instance.
+        try {
+          if (block) {
+            const inserted = insertBlockAfterCursor(ctx.workspace, block.type);
+            // Commit the FocusManager cursor to the new block before
+            // returning scan focus to the toolbox. Two reasons:
+            //  1. The next insert chains after this block — the
+            //     insertion heuristic in block-insertion.ts reads the
+            //     FocusManager cursor, so without this update each
+            //     chained insert would re-walk to the tail of the first
+            //     top-block instead of advancing the cursor.
+            //  2. Visual confirmation — Blockly paints its own focus
+            //     indicator on the new block, giving the user a brief
+            //     "you just added THIS one" signal that's distinct from
+            //     the switch-scan highlight returning to the toolbox.
+            // Wait for the render to settle so the focusable element
+            // exists when focusNode looks for it (same pattern enter.ts
+            // uses for its Enter-on-flyout insert).
+            const newBlock = inserted as Blockly.BlockSvg;
+            Blockly.renderManagement.finishQueuedRenders().then(() => {
+              try {
+                Blockly.getFocusManager().focusNode(newBlock);
+              } catch (err) {
+                console.warn('[switch-scan] focusNode after insert failed:', err);
+              }
+            });
+          }
+        } finally {
+          // Pop back to the SAME region so the user can chain inserts
+          // without re-cycling through every other region first. This
+          // matches the general action-commit rule: pressing Select
+          // again lands back in the same sub-scan they were just in.
+          ctx.popToSameRegion(frame.topLevelIndex);
+        }
+        return;
+      }
+      // Workspace block frame: open the action sub-scan menu anchored
+      // next to this block. The action-menu frame inherits this frame's
+      // `topLevelIndex` (the workspace top-level index) so its own pop
+      // helpers compute the correct same/next resume index.
+      if (block) {
+        ctx.enterActionMenu(block, frame.topLevelIndex);
+      }
+    },
   },
   'action-menu': {
     cycleLen: (frame) => frame.items.length + 1,
@@ -511,7 +631,94 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      if (frame.index === frame.items.length) {
+        // "Back to top" sentinel — bail out without acting on the block,
+        // stay on the same top region (workspace) so the user can pick a
+        // different block.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const item = frame.items[frame.index];
+      const block = frame.block;
+      if (!item) {
+        // Defensive fallback — treat as a sentinel-style bail.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      if (item.key === 'select') {
+        // Commit Blockly's FocusManager to this block so the shared
+        // `insertBlockAfterCursor` heuristic places subsequent toolbox
+        // insertions after it.
+        try {
+          Blockly.getFocusManager().focusNode(block);
+        } catch (err) {
+          // Defensive: focusNode can throw if the block was disposed
+          // out from under us between menu open and selection. Pop
+          // anyway so the user isn't stranded.
+          console.warn('[switch-scan] focusNode failed:', err);
+        }
+        // Action committed → land back on workspace so the user can
+        // act on another block immediately (press Select to re-enter).
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      if (item.key === 'delete') {
+        // Group disposal so undo treats it as a single step. Pop to top
+        // unconditionally — even if dispose throws, the workspace frame
+        // beneath us is stale (its block list is built from
+        // pre-disposal state), so returning to it would be incorrect.
+        try {
+          Blockly.Events.setGroup(true);
+          try {
+            block.dispose(true, true);
+          } finally {
+            Blockly.Events.setGroup(false);
+          }
+        } catch (err) {
+          console.warn('[switch-scan] block.dispose failed:', err);
+        }
+        // Action committed → land back on workspace so the user can
+        // act on another block immediately (press Select to re-enter).
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      if (item.key === 'edit') {
+        // Push a nested dropdown-values frame. The Edit option is only
+        // present when there's at least one editable FieldDropdown, so
+        // this lookup should succeed; defensively fall back to pop-to-
+        // top if it doesn't (treat as a bail → same region).
+        const field = ctx.findFirstEditableDropdown(block);
+        if (!field) {
+          ctx.popToSameRegion(frame.topLevelIndex);
+          return;
+        }
+        // Pre-focus the block via Blockly's FocusManager (same call the
+        // Select handler uses) so the block visibly highlights during the
+        // dropdown-values sub-scan. Without this, the action menu closes
+        // and the dropdown opens with no indication of WHICH block is
+        // being edited — confusing in a chain of similar blocks. Wrapped
+        // in try/catch defensively: focusNode can throw if the block was
+        // disposed between menu open and selection, but we still want to
+        // proceed into the dropdown-values frame.
+        try {
+          Blockly.getFocusManager().focusNode(block);
+        } catch (err) {
+          console.warn('[switch-scan] focusNode failed:', err);
+        }
+        // Dropdown frame inherits the same top-level index so its own
+        // pop helpers compute correctly.
+        ctx.enterDropdownValues(block, field, frame.topLevelIndex);
+        return;
+      }
+      if (item.key === 'move') {
+        // Enumerate the block's valid drop slots ourselves and push a
+        // move-candidates frame so the scan highlight jumps directly
+        // onto each slot. See {@link enterMoveCandidates}.
+        ctx.enterMoveCandidates(block, frame.topLevelIndex);
+        return;
+      }
+    },
   },
   'dropdown-values': {
     cycleLen: (frame) => frame.options.length + 1,
@@ -534,7 +741,42 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      if (frame.index === frame.options.length) {
+        // Bail without changing the field's value. Pop both the
+        // dropdown-values frame AND the action-menu frame beneath it;
+        // stay on the same top region so the user can re-enter the
+        // workspace sub-scan and try editing again. For header
+        // dropdowns the action-menu frame isn't on the stack so this
+        // also correctly lands the user back on the header region
+        // they came from.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const option = frame.options[frame.index];
+      if (option) {
+        try {
+          if (frame.commitHandler) {
+            // Phase 3 Step 2 — header dropdowns. The provider owns the
+            // semantics (changePegman vs. dispatch change on
+            // languageSelect); we just hand it the chosen value.
+            frame.commitHandler(option[1]);
+          } else if (frame.field) {
+            frame.field.setValue(option[1]);
+          }
+        } catch (err) {
+          console.warn('[switch-scan] dropdown commit failed:', err);
+        }
+      }
+      // Edit committed → land back on the SAME top-level region so the
+      // user can immediately act again (re-edit, edit a sibling block,
+      // re-open a header dropdown). For the language dropdown this pop
+      // is technically moot because commit triggers a full page reload
+      // (URL changes with the new lang param), but popping anyway
+      // leaves the controller in a consistent state if the reload is
+      // deferred or aborted by the browser.
+      ctx.popToSameRegion(frame.topLevelIndex);
+    },
   },
   'move-candidates': {
     cycleLen: (frame) => frame.candidates.length + 1,
@@ -571,7 +813,33 @@ const STRATEGIES: Strategies = {
         ? getConnectionViewportRect(pair.target, ctx.workspace)
         : null;
     },
-    handleSelect: () => {},
+    handleSelect: (frame, ctx) => {
+      if (frame.index === frame.candidates.length) {
+        // Cancel slot: nothing to undo (we never entered Blockly move
+        // mode), just pop back to the same top-level region so the user
+        // can pick a different block.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      const pair = frame.candidates[frame.index];
+      if (!pair) {
+        // Defensive fallback.
+        ctx.popToSameRegion(frame.topLevelIndex);
+        return;
+      }
+      // Commit the connection. Wrap in an Events group so undo treats
+      // it as a single step (otherwise the disconnect-old + connect-new
+      // pair would require two undos to revert).
+      Blockly.Events.setGroup(true);
+      try {
+        pair.target.connect(pair.local);
+      } catch (err) {
+        console.warn('[switch-scan] connection commit failed:', err);
+      } finally {
+        Blockly.Events.setGroup(false);
+      }
+      ctx.popToSameRegion(frame.topLevelIndex);
+    },
   },
 };
 
@@ -1694,304 +1962,7 @@ export class SwitchScanController {
    * @param frame
    */
   private handleSelect(frame: ScanFrame): void {
-    switch (frame.kind) {
-      case 'top': this.handleTopSelect(frame); return;
-      case 'dom-items': this.handleDomItemsSelect(frame); return;
-      case 'blocks': this.handleBlocksSelect(frame); return;
-      case 'action-menu': this.handleActionMenuSelect(frame); return;
-      case 'move-candidates': this.handleMoveCandidatesSelect(frame); return;
-      case 'dropdown-values': this.handleDropdownValuesSelect(frame); return;
-    }
-  }
-
-  private handleTopSelect(frame: Extract<ScanFrame, {kind: 'top'}>): void {
-    // No sentinel at the top level — every index is a real region.
-    const region = this.regions[frame.index];
-    if (!region) return;
-    if (
-      region.name === 'header' ||
-      region.name === 'maze-actions' ||
-      region.name === 'instruction-bar' ||
-      region.name === 'practice-controls'
-    ) {
-      this.enterDomRegionSubScan(region.name, frame.index);
-    } else if (region.name === 'toolbox') {
-      this.enterToolboxSubScan(frame.index);
-    } else if (region.name === 'workspace') {
-      this.enterWorkspaceSubScan(frame.index);
-    } else {
-      // Unknown region — keep the Step-3 log behavior so any future
-      // region added to `discoverRegions` without a routing branch
-      // surfaces in the console rather than silently no-op'ing.
-      console.log('[switch-scan] selected region:', region.name);
-    }
-  }
-
-  private handleDomItemsSelect(
-    frame: Extract<ScanFrame, {kind: 'dom-items'}>,
-  ): void {
-    if (this.atSentinel(frame)) {
-      // Sentinel: bail out of the sub-scan without firing anything.
-      // Land on the SAME region the user just left so they can re-enter
-      // it (matches user's mental model of "back to top = let me try
-      // again from where I was").
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    const item = frame.items[frame.index];
-    // Phase 3 Step 2: header dropdowns. Some header items open a
-    // native popover (`<select>`, the custom #pegmanMenu) that the
-    // switch scanner can't reach. Those items are tagged with
-    // `data-scan-dropdown-source="<name>"`; if a matching provider
-    // was registered, open a dropdown-values sub-scan over its
-    // options instead of firing `.click()`. Mouse users still get
-    // the native popover because they never go through this dispatch
-    // path — they click the element directly.
-    const source = item?.getAttribute('data-scan-dropdown-source');
-    if (source) {
-      const provider = this.headerDropdowns[source];
-      if (provider) {
-        this.enterHeaderDropdownValues(
-          item as HTMLElement,
-          provider,
-          frame.topLevelIndex,
-        );
-        return;
-      }
-      // No provider registered for this source name — fall through to
-      // the default click() path. Logging would be noisy on every
-      // mis-tag; the silent fallback keeps mouse users unaffected.
-    }
-    // Click first, then pop — if click() throws we still escape the
-    // sub-scan rather than getting stuck on a broken item.
-    try {
-      item?.click();
-    } finally {
-      // Action completed: pop back to the SAME top-level region the
-      // user entered from so pressing Select again re-enters the
-      // sub-scan they were in — see popToSameRegion docstring for
-      // the rationale.
-      this.popToSameRegion(frame.topLevelIndex);
-    }
-  }
-
-  private handleBlocksSelect(
-    frame: Extract<ScanFrame, {kind: 'blocks'}>,
-  ): void {
-    if (this.atSentinel(frame)) {
-      // Sentinel pop → stay on the same region for re-entry.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    const block = frame.blocks[frame.index];
-    if (frame.regionName === 'toolbox') {
-      // Insert a new block of the same type into the MAIN workspace
-      // (not the flyout workspace) via the shared heuristic. We do
-      // not clone or move the flyout block itself — `block.type` plus
-      // the insertion helper produces a fresh, properly-connected
-      // instance.
-      try {
-        if (block) {
-          const inserted = insertBlockAfterCursor(this.workspace, block.type);
-          // Commit the FocusManager cursor to the new block before
-          // returning scan focus to the toolbox. Two reasons:
-          //  1. The next insert chains after this block — the
-          //     insertion heuristic in block-insertion.ts reads the
-          //     FocusManager cursor, so without this update each
-          //     chained insert would re-walk to the tail of the first
-          //     top-block instead of advancing the cursor.
-          //  2. Visual confirmation — Blockly paints its own focus
-          //     indicator on the new block, giving the user a brief
-          //     "you just added THIS one" signal that's distinct from
-          //     the switch-scan highlight returning to the toolbox.
-          // Wait for the render to settle so the focusable element
-          // exists when focusNode looks for it (same pattern enter.ts
-          // uses for its Enter-on-flyout insert).
-          const newBlock = inserted as Blockly.BlockSvg;
-          Blockly.renderManagement.finishQueuedRenders().then(() => {
-            try {
-              Blockly.getFocusManager().focusNode(newBlock);
-            } catch (err) {
-              console.warn('[switch-scan] focusNode after insert failed:', err);
-            }
-          });
-        }
-      } finally {
-        // Pop back to the SAME region so the user can chain inserts
-        // without re-cycling through every other region first. This
-        // matches the general action-commit rule: pressing Select
-        // again lands back in the same sub-scan they were just in.
-        this.popToSameRegion(frame.topLevelIndex);
-      }
-      return;
-    }
-    // Workspace block frame: open the action sub-scan menu anchored
-    // next to this block. The action-menu frame inherits this frame's
-    // `topLevelIndex` (the workspace top-level index) so its own pop
-    // helpers compute the correct same/next resume index.
-    if (block) {
-      this.enterActionMenu(block, frame.topLevelIndex);
-    }
-  }
-
-  private handleActionMenuSelect(
-    frame: Extract<ScanFrame, {kind: 'action-menu'}>,
-  ): void {
-    if (this.atSentinel(frame)) {
-      // "Back to top" sentinel — bail out without acting on the block,
-      // stay on the same top region (workspace) so the user can pick a
-      // different block.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    const item = frame.items[frame.index];
-    const block = frame.block;
-    if (!item) {
-      // Defensive fallback — treat as a sentinel-style bail.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    if (item.key === 'select') {
-      // Commit Blockly's FocusManager to this block so the shared
-      // `insertBlockAfterCursor` heuristic places subsequent toolbox
-      // insertions after it.
-      try {
-        Blockly.getFocusManager().focusNode(block);
-      } catch (err) {
-        // Defensive: focusNode can throw if the block was disposed
-        // out from under us between menu open and selection. Pop
-        // anyway so the user isn't stranded.
-        console.warn('[switch-scan] focusNode failed:', err);
-      }
-      // Action committed → land back on workspace so the user can
-      // act on another block immediately (press Select to re-enter).
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    if (item.key === 'delete') {
-      // Group disposal so undo treats it as a single step. Pop to top
-      // unconditionally — even if dispose throws, the workspace frame
-      // beneath us is stale (its block list is built from
-      // pre-disposal state), so returning to it would be incorrect.
-      try {
-        Blockly.Events.setGroup(true);
-        try {
-          block.dispose(true, true);
-        } finally {
-          Blockly.Events.setGroup(false);
-        }
-      } catch (err) {
-        console.warn('[switch-scan] block.dispose failed:', err);
-      }
-      // Action committed → land back on workspace so the user can
-      // act on another block immediately (press Select to re-enter).
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    if (item.key === 'edit') {
-      // Push a nested dropdown-values frame. The Edit option is only
-      // present when there's at least one editable FieldDropdown, so
-      // this lookup should succeed; defensively fall back to pop-to-
-      // top if it doesn't (treat as a bail → same region).
-      const field = this.findFirstEditableDropdown(block);
-      if (!field) {
-        this.popToSameRegion(frame.topLevelIndex);
-        return;
-      }
-      // Pre-focus the block via Blockly's FocusManager (same call the
-      // Select handler uses) so the block visibly highlights during the
-      // dropdown-values sub-scan. Without this, the action menu closes
-      // and the dropdown opens with no indication of WHICH block is
-      // being edited — confusing in a chain of similar blocks. Wrapped
-      // in try/catch defensively: focusNode can throw if the block was
-      // disposed between menu open and selection, but we still want to
-      // proceed into the dropdown-values frame.
-      try {
-        Blockly.getFocusManager().focusNode(block);
-      } catch (err) {
-        console.warn('[switch-scan] focusNode failed:', err);
-      }
-      // Dropdown frame inherits the same top-level index so its own
-      // pop helpers compute correctly.
-      this.enterDropdownValues(block, field, frame.topLevelIndex);
-      return;
-    }
-    if (item.key === 'move') {
-      // Enumerate the block's valid drop slots ourselves and push a
-      // move-candidates frame so the scan highlight jumps directly
-      // onto each slot. See {@link enterMoveCandidates}.
-      this.enterMoveCandidates(block, frame.topLevelIndex);
-      return;
-    }
-  }
-
-  private handleMoveCandidatesSelect(
-    frame: Extract<ScanFrame, {kind: 'move-candidates'}>,
-  ): void {
-    if (this.atSentinel(frame)) {
-      // Cancel slot: nothing to undo (we never entered Blockly move
-      // mode), just pop back to the same top-level region so the user
-      // can pick a different block.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    const pair = frame.candidates[frame.index];
-    if (!pair) {
-      // Defensive fallback.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    // Commit the connection. Wrap in an Events group so undo treats
-    // it as a single step (otherwise the disconnect-old + connect-new
-    // pair would require two undos to revert).
-    Blockly.Events.setGroup(true);
-    try {
-      pair.target.connect(pair.local);
-    } catch (err) {
-      console.warn('[switch-scan] connection commit failed:', err);
-    } finally {
-      Blockly.Events.setGroup(false);
-    }
-    this.popToSameRegion(frame.topLevelIndex);
-  }
-
-  private handleDropdownValuesSelect(
-    frame: Extract<ScanFrame, {kind: 'dropdown-values'}>,
-  ): void {
-    if (this.atSentinel(frame)) {
-      // Bail without changing the field's value. Pop both the
-      // dropdown-values frame AND the action-menu frame beneath it;
-      // stay on the same top region so the user can re-enter the
-      // workspace sub-scan and try editing again. For header
-      // dropdowns the action-menu frame isn't on the stack so this
-      // also correctly lands the user back on the header region
-      // they came from.
-      this.popToSameRegion(frame.topLevelIndex);
-      return;
-    }
-    const option = frame.options[frame.index];
-    if (option) {
-      try {
-        if (frame.commitHandler) {
-          // Phase 3 Step 2 — header dropdowns. The provider owns the
-          // semantics (changePegman vs. dispatch change on
-          // languageSelect); we just hand it the chosen value.
-          frame.commitHandler(option[1]);
-        } else if (frame.field) {
-          frame.field.setValue(option[1]);
-        }
-      } catch (err) {
-        console.warn('[switch-scan] dropdown commit failed:', err);
-      }
-    }
-    // Edit committed → land back on the SAME top-level region so the
-    // user can immediately act again (re-edit, edit a sibling block,
-    // re-open a header dropdown). For the language dropdown this pop
-    // is technically moot because commit triggers a full page reload
-    // (URL changes with the new lang param), but popping anyway
-    // leaves the controller in a consistent state if the reload is
-    // deferred or aborted by the browser.
-    this.popToSameRegion(frame.topLevelIndex);
+    strategyFor(frame).handleSelect(frame as never, this.getStrategyCtx());
   }
 
   /**
