@@ -232,6 +232,33 @@ function normalizeKey(key: string): string {
 }
 
 /**
+ * Compute the smallest DOMRect enclosing every input rect. Zero-area
+ * rects are dropped before the union — same defensive filter the
+ * highlight path applies to the single-item case — so a transiently
+ * unmeasurable element doesn't drag the union down to (0,0). Returns
+ * `null` when no input survives the filter.
+ *
+ * @param rects Rects to combine; viewport coordinates throughout.
+ */
+function unionRects(rects: DOMRect[]): DOMRect | null {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  let seen = false;
+  for (const r of rects) {
+    if (!r || r.width === 0 || r.height === 0) continue;
+    seen = true;
+    if (r.left < left) left = r.left;
+    if (r.top < top) top = r.top;
+    if (r.right > right) right = r.right;
+    if (r.bottom > bottom) bottom = r.bottom;
+  }
+  if (!seen) return null;
+  return new DOMRect(left, top, right - left, bottom - top);
+}
+
+/**
  * One frame in the scan stack. The active (top) frame owns the cursor
  * and dictates what the highlight is positioned over.
  *
@@ -373,11 +400,11 @@ interface StrategyCtx {
  * matching variant, so strategy bodies see concrete fields without an
  * internal `switch(frame.kind)` guard.
  *
- * The five methods are the full per-kind dispatch surface: cycle length,
- * sentinel detection, TTS label, highlight rect, and Select action. The
- * controller's `cycleLen` / `atSentinel` / `currentItemLabel` /
- * `renderHighlight` / `handleSelect` methods are thin delegators onto
- * these.
+ * The six methods are the full per-kind dispatch surface: cycle length,
+ * sentinel detection, TTS label, highlight rect, group bounding box,
+ * and Select action. The controller's `cycleLen` / `atSentinel` /
+ * `currentItemLabel` / `renderHighlight` / `handleSelect` methods are
+ * thin delegators onto these.
  */
 interface FrameStrategy<K extends ScanFrame['kind']> {
   cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
@@ -388,6 +415,18 @@ interface FrameStrategy<K extends ScanFrame['kind']> {
   ): string | null;
   // Caller must gate on !atSentinel(frame).
   rectAt(
+    frame: Extract<ScanFrame, {kind: K}>,
+    ctx: StrategyCtx,
+  ): DOMRect | null;
+  /**
+   * Viewport bounding box of the "group" this frame represents — the
+   * union of its member items, used by the sentinel chip to anchor
+   * itself over the thing the user is bailing out of. Returns `null`
+   * when the frame has no visually coherent group (e.g. the `top`
+   * frame, which has no sentinel in the first place) or when every
+   * member is currently unmeasurable.
+   */
+  groupRect(
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
   ): DOMRect | null;
@@ -425,6 +464,9 @@ const STRATEGIES: Strategies = {
       return region?.name ?? null;
     },
     rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
+    // Top-level frame has no sentinel, so no group to anchor onto.
+    // Implemented for exhaustiveness.
+    groupRect: () => null,
     handleSelect: (frame, ctx) => {
       // No sentinel at the top level — every index is a real region.
       const region = ctx.regions[frame.index];
@@ -462,6 +504,8 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame) =>
       frame.items[frame.index]?.getBoundingClientRect() ?? null,
+    groupRect: (frame) =>
+      unionRects(frame.items.map((el) => el.getBoundingClientRect())),
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
         // Sentinel: bail out of the sub-scan without firing anything.
@@ -558,6 +602,21 @@ const STRATEGIES: Strategies = {
         return svgRoot?.getBoundingClientRect() ?? null;
       }
     },
+    groupRect: (frame, ctx) => {
+      // Workspace: use the per-block viewport rect so the union hugs
+      // just the head-block of every stack (not the stack-tail SVG that
+      // over-covers). Toolbox: the flyout SVG root already hugs the one
+      // block, matching the per-item rectAt branch above.
+      const rects: DOMRect[] = [];
+      for (const block of frame.blocks) {
+        const r =
+          frame.regionName === 'workspace'
+            ? ctx.getSingleBlockViewportRect(block)
+            : block.getSvgRoot()?.getBoundingClientRect() ?? null;
+        if (r) rects.push(r);
+      }
+      return unionRects(rects);
+    },
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.blocks.length) {
         // Sentinel pop → stay on the same region for re-entry.
@@ -636,6 +695,10 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
+    // The menu is a single DOM container, so its bounding rect already
+    // encloses every row — no per-item union needed.
+    groupRect: (_frame, ctx) =>
+      ctx.actionMenuEl?.getBoundingClientRect() ?? null,
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
         // "Back to top" sentinel — bail out without acting on the block,
@@ -746,6 +809,10 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
+    // Dropdown menu is a single DOM container — its bounding rect
+    // encloses every option.
+    groupRect: (_frame, ctx) =>
+      ctx.dropdownMenuEl?.getBoundingClientRect() ?? null,
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.options.length) {
         // Bail without changing the field's value. Pop both the
@@ -817,6 +884,16 @@ const STRATEGIES: Strategies = {
       return pair
         ? getConnectionViewportRect(pair.target, ctx.workspace)
         : null;
+    },
+    groupRect: (frame, ctx) => {
+      // Union of every drop-slot's small square rect — the cluster of
+      // connection points around the moving block.
+      const rects: DOMRect[] = [];
+      for (const pair of frame.candidates) {
+        const r = getConnectionViewportRect(pair.target, ctx.workspace);
+        if (r) rects.push(r);
+      }
+      return unionRects(rects);
     },
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.candidates.length) {
