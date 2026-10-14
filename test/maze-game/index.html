@@ -168,31 +168,31 @@
     </dialog>
 
     <!-- Practice Mode Graduation Modal -->
-    <dialog id="graduationModal" class="result-modal success" aria-labelledby="graduationModalTitle">
+    <dialog id="graduationModal" class="result-modal success" aria-labelledby="graduationModalTitle" data-scan-region="graduation-modal">
       <h2 id="graduationModalTitle" class="result-modal-title"></h2>
       <p id="graduationModalMessage" class="result-modal-message"></p>
       <div class="result-modal-buttons graduation-buttons">
-        <button id="graduationTryCoding" class="result-modal-ok graduation-primary"></button>
-        <button id="graduationStay" class="result-modal-ok graduation-secondary"></button>
+        <button id="graduationTryCoding" class="result-modal-ok graduation-primary" data-scan-item></button>
+        <button id="graduationStay" class="result-modal-ok graduation-secondary" data-scan-item></button>
       </div>
     </dialog>
 
     <!-- Confirmation Modal (for delete confirmation, etc.) -->
-    <dialog id="confirmationModal" class="result-modal" aria-labelledby="confirmationModalTitle">
+    <dialog id="confirmationModal" class="result-modal" aria-labelledby="confirmationModalTitle" data-scan-region="confirmation-modal">
       <h2 id="confirmationModalTitle" class="result-modal-title"></h2>
       <p id="confirmationModalMessage" class="result-modal-message"></p>
       <div class="result-modal-buttons">
-        <button id="confirmationModalCancel" class="result-modal-cancel">Cancel</button>
-        <button id="confirmationModalConfirm" class="result-modal-ok">Confirm</button>
+        <button id="confirmationModalCancel" class="result-modal-cancel" data-scan-item>Cancel</button>
+        <button id="confirmationModalConfirm" class="result-modal-ok" data-scan-item>Confirm</button>
       </div>
     </dialog>
 
     <!-- Stage Intro Modal -->
-    <dialog id="stageIntroModal" class="result-modal stage-intro" aria-labelledby="stageIntroName">
+    <dialog id="stageIntroModal" class="result-modal stage-intro" aria-labelledby="stageIntroName" data-scan-region="stage-intro-modal">
       <h2 id="stageIntroName" class="result-modal-title stage-intro-name"></h2>
       <p id="stageIntroConcept" class="result-modal-message"></p>
       <div class="result-modal-buttons">
-        <button id="stageIntroOk" class="result-modal-ok">
+        <button id="stageIntroOk" class="result-modal-ok" data-scan-item>
           <span class="ok-text">Let's Go!</span>
           <span class="ok-hint">[Enter]</span>
         </button>
@@ -200,7 +200,8 @@
     </dialog>
 
     <!-- Grid Coding Intro Modal -->
-    <dialog id="gridCodingIntroModal" class="result-modal stage-intro" aria-labelledby="gridCodingIntroTitle">
+    <!-- data-no-scan: grid mode is not a switch-scan target; dialog is text-only. -->
+    <dialog id="gridCodingIntroModal" class="result-modal stage-intro" aria-labelledby="gridCodingIntroTitle" data-no-scan>
       <h2 id="gridCodingIntroTitle" class="result-modal-title stage-intro-name"></h2>
       <p id="gridCodingIntroLine1" class="result-modal-message"></p>
       <p id="gridCodingIntroLine2" class="result-modal-message"></p>
@@ -208,7 +209,8 @@
     </dialog>
 
     <!-- Grid Practice Intro Modal -->
-    <dialog id="gridPracticeIntroModal" class="result-modal stage-intro" aria-labelledby="gridPracticeIntroTitle">
+    <!-- data-no-scan: grid mode is not a switch-scan target; dialog is text-only. -->
+    <dialog id="gridPracticeIntroModal" class="result-modal stage-intro" aria-labelledby="gridPracticeIntroTitle" data-no-scan>
       <h2 id="gridPracticeIntroTitle" class="result-modal-title stage-intro-name"></h2>
       <p id="gridPracticeIntroLine1" class="result-modal-message"></p>
       <p id="gridPracticeIntroLine2" class="result-modal-message"></p>

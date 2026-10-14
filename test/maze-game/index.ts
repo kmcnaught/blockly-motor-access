@@ -2158,7 +2158,15 @@ function showGraduationModal(): void {
 
   // Show dialog
   graduationDialog.show();
+  queueMicrotask(() => {
+    switchScanController?.pushModalSubScan('graduation-modal');
+  });
 }
+
+// Pop the modal sub-scan on every dismissal path.
+graduationModal.addEventListener('close', () => {
+  switchScanController?.popModalSubScan();
+});
 
 // Graduation modal event handlers
 graduationTryCoding.addEventListener('click', () => {
@@ -2218,7 +2226,15 @@ function showStageIntroModal(stageId: number): void {
 
   // Show dialog
   stageIntroDialog.show();
+  queueMicrotask(() => {
+    switchScanController?.pushModalSubScan('stage-intro-modal');
+  });
 }
+
+// Pop the modal sub-scan on every dismissal path.
+stageIntroModal?.addEventListener('close', () => {
+  switchScanController?.popModalSubScan();
+});
 
 // Stage intro OK button handler
 if (stageIntroOk) {
@@ -2372,6 +2388,11 @@ const confirmationDialog = new Dialog('confirmationModal', {
   closeOnBackdropClick: false  // Don't close on backdrop click for confirmations
 });
 
+// Pop the modal sub-scan on every dismissal path.
+confirmationModal.addEventListener('close', () => {
+  switchScanController?.popModalSubScan();
+});
+
 /**
  * Show a confirmation modal with a custom message.
  * @param title The title of the confirmation dialog
@@ -2416,6 +2437,9 @@ function showConfirmationModal(title: string, message: string, onConfirm: () => 
 
   // Show dialog
   confirmationDialog.show();
+  queueMicrotask(() => {
+    switchScanController?.pushModalSubScan('confirmation-modal');
+  });
 }
 
 /**
