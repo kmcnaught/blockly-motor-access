@@ -2255,10 +2255,15 @@ body.grid-coding-mode .screen-padding {
   z-index: 10000;
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
+/* Sentinel chip: positioning is left to the caller. The main scanner
+ * places it over the current group's centre via `top`/`left`, with
+ * `translate(-50%, -50%)` turning that point into the chip's centre.
+ * The move-candidates frame anchors its own Cancel chip inline with
+ * `bottom`/`right` (and overrides the translate).
+ */
 .switch-scan-sentinel {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
+  transform: translate(-50%, -50%);
   padding: 10px 16px;
   background: #ff8f00;
   color: #1a1a1a;
@@ -2269,6 +2274,24 @@ body.grid-coding-mode .screen-padding {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
+}
+/* Scaled-up variant used when the chip sits centred on a group mask —
+ * the chip is the primary target in a greyed field, so it should read
+ * larger than the fixed-slot cancel chip. */
+.switch-scan-sentinel--centred {
+  padding: 13px 20px;
+  font-size: 16px;
+}
+/* Semi-transparent panel drawn across the group bounding box when the
+ * active frame's sentinel slot is highlighted. Sits beneath the solid
+ * highlight (z-index 10000) and the pinned outline (9999) so neither
+ * is dimmed by it. */
+.switch-scan-group-mask {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(100, 100, 100, 0.45);
+  border-radius: 8px;
+  z-index: 9998;
 }
 /* Auto-scan idle affordance. Visible only while the scanner is in
  * auto mode AND hasn't started cycling yet — tells the user they

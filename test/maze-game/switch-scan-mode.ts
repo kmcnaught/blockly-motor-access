@@ -1045,6 +1045,11 @@ export class SwitchScanController {
   // DOM overlay elements; created once per enable, removed on disable.
   private highlightEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
+  // Semi-transparent panel drawn over the sentinel's group bounding box
+  // so the sentinel chip reads as an exit from the group rather than a
+  // free-floating affordance. Hidden except when the active frame is at
+  // its sentinel slot and a group rect is available.
+  private groupMaskEl: HTMLDivElement | null = null;
   // Auto-scan idle affordance — visible only when scanMode === 'auto'
   // and autoState === 'idle' so the user sees a "press to start" hint
   // before the timer is running. Without this, an auto-mode page load
@@ -1218,11 +1223,13 @@ export class SwitchScanController {
     }
     this.highlightEl?.remove();
     this.sentinelChip?.remove();
+    this.groupMaskEl?.remove();
     this.autoIdleChip?.remove();
     this.actionMenuEl?.remove();
     this.dropdownMenuEl?.remove();
     this.highlightEl = null;
     this.sentinelChip = null;
+    this.groupMaskEl = null;
     this.autoIdleChip = null;
     this.actionMenuEl = null;
     this.dropdownMenuEl = null;
@@ -1561,6 +1568,15 @@ export class SwitchScanController {
     this.highlightEl.style.display = 'none';
     document.body.appendChild(this.highlightEl);
 
+    // Group mask is appended BEFORE the sentinel chip so later siblings
+    // win paint order at the same stacking context; combined with the
+    // mask's lower z-index this keeps the chip visually on top of its
+    // greyed-out group.
+    this.groupMaskEl = document.createElement('div');
+    this.groupMaskEl.className = 'switch-scan-group-mask';
+    this.groupMaskEl.style.display = 'none';
+    document.body.appendChild(this.groupMaskEl);
+
     this.sentinelChip = document.createElement('div');
     this.sentinelChip.className = 'switch-scan-sentinel';
     this.sentinelChip.textContent = '↺ Back to top';
@@ -1682,6 +1698,7 @@ export class SwitchScanController {
     if (!frame) {
       this.highlightEl.style.display = 'none';
       this.sentinelChip.style.display = 'none';
+      if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
       if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
       return;
     }
@@ -1707,13 +1724,18 @@ export class SwitchScanController {
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
       this.highlightEl.style.display = 'none';
-      this.sentinelChip.style.display = 'block';
+      const group = strategyFor(frame).groupRect(
+        frame as never,
+        this.getStrategyCtx(),
+      );
+      this.applySentinelChip(group);
       if (shouldSpeak) this.speakCurrentLabel();
       return;
     }
 
     // Pointing at a concrete target — hide chip, position outline.
     this.sentinelChip.style.display = 'none';
+    if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
 
     const rect = strategyFor(frame).rectAt(frame as never, this.getStrategyCtx());
 
@@ -1732,6 +1754,44 @@ export class SwitchScanController {
     this.highlightEl.style.height = `${rect.height}px`;
 
     if (shouldSpeak) this.speakCurrentLabel();
+  }
+
+  /**
+   * Position the sentinel chip over its group bounding box and draw the
+   * accompanying grey mask across the group. Called from the sentinel
+   * branch of {@link renderHighlight}.
+   *
+   * When `groupRect` is non-null, the mask is laid over the rect and
+   * the chip is centred on it (with the `--centred` modifier scaling
+   * the chip up to read as the primary target in the greyed field).
+   * When `groupRect` is null, the mask is hidden and the chip is left
+   * hidden too — a later step owns the fallback policy for that case.
+   *
+   * @param groupRect Bounding box of the group the sentinel exits
+   *     from, or `null` when the active strategy can't compute one.
+   */
+  private applySentinelChip(groupRect: DOMRect | null): void {
+    if (!this.sentinelChip) return;
+    if (!groupRect) {
+      this.sentinelChip.style.display = 'none';
+      if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
+      return;
+    }
+
+    if (this.groupMaskEl) {
+      this.groupMaskEl.style.display = 'block';
+      this.groupMaskEl.style.top = `${groupRect.top}px`;
+      this.groupMaskEl.style.left = `${groupRect.left}px`;
+      this.groupMaskEl.style.width = `${groupRect.width}px`;
+      this.groupMaskEl.style.height = `${groupRect.height}px`;
+    }
+
+    const centreX = groupRect.left + groupRect.width / 2;
+    const centreY = groupRect.top + groupRect.height / 2;
+    this.sentinelChip.classList.add('switch-scan-sentinel--centred');
+    this.sentinelChip.style.top = `${centreY}px`;
+    this.sentinelChip.style.left = `${centreX}px`;
+    this.sentinelChip.style.display = 'block';
   }
 
   /**
@@ -1814,6 +1874,7 @@ export class SwitchScanController {
   private tearDownOverlaysForRun(): void {
     if (this.highlightEl) this.highlightEl.style.display = 'none';
     if (this.sentinelChip) this.sentinelChip.style.display = 'none';
+    if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
     if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
@@ -2662,13 +2723,17 @@ export class SwitchScanController {
     }
 
     // Floating Cancel chip — visually the sentinel slot of the cycle.
-    // Reuses the existing sentinel chip styling so the affordance reads
-    // consistently with the rest of the scanner. Anchored bottom-right
-    // by the shared class; the chip itself is what the highlight outlines
-    // when index === candidates.length.
+    // Reuses the sentinel chip styling so the affordance reads
+    // consistently with the rest of the scanner, with an inline bottom-
+    // right anchor since the shared class leaves positioning to the
+    // caller. The chip itself is what the highlight outlines when
+    // index === candidates.length.
     const cancelChipEl = document.createElement('div');
     cancelChipEl.className = 'switch-scan-sentinel';
     cancelChipEl.textContent = '✕ Cancel';
+    cancelChipEl.style.bottom = '16px';
+    cancelChipEl.style.right = '16px';
+    cancelChipEl.style.transform = 'none';
     document.body.appendChild(cancelChipEl);
 
     this.frameStack.push({
