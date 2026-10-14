@@ -627,10 +627,10 @@ const STRATEGIES: Strategies = {
       return item?.label ?? null;
     },
     rectAt: (frame, ctx) => {
-      // Highlight the currently-focused menu row inside the overlay.
-      // The block underneath is implicitly the subject of every action,
-      // identifiable by the menu's anchor position next to it — so we
-      // intentionally don't outline the block here.
+      // Highlight the currently-focused menu row inside the overlay. The
+      // subject block is marked separately by the dashed pinned outline
+      // (see `pinnedBlockForFrame`), so the solid scan cursor can stay
+      // on the row the user is about to pick.
       const itemEl = ctx.actionMenuEl?.querySelector<HTMLElement>(
         `[data-scan-action-item="${frame.index}"]`,
       );
@@ -698,14 +698,12 @@ const STRATEGIES: Strategies = {
           ctx.popToSameRegion(frame.topLevelIndex);
           return;
         }
-        // Pre-focus the block via Blockly's FocusManager (same call the
-        // Select handler uses) so the block visibly highlights during the
-        // dropdown-values sub-scan. Without this, the action menu closes
-        // and the dropdown opens with no indication of WHICH block is
-        // being edited — confusing in a chain of similar blocks. Wrapped
-        // in try/catch defensively: focusNode can throw if the block was
-        // disposed between menu open and selection, but we still want to
-        // proceed into the dropdown-values frame.
+        // Commit Blockly's FocusManager to this block so downstream
+        // consumers of the focused node (toolbox-insertion anchoring,
+        // keyboard-mode interop) see the block being edited as the
+        // current focus. Wrapped defensively: focusNode can throw if the
+        // block was disposed between menu open and selection, but we
+        // still want to proceed into the dropdown-values frame.
         try {
           Blockly.getFocusManager().focusNode(block);
         } catch (err) {
