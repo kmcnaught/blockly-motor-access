@@ -209,6 +209,47 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 /**
+ * Minimum pixel area a group must have before we draw the mask + place
+ * the chip inside it. Guards against the "chip bigger than the group"
+ * failure mode (e.g. a two-button modal where centering the chip on the
+ * bbox crowds the chip between the two controls). The centred chip's
+ * rendered rect is roughly 150x40 (~6000 px²); 15000 keeps the chip at
+ * most ~40% of the group's area before we switch to below-the-group
+ * placement.
+ */
+const MIN_GROUP_AREA = 15000;
+
+/**
+ * Maximum fraction of either viewport dimension a group can span before
+ * the mask reads as a page-level modal rather than a group marker.
+ * Guards against the viewport-flood failure mode (notably the workspace
+ * blocks list, whose union covers most of the viewport). Above this
+ * fraction we skip the mask and anchor the chip to the group's top-
+ * centre instead of its centre.
+ */
+const MAX_GROUP_VIEWPORT_FRACTION = 0.7;
+
+/**
+ * Fixed-slot inset for the fallback chip position when a strategy
+ * returns `null` for `groupRect`. Keeps the chip reachable in the
+ * bottom-right corner — same slot the pre-centred-chip design used.
+ */
+const SENTINEL_FIXED_SLOT_INSET = 16;
+
+/**
+ * Inset applied when the chip is anchored to the top-centre of a huge
+ * group — keeps it clear of the group's top edge without drifting into
+ * the content.
+ */
+const SENTINEL_TOP_ANCHOR_INSET = 24;
+
+/**
+ * Gap left between the group's bottom edge and the chip when the group
+ * is too small to host the chip inside it — the chip sits just below.
+ */
+const SENTINEL_BELOW_GROUP_GAP = 8;
+
+/**
  * Normalize a configured key string to its `KeyboardEvent.key` form so
  * `event.key === normalized` works regardless of whether the user wrote
  * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
@@ -1757,27 +1798,92 @@ export class SwitchScanController {
   }
 
   /**
-   * Position the sentinel chip over its group bounding box and draw the
-   * accompanying grey mask across the group. Called from the sentinel
-   * branch of {@link renderHighlight}.
+   * Position the sentinel chip relative to its group bounding box and
+   * draw the accompanying grey mask when appropriate. Called from the
+   * sentinel branch of {@link renderHighlight}.
    *
-   * When `groupRect` is non-null, the mask is laid over the rect and
-   * the chip is centred on it (with the `--centred` modifier scaling
-   * the chip up to read as the primary target in the greyed field).
-   * When `groupRect` is null, the mask is hidden and the chip is left
-   * hidden too — a later step owns the fallback policy for that case.
+   * Four branches, in order:
+   *  1. `groupRect === null` — the active strategy can't compute a
+   *     group. Hide the mask and park the chip in the bottom-right
+   *     fixed slot so it's still reachable.
+   *  2. Group area below {@link MIN_GROUP_AREA} — the chip would crowd
+   *     or exceed the group's content. Hide the mask and anchor the
+   *     chip just below the group's bottom edge, centred horizontally
+   *     on the group.
+   *  3. Group spans more than {@link MAX_GROUP_VIEWPORT_FRACTION} of
+   *     either viewport dimension — a mask that large reads as a
+   *     modal, not a group marker. Hide the mask and anchor the chip
+   *     to the group's top-centre, inset from the top edge.
+   *  4. Normal case — mask the group and centre the chip on the bbox
+   *     (with the `--centred` modifier scaling the chip up to read as
+   *     the primary target in the greyed field).
    *
    * @param groupRect Bounding box of the group the sentinel exits
    *     from, or `null` when the active strategy can't compute one.
    */
   private applySentinelChip(groupRect: DOMRect | null): void {
     if (!this.sentinelChip) return;
+
+    // Branches 1-3 all skip the mask and the `--centred` modifier; only
+    // branch 4 paints a mask and scales the chip up. Set the mask hidden
+    // up front and let branch 4 override.
+    if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
+
     if (!groupRect) {
-      this.sentinelChip.style.display = 'none';
-      if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
+      // Fixed-slot fallback. Use `bottom`/`right` so the chip sits in a
+      // predictable corner; clear `top`/`left` and the centre-translate
+      // so any prior centred placement doesn't leak through.
+      this.sentinelChip.classList.remove('switch-scan-sentinel--centred');
+      this.sentinelChip.style.transform = 'none';
+      this.sentinelChip.style.top = '';
+      this.sentinelChip.style.left = '';
+      this.sentinelChip.style.bottom = `${SENTINEL_FIXED_SLOT_INSET}px`;
+      this.sentinelChip.style.right = `${SENTINEL_FIXED_SLOT_INSET}px`;
+      this.sentinelChip.style.display = 'block';
       return;
     }
 
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const area = groupRect.width * groupRect.height;
+    const tooSmall = area < MIN_GROUP_AREA;
+    const tooLarge =
+      groupRect.width > viewportWidth * MAX_GROUP_VIEWPORT_FRACTION ||
+      groupRect.height > viewportHeight * MAX_GROUP_VIEWPORT_FRACTION;
+
+    const centreX = groupRect.left + groupRect.width / 2;
+
+    if (tooSmall) {
+      // Chip sits just below the group's bottom edge, centred
+      // horizontally on the group. No mask (greying a tiny region
+      // reads as noise). `translateX(-50%)` only — the top value is
+      // the chip's top edge, not its centre.
+      this.sentinelChip.classList.remove('switch-scan-sentinel--centred');
+      this.sentinelChip.style.transform = 'translateX(-50%)';
+      this.sentinelChip.style.bottom = '';
+      this.sentinelChip.style.right = '';
+      this.sentinelChip.style.top = `${groupRect.bottom + SENTINEL_BELOW_GROUP_GAP}px`;
+      this.sentinelChip.style.left = `${centreX}px`;
+      this.sentinelChip.style.display = 'block';
+      return;
+    }
+
+    if (tooLarge) {
+      // Chip anchors to the group's top-centre, inset from the top
+      // edge. No mask (greying most of the viewport reads as a modal).
+      // `translateX(-50%)` only — the inset is measured to the chip's
+      // top edge so the chip sits inside the group, not straddling it.
+      this.sentinelChip.classList.remove('switch-scan-sentinel--centred');
+      this.sentinelChip.style.transform = 'translateX(-50%)';
+      this.sentinelChip.style.bottom = '';
+      this.sentinelChip.style.right = '';
+      this.sentinelChip.style.top = `${groupRect.top + SENTINEL_TOP_ANCHOR_INSET}px`;
+      this.sentinelChip.style.left = `${centreX}px`;
+      this.sentinelChip.style.display = 'block';
+      return;
+    }
+
+    // Normal case: mask the group and centre the chip on it.
     if (this.groupMaskEl) {
       this.groupMaskEl.style.display = 'block';
       this.groupMaskEl.style.top = `${groupRect.top}px`;
@@ -1786,9 +1892,11 @@ export class SwitchScanController {
       this.groupMaskEl.style.height = `${groupRect.height}px`;
     }
 
-    const centreX = groupRect.left + groupRect.width / 2;
     const centreY = groupRect.top + groupRect.height / 2;
     this.sentinelChip.classList.add('switch-scan-sentinel--centred');
+    this.sentinelChip.style.transform = 'translate(-50%, -50%)';
+    this.sentinelChip.style.bottom = '';
+    this.sentinelChip.style.right = '';
     this.sentinelChip.style.top = `${centreY}px`;
     this.sentinelChip.style.left = `${centreX}px`;
     this.sentinelChip.style.display = 'block';

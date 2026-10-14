@@ -2255,11 +2255,13 @@ body.grid-coding-mode .screen-padding {
   z-index: 10000;
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
-/* Sentinel chip: positioning is left to the caller. The main scanner
- * places it over the current group's centre via `top`/`left`, with
- * `translate(-50%, -50%)` turning that point into the chip's centre.
- * The move-candidates frame anchors its own Cancel chip inline with
- * `bottom`/`right` (and overrides the translate).
+/* Sentinel chip: positioning is left to the caller. `applySentinelChip`
+ * picks one of four placements (fixed-slot / below-group / top-of-group /
+ * centre-of-group) and sets both the anchor properties and the matching
+ * `transform` inline. The default transform here is the common case —
+ * centred on a `top`/`left` point — but each branch overrides it as
+ * needed. The move-candidates frame anchors its own Cancel chip inline
+ * with `bottom`/`right` and overrides the translate.
  */
 .switch-scan-sentinel {
   position: fixed;
