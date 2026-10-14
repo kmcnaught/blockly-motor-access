@@ -2069,11 +2069,22 @@ function showResultModal(type: ResultType): void {
   // Determine auto-close duration
   const duration = type === 'success' ? AUTO_CLOSE_SUCCESS : AUTO_CLOSE_FAILURE;
 
-  // Show dialog with auto-close
-  resultDialog.show(duration);
+  // Suppress auto-close while switch access is on — the timer is too fast
+  // to scan + select the dialog buttons.
+  const switchEnabled = switchScanController?.isEnabled() ?? false;
+  resultDialog.show(switchEnabled ? null : duration);
+  queueMicrotask(() => {
+    switchScanController?.pushModalSubScan('result-modal');
+  });
 }
 
 // Result modal event handlers
+
+// Pop the modal sub-scan on every dismissal path (ESC, backdrop, button
+// click, auto-close) — the native `close` event covers all of them.
+resultModal.addEventListener('close', () => {
+  switchScanController?.popModalSubScan();
+});
 
 // Cancel button - just close the modal (stay on current level)
 resultModalCancel.addEventListener('click', () => resultDialog.hide());

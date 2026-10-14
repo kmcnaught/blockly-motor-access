@@ -29,10 +29,10 @@ export class AutoCloseDialog extends Dialog {
   constructor(elementId: string, options?: AutoCloseDialogOptions);
 
   /**
-   * Opens the dialog and starts auto-close timer
-   * @param duration - Optional duration override in milliseconds
+   * Opens the dialog and starts auto-close timer.
+   * Pass `null` to disable auto-close for this show.
    */
-  show(duration?: number): void;
+  show(duration?: number | null): void;
 
   /**
    * Closes the dialog and clears the auto-close timer

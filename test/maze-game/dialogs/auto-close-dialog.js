@@ -28,12 +28,17 @@ export class AutoCloseDialog extends Dialog {
   }
 
   /**
-   * Opens the dialog and starts auto-close timer
-   * @param {number} [duration] - Optional duration override in milliseconds
+   * Opens the dialog and starts auto-close timer.
+   * @param {number|null} [duration] - Duration override in milliseconds. Pass `null` to disable auto-close.
    */
   show(duration) {
     // Call parent show
     super.show();
+
+    // Explicit null disables auto-close entirely (progress bar + timer).
+    if (duration === null) {
+      return;
+    }
 
     // Use provided duration or default
     const actualDuration = duration ?? this.defaultDuration;

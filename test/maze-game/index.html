@@ -150,16 +150,16 @@
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>
 
     <!-- Result Modal (replaces alert boxes) -->
-    <dialog id="resultModal" class="result-modal" aria-labelledby="resultModalTitle">
+    <dialog id="resultModal" class="result-modal" aria-labelledby="resultModalTitle" data-scan-region="result-modal">
       <h2 id="resultModalTitle" class="result-modal-title"></h2>
       <p id="resultModalMessage" class="result-modal-message"></p>
       <p id="resultModalMessage2" class="result-modal-message"></p>
       <div class="result-modal-buttons">
-        <button id="resultModalCancel" class="result-modal-cancel" hidden>
+        <button id="resultModalCancel" class="result-modal-cancel" hidden data-scan-item>
           <span class="cancel-text">Cancel</span>
           <span class="cancel-hint">[Esc]</span>
         </button>
-        <button id="resultModalOk" class="result-modal-ok">
+        <button id="resultModalOk" class="result-modal-ok" data-scan-item>
           <span class="ok-text">OK</span>
           <span class="ok-hint">[Enter]</span>
           <span class="ok-progress"></span>
