@@ -2255,6 +2255,21 @@ body.grid-coding-mode .screen-padding {
   z-index: 10000;
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
+/* Pinned-subject outline — dashed amber ring marking the block that
+ * the current action frame operates on (action-menu / Edit dropdown /
+ * Move candidates). Persists across sub-scans while the solid
+ * scan-cursor cycles through menu items or candidate connectors.
+ * Design: solid ring = "cursor is here now"; dashed ring = "this is
+ * the subject of the action you're configuring." Sits one layer below
+ * the solid highlight so overlapping edges read solid-on-top. No CSS
+ * transition — dashed borders animating during reflow look jittery. */
+.switch-scan-pinned {
+  position: fixed;
+  pointer-events: none;
+  border: 3px dashed #ff8f00;
+  border-radius: 6px;
+  z-index: 9999;
+}
 .switch-scan-sentinel {
   position: fixed;
   bottom: 16px;

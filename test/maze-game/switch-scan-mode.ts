@@ -967,6 +967,13 @@ export class SwitchScanController {
 
   // DOM overlay elements; created once per enable, removed on disable.
   private highlightEl: HTMLDivElement | null = null;
+  // Dashed outline marking the "pinned subject" of the current action
+  // frame (e.g. the block whose action menu or Edit dropdown is open).
+  // Persists across sub-scans so the subject stays visually anchored
+  // while the solid scan cursor cycles through menu items / candidate
+  // connectors. Positioned by `renderHighlight`; hidden when no frame
+  // has a subject block.
+  private pinnedEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
   // Auto-scan idle affordance — visible only when scanMode === 'auto'
   // and autoState === 'idle' so the user sees a "press to start" hint
@@ -1140,11 +1147,13 @@ export class SwitchScanController {
       }
     }
     this.highlightEl?.remove();
+    this.pinnedEl?.remove();
     this.sentinelChip?.remove();
     this.autoIdleChip?.remove();
     this.actionMenuEl?.remove();
     this.dropdownMenuEl?.remove();
     this.highlightEl = null;
+    this.pinnedEl = null;
     this.sentinelChip = null;
     this.autoIdleChip = null;
     this.actionMenuEl = null;
@@ -1484,6 +1493,11 @@ export class SwitchScanController {
     this.highlightEl.style.display = 'none';
     document.body.appendChild(this.highlightEl);
 
+    this.pinnedEl = document.createElement('div');
+    this.pinnedEl.className = 'switch-scan-pinned';
+    this.pinnedEl.style.display = 'none';
+    document.body.appendChild(this.pinnedEl);
+
     this.sentinelChip = document.createElement('div');
     this.sentinelChip.className = 'switch-scan-sentinel';
     this.sentinelChip.textContent = '↺ Back to top';
@@ -1604,6 +1618,7 @@ export class SwitchScanController {
     const frame = this.activeFrame();
     if (!frame) {
       this.highlightEl.style.display = 'none';
+      if (this.pinnedEl) this.pinnedEl.style.display = 'none';
       this.sentinelChip.style.display = 'none';
       if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
       return;
@@ -1736,6 +1751,7 @@ export class SwitchScanController {
    */
   private tearDownOverlaysForRun(): void {
     if (this.highlightEl) this.highlightEl.style.display = 'none';
+    if (this.pinnedEl) this.pinnedEl.style.display = 'none';
     if (this.sentinelChip) this.sentinelChip.style.display = 'none';
     if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
     this.actionMenuEl?.remove();
