@@ -77,6 +77,7 @@
  */
 
 import * as Blockly from 'blockly/core';
+import {scrollBoundsIntoView} from '../../src/workspace_utilities';
 import {MazeGame} from './maze';
 import {insertBlockAfterCursor} from './block-insertion';
 import {
@@ -542,7 +543,17 @@ const STRATEGIES: Strategies = {
         return ctx.getSingleBlockViewportRect(block);
       } else {
         // Toolbox flyout blocks aren't stacked, so the SVG root rect
-        // already hugs just the one block.
+        // already hugs just the one block. Scroll the flyout to bring
+        // the current block into view first so long toolboxes don't
+        // leave the scan highlight off-screen — mirrors the keyboard
+        // flow (FlyoutCursor.setCurNode). The scroll helper no-ops
+        // when the block is already visible, so this is safe on reflow.
+        if (block) {
+          const flyoutWs = ctx.workspace.getFlyout()?.getWorkspace();
+          if (flyoutWs) {
+            scrollBoundsIntoView(block.getBoundingRectangle(), flyoutWs);
+          }
+        }
         const svgRoot = block?.getSvgRoot();
         return svgRoot?.getBoundingClientRect() ?? null;
       }
