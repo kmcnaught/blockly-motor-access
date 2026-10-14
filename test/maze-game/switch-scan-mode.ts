@@ -1523,6 +1523,37 @@ export class SwitchScanController {
   }
 
   /**
+   * Resolve the "pinned subject" block for a frame — the block the
+   * current action will operate on, which stays visually anchored (via
+   * the dashed `pinnedEl` outline) across sub-scans even while the solid
+   * scan cursor cycles over menu items / candidate connectors.
+   *
+   * Only subject-bearing frames return a block; everything else returns
+   * `null` and the dashed outline is hidden. `dropdown-values` carries a
+   * nullable block because header dropdowns (Character / Language) have
+   * no block subject — in that case we fall through to `null`, which is
+   * the correct no-outline behavior.
+   *
+   * Adding a new subject-bearing frame kind is a one-line edit here.
+   *
+   * @param frame
+   */
+  private pinnedBlockForFrame(frame: ScanFrame): Blockly.BlockSvg | null {
+    switch (frame.kind) {
+      case 'action-menu':
+        return frame.block;
+      case 'dropdown-values':
+        return frame.block;
+      case 'move-candidates':
+        return frame.block;
+      case 'top':
+      case 'dom-items':
+      case 'blocks':
+        return null;
+    }
+  }
+
+  /**
    * Cycle length for a given frame.
    *
    * Sub-scan frames append a sentinel "Back to top" slot so the user has
@@ -1641,6 +1672,27 @@ export class SwitchScanController {
     // would be noisy. The helper handles cancel-and-replace and the
     // disabled-state no-op, so we don't branch on those here.
     const shouldSpeak = options?.speak !== false;
+
+    // Dashed "pinned subject" outline: anchors the block the current
+    // action will operate on while the solid scan cursor roams over
+    // menu items / candidate connectors / the sentinel slot. Resolved
+    // from the active frame so it persists across sub-scans and tracks
+    // through sentinel positions.
+    if (this.pinnedEl) {
+      const pinnedBlock = this.pinnedBlockForFrame(frame);
+      const pinnedRect = pinnedBlock
+        ? this.getSingleBlockViewportRect(pinnedBlock)
+        : null;
+      if (pinnedRect && pinnedRect.width > 0 && pinnedRect.height > 0) {
+        this.pinnedEl.style.display = 'block';
+        this.pinnedEl.style.top = `${pinnedRect.top}px`;
+        this.pinnedEl.style.left = `${pinnedRect.left}px`;
+        this.pinnedEl.style.width = `${pinnedRect.width}px`;
+        this.pinnedEl.style.height = `${pinnedRect.height}px`;
+      } else {
+        this.pinnedEl.style.display = 'none';
+      }
+    }
 
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
