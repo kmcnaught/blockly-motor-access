@@ -892,6 +892,16 @@ export class SwitchScanController {
   private executing = false;
   private boundKeyHandler: (e: KeyboardEvent) => void;
   private boundReflow: () => void;
+  // Capture-phase pointerdown handler. Dismisses subject-bearing sub-
+  // scan frames (action-menu, dropdown-values, move-candidates) whenever
+  // the user interacts outside the switch-scan flow — a stale action
+  // menu with a dashed pinned outline anchored to a block the user has
+  // visually moved on from is confusing. Pointerdown rather than
+  // mousedown because Blockly's workspace captures the pointer on
+  // block-pointerdown and suppresses the subsequent mousedown. Our
+  // overlays all set `pointer-events: none`, so any pointerdown target
+  // is "elsewhere" by definition — no target filtering needed.
+  private boundOutsidePointerDown: (e: PointerEvent) => void;
   // Subscription registered with mazeGame.onExecutionStateChange on
   // enable() and removed via offExecutionStateChange on disable(). The
   // reference must be stable across the pair, so it's bound once in the
@@ -1027,6 +1037,7 @@ export class SwitchScanController {
     // detach the listener and re-attach it cleanly during live rebind.
     this.boundKeyHandler = this.handleKeyDown.bind(this);
     this.boundReflow = this.scheduleReflow.bind(this);
+    this.boundOutsidePointerDown = this.onOutsidePointerDown.bind(this);
     // Wrap with an `enabled` guard so a late-firing callback after a
     // disable() (e.g. user toggled modes mid-run) is a no-op rather
     // than a crash on torn-down state.
@@ -1074,6 +1085,7 @@ export class SwitchScanController {
     // pre-existing behavior for the action-menu / dropdown-values /
     // toolbox / workspace sub-scans.
     document.addEventListener('keydown', this.boundKeyHandler, true);
+    document.addEventListener('pointerdown', this.boundOutsidePointerDown, true);
     window.addEventListener('resize', this.boundReflow);
     window.addEventListener('scroll', this.boundReflow, true);
 
@@ -1112,6 +1124,7 @@ export class SwitchScanController {
     // Capture-phase flag must match `enable()` so removal cleans up
     // the right listener slot.
     document.removeEventListener('keydown', this.boundKeyHandler, true);
+    document.removeEventListener('pointerdown', this.boundOutsidePointerDown, true);
     window.removeEventListener('resize', this.boundReflow);
     window.removeEventListener('scroll', this.boundReflow, true);
     this.mazeGame.offExecutionStateChange(this.boundExecutionStateHandler);
@@ -1815,6 +1828,45 @@ export class SwitchScanController {
       if (frame.kind === 'move-candidates') {
         frame.cancelChipEl.remove();
       }
+    }
+  }
+
+  /**
+   * Capture-phase `pointerdown` handler. Dismiss subject-bearing sub-
+   * scan frames (`action-menu`, `dropdown-values`, `move-candidates`)
+   * on any pointer interaction — a user who clicks the toolbox / a
+   * workspace block / a header dropdown / anywhere outside the switch-
+   * scan flow has visually moved on, and leaving a stale pinned
+   * outline, action menu, and solid highlight anchored to a block
+   * they're no longer thinking about is confusing.
+   *
+   * Pointerdown rather than mousedown: Blockly's workspace captures the
+   * pointer on block-pointerdown, which can suppress the subsequent
+   * mousedown. Pointerdown is also the standard primary input event in
+   * modern browsers.
+   *
+   * Scope: only pops the three subject-bearing kinds. `top`,
+   * `dom-items`, and `blocks` carry no persistent subject, so stale
+   * state there is harmless and popping would be surprising (e.g.
+   * clicking the toolbox while a `blocks` sub-scan is active
+   * shouldn't bounce the scanner back to the top region).
+   *
+   * No target filtering needed — every switch-scan overlay sets
+   * `pointer-events: none`, so a pointerdown's target is always
+   * "elsewhere" by construction.
+   *
+   * @param _e Unused; the handler reacts purely to active-frame state.
+   */
+  private onOutsidePointerDown(_e: PointerEvent): void {
+    if (!this.enabled) return;
+    const frame = this.activeFrame();
+    if (!frame) return;
+    if (
+      frame.kind === 'action-menu' ||
+      frame.kind === 'dropdown-values' ||
+      frame.kind === 'move-candidates'
+    ) {
+      this.popToSameRegion(frame.topLevelIndex);
     }
   }
 
