@@ -248,7 +248,7 @@ suite('switch-scan: applySentinelChip — null groupRect (fixed-slot fallback)',
   setup(function () {
     const doc = ensureDom();
     chip = doc.createElement('div');
-    chip.className = 'switch-scan-sentinel switch-scan-sentinel--centred';
+    chip.className = 'switch-scan-sentinel';
     mask = doc.createElement('div');
     mask.style.display = 'block';
   });
@@ -262,65 +262,10 @@ suite('switch-scan: applySentinelChip — null groupRect (fixed-slot fallback)',
     expect(chip.style.top).to.equal('');
     expect(chip.style.left).to.equal('');
     expect(chip.style.transform).to.equal('none');
-    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(false);
   });
 });
 
-suite('switch-scan: applySentinelChip — tiny group (below-group placement)', function () {
-  let chip;
-  let mask;
-
-  setup(function () {
-    const doc = ensureDom();
-    chip = doc.createElement('div');
-    chip.className = 'switch-scan-sentinel';
-    mask = doc.createElement('div');
-    mask.style.display = 'block';
-  });
-
-  test('anchors below the group, no mask, no --centred class', function () {
-    // 100x100 group = 10000px² — below MIN_GROUP_AREA (15000).
-    const group = rect(200, 300, 100, 100);
-    applySentinelChip(chip, mask, group, 1000, 800);
-    expect(mask.style.display).to.equal('none');
-    expect(chip.style.display).to.equal('block');
-    // top = bottom(400) + SENTINEL_BELOW_GROUP_GAP(8) = 408
-    expect(chip.style.top).to.equal('408px');
-    // left = centreX of group = 200 + 50 = 250
-    expect(chip.style.left).to.equal('250px');
-    expect(chip.style.transform).to.equal('translateX(-50%)');
-    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(false);
-  });
-});
-
-suite('switch-scan: applySentinelChip — huge group (top-centre anchor)', function () {
-  let chip;
-  let mask;
-
-  setup(function () {
-    const doc = ensureDom();
-    chip = doc.createElement('div');
-    chip.className = 'switch-scan-sentinel';
-    mask = doc.createElement('div');
-    mask.style.display = 'block';
-  });
-
-  test('anchors to the top-centre of the group, no mask, no --centred class', function () {
-    // 900x700 group in a 1000x800 viewport — both dimensions > 70%.
-    const group = rect(50, 50, 900, 700);
-    applySentinelChip(chip, mask, group, 1000, 800);
-    expect(mask.style.display).to.equal('none');
-    expect(chip.style.display).to.equal('block');
-    // top = group.top(50) + SENTINEL_TOP_ANCHOR_INSET(24) = 74
-    expect(chip.style.top).to.equal('74px');
-    // left = centreX = 50 + 450 = 500
-    expect(chip.style.left).to.equal('500px');
-    expect(chip.style.transform).to.equal('translateX(-50%)');
-    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(false);
-  });
-});
-
-suite('switch-scan: applySentinelChip — wide stripe (header-like, normal branch)', function () {
+suite('switch-scan: applySentinelChip — horizontal group (primary: to the right)', function () {
   let chip;
   let mask;
 
@@ -331,52 +276,142 @@ suite('switch-scan: applySentinelChip — wide stripe (header-like, normal branc
     mask = doc.createElement('div');
   });
 
-  test('wide-but-short group takes the normal mask branch, not top-centre', function () {
-    // 900x60 group in a 1000x800 viewport — width > 70% but height < 10%.
-    // The "huge" branch requires BOTH dimensions to exceed the fraction,
-    // so a header-style stripe falls through to the normal (mask + centred)
-    // branch instead of being treated as a viewport flood.
-    const group = rect(50, 10, 900, 60);
+  test('info-bar-sized stripe → mask + chip to the right of the group', function () {
+    // 400x50 group at x=100, y=20 in a 1000x800 viewport. Horizontal
+    // (width > height); primary placement fits.
+    const group = rect(100, 20, 400, 50);
     applySentinelChip(chip, mask, group, 1000, 800);
     expect(mask.style.display).to.equal('block');
-    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(true);
-  });
-});
-
-suite('switch-scan: applySentinelChip — normal group (mask + centred chip)', function () {
-  let chip;
-  let mask;
-
-  setup(function () {
-    const doc = ensureDom();
-    chip = doc.createElement('div');
-    chip.className = 'switch-scan-sentinel';
-    mask = doc.createElement('div');
-    mask.style.display = 'none';
-  });
-
-  test('shows the mask over the group and centres the chip on it', function () {
-    // 400x300 group = 120000px² (above MIN_GROUP_AREA), well under 70% of
-    // a 1000x800 viewport — the normal branch.
-    const group = rect(100, 200, 400, 300);
-    applySentinelChip(chip, mask, group, 1000, 800);
-    expect(mask.style.display).to.equal('block');
-    expect(mask.style.top).to.equal('200px');
-    expect(mask.style.left).to.equal('100px');
     expect(mask.style.width).to.equal('400px');
-    expect(mask.style.height).to.equal('300px');
     expect(chip.style.display).to.equal('block');
-    // centreX = 100 + 200 = 300, centreY = 200 + 150 = 350
-    expect(chip.style.left).to.equal('300px');
-    expect(chip.style.top).to.equal('350px');
-    expect(chip.style.transform).to.equal('translate(-50%, -50%)');
-    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(true);
+    // left = right(500) + gap(8) = 508; top = group.top = 20
+    expect(chip.style.left).to.equal('508px');
+    expect(chip.style.top).to.equal('20px');
+    expect(chip.style.transform).to.equal('none');
+    expect(chip.style.bottom).to.equal('');
+    expect(chip.style.right).to.equal('');
+  });
+});
+
+suite('switch-scan: applySentinelChip — horizontal group with no right-side space (wrap below)', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
+    mask = doc.createElement('div');
   });
 
-  test('clears prior fixed-slot bottom/right so stale placement does not leak', function () {
+  test('header-sized stripe → mask + chip wraps below the group', function () {
+    // 950x50 group at x=25, y=10 in a 1000x800 viewport. Horizontal;
+    // primary (right of group, left=983) overflows width (983 + 200 > 1000).
+    // Wrap: below the group, left aligned.
+    const group = rect(25, 10, 950, 50);
+    applySentinelChip(chip, mask, group, 1000, 800);
+    expect(mask.style.display).to.equal('block');
+    expect(chip.style.display).to.equal('block');
+    // Wrap: left = group.left = 25; top = group.bottom(60) + gap(8) = 68
+    expect(chip.style.left).to.equal('25px');
+    expect(chip.style.top).to.equal('68px');
+    expect(chip.style.transform).to.equal('none');
+  });
+});
+
+suite('switch-scan: applySentinelChip — vertical group (primary: below)', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
+    mask = doc.createElement('div');
+  });
+
+  test('toolbox-sized column → mask + chip below the group', function () {
+    // 80x400 group at x=20, y=100 in a 1000x800 viewport. Vertical
+    // (height > width); primary (below) fits.
+    const group = rect(20, 100, 80, 400);
+    applySentinelChip(chip, mask, group, 1000, 800);
+    expect(mask.style.display).to.equal('block');
+    expect(chip.style.display).to.equal('block');
+    // left = group.left = 20; top = bottom(500) + gap(8) = 508
+    expect(chip.style.left).to.equal('20px');
+    expect(chip.style.top).to.equal('508px');
+    expect(chip.style.transform).to.equal('none');
+  });
+});
+
+suite('switch-scan: applySentinelChip — vertical group with no space below (wrap right)', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
+    mask = doc.createElement('div');
+  });
+
+  test('tall column at viewport bottom → mask + chip wraps to the right', function () {
+    // 80x700 column at x=20, y=80 in a 1000x800 viewport. Vertical;
+    // primary (below, top=788) would overflow height (788 + 50 > 800).
+    // Wrap: to the right of the group.
+    const group = rect(20, 80, 80, 700);
+    applySentinelChip(chip, mask, group, 1000, 800);
+    expect(mask.style.display).to.equal('block');
+    expect(chip.style.display).to.equal('block');
+    // Wrap: left = right(100) + gap(8) = 108; top = group.top = 80
+    expect(chip.style.left).to.equal('108px');
+    expect(chip.style.top).to.equal('80px');
+    expect(chip.style.transform).to.equal('none');
+  });
+});
+
+suite('switch-scan: applySentinelChip — group too big in both axes (inside-group fallback)', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
+    mask = doc.createElement('div');
+  });
+
+  test('both primary and wrap overflow → chip anchors to group top-centre inside the bbox', function () {
+    // 950x750 group filling most of a 1000x800 viewport. Horizontal
+    // (barely wider than tall). Primary (to the right, left=963) and
+    // wrap (below, top=768) both overflow — fall back to inside the
+    // group's top-centre.
+    const group = rect(25, 25, 950, 750);
+    applySentinelChip(chip, mask, group, 1000, 800);
+    expect(mask.style.display).to.equal('block');
+    expect(chip.style.display).to.equal('block');
+    // left = centreX = 25 + 475 = 500; top = group.top(25) + inset(24) = 49
+    expect(chip.style.left).to.equal('500px');
+    expect(chip.style.top).to.equal('49px');
+    expect(chip.style.transform).to.equal('translateX(-50%)');
+  });
+});
+
+suite('switch-scan: applySentinelChip — leak check', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
     chip.style.bottom = '16px';
     chip.style.right = '16px';
-    const group = rect(100, 200, 400, 300);
+    mask = doc.createElement('div');
+  });
+
+  test('placing on a group clears prior fixed-slot bottom/right', function () {
+    const group = rect(100, 200, 400, 50);
     applySentinelChip(chip, mask, group, 1000, 800);
     expect(chip.style.bottom).to.equal('');
     expect(chip.style.right).to.equal('');

@@ -2256,16 +2256,16 @@ body.grid-coding-mode .screen-padding {
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
 /* Sentinel chip: positioning is left to the caller. `applySentinelChip`
- * picks one of four placements (fixed-slot / below-group / top-of-group /
- * centre-of-group) and sets both the anchor properties and the matching
- * `transform` inline. The default transform here is the common case —
- * centred on a `top`/`left` point — but each branch overrides it as
- * needed. The move-candidates frame anchors its own Cancel chip inline
- * with `bottom`/`right` and overrides the translate.
+ * anchors the chip's top-left corner via `top`/`left` for natural-flow
+ * placement (adjacent to the group's trailing edge, with a wrap and an
+ * inside-group fallback), setting `transform` to `none`. The null-group
+ * fallback switches to `bottom`/`right`. The move-candidates frame
+ * anchors its own Cancel chip inline with `bottom`/`right`. The default
+ * `transform` here is a no-op; every active branch sets it explicitly.
  */
 .switch-scan-sentinel {
   position: fixed;
-  transform: translate(-50%, -50%);
+  transform: none;
   padding: 10px 16px;
   background: #fff;
   color: #1a1a1a;
@@ -2283,13 +2283,6 @@ body.grid-coding-mode .screen-padding {
     0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
-}
-/* Scaled-up variant used when the chip sits centred on a group mask —
- * the chip is the primary target in a greyed field, so it should read
- * larger than the fixed-slot cancel chip. */
-.switch-scan-sentinel--centred {
-  padding: 13px 20px;
-  font-size: 16px;
 }
 /* Semi-transparent panel drawn across the group bounding box when the
  * active frame's sentinel slot is highlighted. Sits beneath the solid

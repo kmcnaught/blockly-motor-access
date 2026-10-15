@@ -209,46 +209,35 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 /**
- * Minimum pixel area a group must have before we draw the mask + place
- * the chip inside it. Guards against the "chip bigger than the group"
- * failure mode (e.g. a two-button modal where centering the chip on the
- * bbox crowds the chip between the two controls). The centred chip's
- * rendered rect is roughly 150x40 (~6000 px²); 15000 keeps the chip at
- * most ~40% of the group's area before we switch to below-the-group
- * placement.
- */
-const MIN_GROUP_AREA = 15000;
-
-/**
- * Maximum fraction a group can span of **both** viewport dimensions
- * before the mask reads as a page-level modal rather than a group
- * marker. Guards against the viewport-flood failure mode — notably the
- * workspace blocks list, whose union covers most of the viewport in
- * both axes. A wide-but-short stripe like the header's dom-items union
- * is NOT a flood (its height stays small) and still gets a normal
- * mask + centred chip.
- */
-const MAX_GROUP_VIEWPORT_FRACTION = 0.7;
-
-/**
  * Fixed-slot inset for the fallback chip position when a strategy
- * returns `null` for `groupRect`. Keeps the chip reachable in the
- * bottom-right corner — same slot the pre-centred-chip design used.
+ * returns `null` for `groupRect`. Keeps the chip reachable in a
+ * predictable bottom-right corner.
  */
 const SENTINEL_FIXED_SLOT_INSET = 16;
 
 /**
- * Inset applied when the chip is anchored to the top-centre of a huge
- * group — keeps it clear of the group's top edge without drifting into
- * the content.
+ * Inset applied when both the primary and the wrap placement overflow
+ * the viewport (group is too big to host an adjacent chip). The chip
+ * is anchored to the group's top-centre, inset from the top edge so
+ * it doesn't straddle the group's edge.
  */
 const SENTINEL_TOP_ANCHOR_INSET = 24;
 
 /**
- * Gap left between the group's bottom edge and the chip when the group
- * is too small to host the chip inside it — the chip sits just below.
+ * Gap between the group's trailing edge and the sentinel chip in the
+ * natural-flow placement — the chip reads as "the next slot after the
+ * last item" with a small amount of breathing room.
  */
-const SENTINEL_BELOW_GROUP_GAP = 8;
+const SENTINEL_NEXT_SLOT_GAP = 8;
+
+/**
+ * Guestimates of the sentinel chip's rendered dimensions. Used to
+ * predict viewport overflow of the primary (and then the wrap) natural-
+ * flow placement without needing a measure-reflow cycle: the chip has
+ * fixed text + padding so the real size is close to these constants.
+ */
+const SENTINEL_CHIP_WIDTH_ESTIMATE = 200;
+const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 
 /**
  * Normalize a configured key string to its `KeyboardEvent.key` form so
@@ -304,25 +293,26 @@ function unionRects(rects: DOMRect[]): DOMRect | null {
 
 /**
  * Position the sentinel chip relative to its group bounding box and
- * draw the accompanying grey mask when appropriate. Pure DOM-side
- * placement policy: takes the two overlay elements, the group rect,
- * and the viewport dimensions; sets styles / class on the elements.
+ * draw the accompanying grey mask. Pure DOM-side placement policy:
+ * takes the two overlay elements, the group rect, and the viewport
+ * dimensions; sets styles on the elements.
  *
- * Four branches, in order:
- *  1. `groupRect === null` — the active strategy can't compute a
- *     group. Hide the mask and park the chip in the bottom-right
- *     fixed slot so it's still reachable.
- *  2. Group area below {@link MIN_GROUP_AREA} — the chip would crowd
- *     or exceed the group's content. Hide the mask and anchor the
- *     chip just below the group's bottom edge, centred horizontally
- *     on the group.
- *  3. Group spans more than {@link MAX_GROUP_VIEWPORT_FRACTION} of
- *     either viewport dimension — a mask that large reads as a
- *     modal, not a group marker. Hide the mask and anchor the chip
- *     to the group's top-centre, inset from the top edge.
- *  4. Normal case — mask the group and centre the chip on the bbox
- *     (with the `--centred` modifier scaling the chip up to read as
- *     the primary target in the greyed field).
+ * Placement model — "natural flow": the chip appears where the next
+ * item in the group's flow would've gone. Horizontal groups (bbox
+ * wider than tall) → to the right of the group. Vertical groups →
+ * below the group. If the primary direction would push the chip off
+ * the viewport, wrap to the perpendicular direction instead. If both
+ * directions overflow (group is too big to host an adjacent chip),
+ * anchor the chip to the group's top-centre inside the bbox so it
+ * stays visible and in semantic contact with the group.
+ *
+ * The grey mask always covers the group when a `groupRect` is
+ * available — it's the "which group are you exiting" marker. The chip
+ * sitting adjacent to the mask (rather than centred on it) reads as
+ * the next slot in the cycle rather than a modal overlay.
+ *
+ * Null `groupRect` is the one escape hatch: no mask, chip parks in a
+ * fixed bottom-right slot so it stays reachable.
  *
  * Exposed on {@link __testOnly} for unit tests.
  *
@@ -341,16 +331,10 @@ function applySentinelChip(
   viewportWidth: number,
   viewportHeight: number,
 ): void {
-  // Branches 1-3 all skip the mask and the `--centred` modifier; only
-  // branch 4 paints a mask and scales the chip up. Set the mask hidden
-  // up front and let branch 4 override.
-  if (groupMaskEl) groupMaskEl.style.display = 'none';
-
   if (!groupRect) {
-    // Fixed-slot fallback. Use `bottom`/`right` so the chip sits in a
-    // predictable corner; clear `top`/`left` and the centre-translate
-    // so any prior centred placement doesn't leak through.
-    sentinelChip.classList.remove('switch-scan-sentinel--centred');
+    if (groupMaskEl) groupMaskEl.style.display = 'none';
+    // Fixed-slot fallback — the strategy can't tell us where the
+    // group lives, so the chip parks in a predictable corner.
     sentinelChip.style.transform = 'none';
     sentinelChip.style.top = '';
     sentinelChip.style.left = '';
@@ -360,45 +344,6 @@ function applySentinelChip(
     return;
   }
 
-  const area = groupRect.width * groupRect.height;
-  const tooSmall = area < MIN_GROUP_AREA;
-  const tooLarge =
-    groupRect.width > viewportWidth * MAX_GROUP_VIEWPORT_FRACTION &&
-    groupRect.height > viewportHeight * MAX_GROUP_VIEWPORT_FRACTION;
-
-  const centreX = groupRect.left + groupRect.width / 2;
-
-  if (tooSmall) {
-    // Chip sits just below the group's bottom edge, centred
-    // horizontally on the group. No mask (greying a tiny region
-    // reads as noise). `translateX(-50%)` only — the top value is
-    // the chip's top edge, not its centre.
-    sentinelChip.classList.remove('switch-scan-sentinel--centred');
-    sentinelChip.style.transform = 'translateX(-50%)';
-    sentinelChip.style.bottom = '';
-    sentinelChip.style.right = '';
-    sentinelChip.style.top = `${groupRect.bottom + SENTINEL_BELOW_GROUP_GAP}px`;
-    sentinelChip.style.left = `${centreX}px`;
-    sentinelChip.style.display = 'block';
-    return;
-  }
-
-  if (tooLarge) {
-    // Chip anchors to the group's top-centre, inset from the top
-    // edge. No mask (greying most of the viewport reads as a modal).
-    // `translateX(-50%)` only — the inset is measured to the chip's
-    // top edge so the chip sits inside the group, not straddling it.
-    sentinelChip.classList.remove('switch-scan-sentinel--centred');
-    sentinelChip.style.transform = 'translateX(-50%)';
-    sentinelChip.style.bottom = '';
-    sentinelChip.style.right = '';
-    sentinelChip.style.top = `${groupRect.top + SENTINEL_TOP_ANCHOR_INSET}px`;
-    sentinelChip.style.left = `${centreX}px`;
-    sentinelChip.style.display = 'block';
-    return;
-  }
-
-  // Normal case: mask the group and centre the chip on it.
   if (groupMaskEl) {
     groupMaskEl.style.display = 'block';
     groupMaskEl.style.top = `${groupRect.top}px`;
@@ -407,14 +352,46 @@ function applySentinelChip(
     groupMaskEl.style.height = `${groupRect.height}px`;
   }
 
-  const centreY = groupRect.top + groupRect.height / 2;
-  sentinelChip.classList.add('switch-scan-sentinel--centred');
-  sentinelChip.style.transform = 'translate(-50%, -50%)';
+  // Base styling common to every adjacent / inside placement — the
+  // chip is anchored by its top-left corner (no translate).
+  sentinelChip.style.transform = 'none';
   sentinelChip.style.bottom = '';
   sentinelChip.style.right = '';
-  sentinelChip.style.top = `${centreY}px`;
-  sentinelChip.style.left = `${centreX}px`;
   sentinelChip.style.display = 'block';
+
+  const horizontal = groupRect.width > groupRect.height;
+  const gap = SENTINEL_NEXT_SLOT_GAP;
+  // Primary: continuation in the group's flow direction. Secondary:
+  // perpendicular wrap when the primary doesn't fit. Each is a
+  // {left, top} anchor for the chip's top-left corner.
+  const primary = horizontal
+    ? {left: groupRect.right + gap, top: groupRect.top}
+    : {left: groupRect.left, top: groupRect.bottom + gap};
+  const wrap = horizontal
+    ? {left: groupRect.left, top: groupRect.bottom + gap}
+    : {left: groupRect.right + gap, top: groupRect.top};
+
+  const fits = (anchor: {left: number; top: number}): boolean =>
+    anchor.left + SENTINEL_CHIP_WIDTH_ESTIMATE <= viewportWidth &&
+    anchor.top + SENTINEL_CHIP_HEIGHT_ESTIMATE <= viewportHeight;
+
+  if (fits(primary)) {
+    sentinelChip.style.left = `${primary.left}px`;
+    sentinelChip.style.top = `${primary.top}px`;
+    return;
+  }
+  if (fits(wrap)) {
+    sentinelChip.style.left = `${wrap.left}px`;
+    sentinelChip.style.top = `${wrap.top}px`;
+    return;
+  }
+
+  // Group is too big for an adjacent chip in either direction. Fall
+  // back to anchoring inside the group's top-centre so the chip stays
+  // visible and in semantic contact with the group.
+  sentinelChip.style.transform = 'translateX(-50%)';
+  sentinelChip.style.left = `${groupRect.left + groupRect.width / 2}px`;
+  sentinelChip.style.top = `${groupRect.top + SENTINEL_TOP_ANCHOR_INSET}px`;
 }
 
 /**
