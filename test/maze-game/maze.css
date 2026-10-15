@@ -2237,6 +2237,16 @@ body.grid-coding-mode .screen-padding {
  * dark inner ring so the focus marker stays legible on both the
  * light page chrome and the Blockly workspace.
  */
+
+/* Suppress the plugin's thick orange workspace focus ring while
+ * switch-scan is active — it competes visually with the amber scan
+ * highlight. Toolbox outline is left intact (reads as panel chrome,
+ * doesn't clash). `!important` is needed to outrank the plugin's
+ * .blocklyKeyboardNavigation-scoped rules (higher specificity). */
+body.switch-scan-active .blocklyWorkspaceFocusRing {
+  stroke: none !important;
+}
+
 .switch-scan-highlight {
   position: fixed;
   pointer-events: none;

@@ -1066,6 +1066,10 @@ export class SwitchScanController {
 
     this.enabled = true;
 
+    // Marker class so CSS can suppress the plugin's orange workspace
+    // focus ring — it clashes visually with the switch-scan highlight.
+    document.body.classList.add('switch-scan-active');
+
     // Discover regions and create overlay DOM.
     this.regions = discoverRegions(this.workspace);
     // Seed the stack with a fresh top-level frame at index 0.
@@ -1119,6 +1123,8 @@ export class SwitchScanController {
     if (!this.enabled) return;
 
     this.enabled = false;
+
+    document.body.classList.remove('switch-scan-active');
 
     // Unbind events.
     // Capture-phase flag must match `enable()` so removal cleans up
