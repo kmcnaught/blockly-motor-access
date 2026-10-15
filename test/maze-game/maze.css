@@ -2267,13 +2267,20 @@ body.grid-coding-mode .screen-padding {
   position: fixed;
   transform: translate(-50%, -50%);
   padding: 10px 16px;
-  background: #ff8f00;
+  background: #fff;
   color: #1a1a1a;
   font-weight: 700;
   font-size: 14px;
   border-radius: 999px;
-  border: 2px solid #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  /* Pill-shaped scan-cursor ring on the chip itself: amber ring that
+   * matches `.switch-scan-highlight`, with the same outer-dark /
+   * inner-light rings for contrast on light and dark surfaces, plus a
+   * drop shadow so the chip lifts off a greyed group mask. */
+  border: 4px solid #ff8f00;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
 }

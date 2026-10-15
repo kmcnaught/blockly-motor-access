@@ -320,6 +320,29 @@ suite('switch-scan: applySentinelChip — huge group (top-centre anchor)', funct
   });
 });
 
+suite('switch-scan: applySentinelChip — wide stripe (header-like, normal branch)', function () {
+  let chip;
+  let mask;
+
+  setup(function () {
+    const doc = ensureDom();
+    chip = doc.createElement('div');
+    chip.className = 'switch-scan-sentinel';
+    mask = doc.createElement('div');
+  });
+
+  test('wide-but-short group takes the normal mask branch, not top-centre', function () {
+    // 900x60 group in a 1000x800 viewport — width > 70% but height < 10%.
+    // The "huge" branch requires BOTH dimensions to exceed the fraction,
+    // so a header-style stripe falls through to the normal (mask + centred)
+    // branch instead of being treated as a viewport flood.
+    const group = rect(50, 10, 900, 60);
+    applySentinelChip(chip, mask, group, 1000, 800);
+    expect(mask.style.display).to.equal('block');
+    expect(chip.classList.contains('switch-scan-sentinel--centred')).to.equal(true);
+  });
+});
+
 suite('switch-scan: applySentinelChip — normal group (mask + centred chip)', function () {
   let chip;
   let mask;

@@ -220,12 +220,13 @@ const KEY_ALIASES: Record<string, string> = {
 const MIN_GROUP_AREA = 15000;
 
 /**
- * Maximum fraction of either viewport dimension a group can span before
- * the mask reads as a page-level modal rather than a group marker.
- * Guards against the viewport-flood failure mode (notably the workspace
- * blocks list, whose union covers most of the viewport). Above this
- * fraction we skip the mask and anchor the chip to the group's top-
- * centre instead of its centre.
+ * Maximum fraction a group can span of **both** viewport dimensions
+ * before the mask reads as a page-level modal rather than a group
+ * marker. Guards against the viewport-flood failure mode — notably the
+ * workspace blocks list, whose union covers most of the viewport in
+ * both axes. A wide-but-short stripe like the header's dom-items union
+ * is NOT a flood (its height stays small) and still gets a normal
+ * mask + centred chip.
  */
 const MAX_GROUP_VIEWPORT_FRACTION = 0.7;
 
@@ -362,7 +363,7 @@ function applySentinelChip(
   const area = groupRect.width * groupRect.height;
   const tooSmall = area < MIN_GROUP_AREA;
   const tooLarge =
-    groupRect.width > viewportWidth * MAX_GROUP_VIEWPORT_FRACTION ||
+    groupRect.width > viewportWidth * MAX_GROUP_VIEWPORT_FRACTION &&
     groupRect.height > viewportHeight * MAX_GROUP_VIEWPORT_FRACTION;
 
   const centreX = groupRect.left + groupRect.width / 2;
