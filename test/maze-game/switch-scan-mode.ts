@@ -316,7 +316,7 @@ function unionRects(rects: DOMRect[]): DOMRect | null {
  *
  * Exposed on {@link __testOnly} for unit tests.
  *
- * @param sentinelChip The "Back to top" chip element.
+ * @param sentinelChip The "Back" chip element.
  * @param groupMaskEl The semi-transparent grey overlay element, or
  *     `null` if the controller hasn't created one.
  * @param groupRect Bounding box of the group the sentinel exits
@@ -630,7 +630,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.items.length + 1,
     atSentinel: (frame) => frame.index === frame.items.length,
     labelAt: (frame) => {
-      if (frame.index === frame.items.length) return 'Back to top';
+      if (frame.index === frame.items.length) return 'Back';
       const item = frame.items[frame.index];
       if (!item) return null;
       const aria = item.getAttribute('aria-label');
@@ -692,7 +692,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.blocks.length + 1,
     atSentinel: (frame) => frame.index === frame.blocks.length,
     labelAt: (frame) => {
-      if (frame.index === frame.blocks.length) return 'Back to top';
+      if (frame.index === frame.blocks.length) return 'Back';
       const block = frame.blocks[frame.index];
       if (!block) return null;
       try {
@@ -814,7 +814,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.items.length + 1,
     atSentinel: (frame) => frame.index === frame.items.length,
     labelAt: (frame) => {
-      if (frame.index === frame.items.length) return 'Back to top';
+      if (frame.index === frame.items.length) return 'Back';
       // The menu rows carry their human-readable label directly. No
       // i18n today (matches the visual rendering — Phase 5 doesn't
       // localize menu chrome).
@@ -837,7 +837,7 @@ const STRATEGIES: Strategies = {
       ctx.actionMenuEl?.getBoundingClientRect() ?? null,
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
-        // "Back to top" sentinel — bail out without acting on the block,
+        // "Back" sentinel — bail out without acting on the block,
         // stay on the same top region (workspace) so the user can pick a
         // different block.
         ctx.popToSameRegion(frame.topLevelIndex);
@@ -928,7 +928,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.options.length + 1,
     atSentinel: (frame) => frame.index === frame.options.length,
     labelAt: (frame) => {
-      if (frame.index === frame.options.length) return 'Back to top';
+      if (frame.index === frame.options.length) return 'Back';
       const option = frame.options[frame.index];
       if (!option) return null;
       const label = option[0];
@@ -1715,7 +1715,7 @@ export class SwitchScanController {
 
     this.sentinelChip = document.createElement('div');
     this.sentinelChip.className = 'switch-scan-sentinel';
-    this.sentinelChip.textContent = '↺ Back to top';
+    this.sentinelChip.textContent = '↩ Back';
     this.sentinelChip.style.display = 'none';
     document.body.appendChild(this.sentinelChip);
 
@@ -1740,7 +1740,7 @@ export class SwitchScanController {
   /**
    * Cycle length for a given frame.
    *
-   * Sub-scan frames append a sentinel "Back to top" slot so the user has
+   * Sub-scan frames append a sentinel "Back" slot so the user has
    * an explicit way to bail out without committing an action. The top-
    * level frame does NOT carry a sentinel — wrapping past the last real
    * region already returns the user to the start, so an extra
@@ -1770,7 +1770,7 @@ export class SwitchScanController {
    * read (e.g. defensive cases where the active frame is missing).
    *
    * Label source by frame kind:
-   *  - sentinel slot of any frame → "Back to top" (mirrors the chip's
+   *  - sentinel slot of any frame → "Back" (mirrors the chip's
    *    on-screen text so the audio + visual cues match).
    *  - `top` at a real region → the region's `name` ("header",
    *    "toolbox", "workspace", "maze-actions"). The names are
@@ -1809,7 +1809,7 @@ export class SwitchScanController {
    *  - `top` at a real region → region's `getRect()` outline.
    *  - `top` at sentinel       → sentinel chip.
    *  - `dom-items` at an item  → item's `getBoundingClientRect()`.
-   *  - `dom-items` at sentinel → sentinel chip (same "Back to top"
+   *  - `dom-items` at sentinel → sentinel chip (same "Back"
    *    affordance — pops the frame instead of resetting index).
    *  - `blocks` at a block     → block SVG root's bounding rect
    *    (viewport coordinates work with our `position: fixed` outline).
