@@ -209,24 +209,17 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 /**
- * Fixed-slot inset for the fallback chip position when a strategy
- * returns `null` for `groupRect`. Keeps the chip reachable in a
- * predictable bottom-right corner.
+ * Fixed-slot inset for the fallback chip position when the active
+ * strategy can't measure the last preceding item (or an adjacent
+ * placement would overflow the viewport). Keeps the chip reachable
+ * in a predictable bottom-right corner.
  */
 const SENTINEL_FIXED_SLOT_INSET = 16;
 
 /**
- * Inset applied when both the primary and the wrap placement overflow
- * the viewport (group is too big to host an adjacent chip). The chip
- * is anchored to the group's top-centre, inset from the top edge so
- * it doesn't straddle the group's edge.
- */
-const SENTINEL_TOP_ANCHOR_INSET = 24;
-
-/**
- * Gap between the group's trailing edge and the sentinel chip in the
- * natural-flow placement — the chip reads as "the next slot after the
- * last item" with a small amount of breathing room.
+ * Gap between the last item's trailing edge and the sentinel chip in
+ * the natural-flow placement — the chip reads as "the next slot after
+ * the last item" with a small amount of breathing room.
  */
 const SENTINEL_NEXT_SLOT_GAP = 8;
 
@@ -263,135 +256,77 @@ function normalizeKey(key: string): string {
 }
 
 /**
- * Compute the smallest DOMRect enclosing every input rect. Zero-area
- * rects are dropped before the union — same defensive filter the
- * highlight path applies to the single-item case — so a transiently
- * unmeasurable element doesn't drag the union down to (0,0). Returns
- * `null` when no input survives the filter.
- *
- * Exposed on {@link __testOnly} for unit tests.
- *
- * @param rects Rects to combine; viewport coordinates throughout.
- */
-function unionRects(rects: DOMRect[]): DOMRect | null {
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-  let seen = false;
-  for (const r of rects) {
-    if (!r || r.width === 0 || r.height === 0) continue;
-    seen = true;
-    if (r.left < left) left = r.left;
-    if (r.top < top) top = r.top;
-    if (r.right > right) right = r.right;
-    if (r.bottom > bottom) bottom = r.bottom;
-  }
-  if (!seen) return null;
-  return new DOMRect(left, top, right - left, bottom - top);
-}
-
-/**
- * Position the sentinel chip relative to its group bounding box and
- * draw the accompanying grey mask. Pure DOM-side placement policy:
- * takes the two overlay elements, the group rect, and the viewport
- * dimensions; sets styles on the elements.
- *
- * Placement model — "natural flow": the chip appears where the next
- * item in the group's flow would've gone. Horizontal groups (bbox
- * wider than tall) → to the right of the group. Vertical groups →
- * below the group. If the primary direction would push the chip off
- * the viewport, wrap to the perpendicular direction instead. If both
- * directions overflow (group is too big to host an adjacent chip),
- * anchor the chip to the group's top-centre inside the bbox so it
- * stays visible and in semantic contact with the group.
- *
- * The grey mask always covers the group when a `groupRect` is
- * available — it's the "which group are you exiting" marker. The chip
- * sitting adjacent to the mask (rather than centred on it) reads as
- * the next slot in the cycle rather than a modal overlay.
- *
- * Null `groupRect` is the one escape hatch: no mask, chip parks in a
+ * Position the sentinel chip relative to the group's **last preceding
+ * item**. The chip reads as the next slot in the group's reading flow:
+ * for a horizontal group, to the right of the last item; for a
+ * vertical group, below the last item. If the primary direction would
+ * push the chip off the viewport, wrap to the perpendicular direction.
+ * If both overflow (or `lastItemRect` is `null`), park the chip in a
  * fixed bottom-right slot so it stays reachable.
  *
  * Exposed on {@link __testOnly} for unit tests.
  *
  * @param sentinelChip The "Back" chip element.
- * @param groupMaskEl The semi-transparent grey overlay element, or
- *     `null` if the controller hasn't created one.
- * @param groupRect Bounding box of the group the sentinel exits
- *     from, or `null` when the active strategy can't compute one.
+ * @param lastItemRect Viewport rect of the last real item in the group
+ *     (the one preceding the sentinel slot), or `null` when the active
+ *     strategy can't compute one.
+ * @param horizontal `true` if the group's items flow left-to-right —
+ *     the chip tries to the right first, then wraps below. `false` for
+ *     a vertical column — chip tries below first, then wraps right.
  * @param viewportWidth Current viewport width in CSS pixels.
  * @param viewportHeight Current viewport height in CSS pixels.
  */
 function applySentinelChip(
   sentinelChip: HTMLElement,
-  groupMaskEl: HTMLElement | null,
-  groupRect: DOMRect | null,
+  lastItemRect: DOMRect | null,
+  horizontal: boolean,
   viewportWidth: number,
   viewportHeight: number,
 ): void {
-  if (!groupRect) {
-    if (groupMaskEl) groupMaskEl.style.display = 'none';
-    // Fixed-slot fallback — the strategy can't tell us where the
-    // group lives, so the chip parks in a predictable corner.
-    sentinelChip.style.transform = 'none';
+  sentinelChip.style.transform = 'none';
+  sentinelChip.style.display = 'block';
+
+  if (!lastItemRect) {
+    // No measurable last item — park the chip in the fixed slot so
+    // it stays reachable.
     sentinelChip.style.top = '';
     sentinelChip.style.left = '';
     sentinelChip.style.bottom = `${SENTINEL_FIXED_SLOT_INSET}px`;
     sentinelChip.style.right = `${SENTINEL_FIXED_SLOT_INSET}px`;
-    sentinelChip.style.display = 'block';
     return;
   }
 
-  if (groupMaskEl) {
-    groupMaskEl.style.display = 'block';
-    groupMaskEl.style.top = `${groupRect.top}px`;
-    groupMaskEl.style.left = `${groupRect.left}px`;
-    groupMaskEl.style.width = `${groupRect.width}px`;
-    groupMaskEl.style.height = `${groupRect.height}px`;
-  }
-
-  // Base styling common to every adjacent / inside placement — the
-  // chip is anchored by its top-left corner (no translate).
-  sentinelChip.style.transform = 'none';
-  sentinelChip.style.bottom = '';
-  sentinelChip.style.right = '';
-  sentinelChip.style.display = 'block';
-
-  const horizontal = groupRect.width > groupRect.height;
   const gap = SENTINEL_NEXT_SLOT_GAP;
-  // Primary: continuation in the group's flow direction. Secondary:
-  // perpendicular wrap when the primary doesn't fit. Each is a
-  // {left, top} anchor for the chip's top-left corner.
-  const primary = horizontal
-    ? {left: groupRect.right + gap, top: groupRect.top}
-    : {left: groupRect.left, top: groupRect.bottom + gap};
-  const wrap = horizontal
-    ? {left: groupRect.left, top: groupRect.bottom + gap}
-    : {left: groupRect.right + gap, top: groupRect.top};
+  const rightOfItem = {left: lastItemRect.right + gap, top: lastItemRect.top};
+  const belowItem = {left: lastItemRect.left, top: lastItemRect.bottom + gap};
+  const primary = horizontal ? rightOfItem : belowItem;
+  const wrap = horizontal ? belowItem : rightOfItem;
 
   const fits = (anchor: {left: number; top: number}): boolean =>
     anchor.left + SENTINEL_CHIP_WIDTH_ESTIMATE <= viewportWidth &&
     anchor.top + SENTINEL_CHIP_HEIGHT_ESTIMATE <= viewportHeight;
 
-  if (fits(primary)) {
-    sentinelChip.style.left = `${primary.left}px`;
-    sentinelChip.style.top = `${primary.top}px`;
-    return;
-  }
-  if (fits(wrap)) {
-    sentinelChip.style.left = `${wrap.left}px`;
-    sentinelChip.style.top = `${wrap.top}px`;
-    return;
-  }
+  // Prefer primary when it fits unmodified. Otherwise use the wrap
+  // anchor, clamped into the viewport so a last-item near a screen
+  // edge still gets a visible chip near it (rather than teleporting
+  // to the fixed slot).
+  const chosen = fits(primary)
+    ? primary
+    : {
+        left: Math.max(
+          0,
+          Math.min(wrap.left, viewportWidth - SENTINEL_CHIP_WIDTH_ESTIMATE),
+        ),
+        top: Math.max(
+          0,
+          Math.min(wrap.top, viewportHeight - SENTINEL_CHIP_HEIGHT_ESTIMATE),
+        ),
+      };
 
-  // Group is too big for an adjacent chip in either direction. Fall
-  // back to anchoring inside the group's top-centre so the chip stays
-  // visible and in semantic contact with the group.
-  sentinelChip.style.transform = 'translateX(-50%)';
-  sentinelChip.style.left = `${groupRect.left + groupRect.width / 2}px`;
-  sentinelChip.style.top = `${groupRect.top + SENTINEL_TOP_ANCHOR_INSET}px`;
+  sentinelChip.style.bottom = '';
+  sentinelChip.style.right = '';
+  sentinelChip.style.left = `${chosen.left}px`;
+  sentinelChip.style.top = `${chosen.top}px`;
 }
 
 /**
@@ -555,17 +490,18 @@ interface FrameStrategy<K extends ScanFrame['kind']> {
     ctx: StrategyCtx,
   ): DOMRect | null;
   /**
-   * Viewport bounding box of the "group" this frame represents — the
-   * union of its member items, used by the sentinel chip to anchor
-   * itself over the thing the user is bailing out of. Returns `null`
-   * when the frame has no visually coherent group (e.g. the `top`
-   * frame, which has no sentinel in the first place) or when every
-   * member is currently unmeasurable.
+   * Reading-flow direction the group's items are laid out in. The
+   * sentinel chip uses this to decide which direction counts as "the
+   * next slot in the cycle": `'horizontal'` → try right of the last
+   * item first; `'vertical'` → try below the last item first.
+   *
+   * Not called for frames with no sentinel (`top`); strategies without
+   * a sentinel can return either value.
    */
-  groupRect(
+  preferredDirection(
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
-  ): DOMRect | null;
+  ): 'horizontal' | 'vertical';
   handleSelect(
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
@@ -600,9 +536,9 @@ const STRATEGIES: Strategies = {
       return region?.name ?? null;
     },
     rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
-    // Top-level frame has no sentinel, so no group to anchor onto.
-    // Implemented for exhaustiveness.
-    groupRect: () => null,
+    // No sentinel at the top level, so the direction is never
+    // consulted. Returned for exhaustiveness.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       // No sentinel at the top level — every index is a real region.
       const region = ctx.regions[frame.index];
@@ -640,8 +576,19 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame) =>
       frame.items[frame.index]?.getBoundingClientRect() ?? null,
-    groupRect: (frame) =>
-      unionRects(frame.items.map((el) => el.getBoundingClientRect())),
+    // dom-items is the generic kind — direction depends on the actual
+    // DOM layout. Measure the items' X-spread vs Y-spread: header /
+    // info bar / game-panel rows read horizontal; stacked modal rows
+    // read vertical.
+    preferredDirection: (frame) => {
+      if (frame.items.length < 2) return 'vertical';
+      const rects = frame.items.map((el) => el.getBoundingClientRect());
+      const xs = rects.map((r) => r.left);
+      const ys = rects.map((r) => r.top);
+      const xRange = Math.max(...xs) - Math.min(...xs);
+      const yRange = Math.max(...ys) - Math.min(...ys);
+      return xRange > yRange ? 'horizontal' : 'vertical';
+    },
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
         // Sentinel: bail out of the sub-scan without firing anything.
@@ -738,21 +685,10 @@ const STRATEGIES: Strategies = {
         return svgRoot?.getBoundingClientRect() ?? null;
       }
     },
-    groupRect: (frame, ctx) => {
-      // Workspace: use the per-block viewport rect so the union hugs
-      // just the head-block of every stack (not the stack-tail SVG that
-      // over-covers). Toolbox: the flyout SVG root already hugs the one
-      // block, matching the per-item rectAt branch above.
-      const rects: DOMRect[] = [];
-      for (const block of frame.blocks) {
-        const r =
-          frame.regionName === 'workspace'
-            ? ctx.getSingleBlockViewportRect(block)
-            : block.getSvgRoot()?.getBoundingClientRect() ?? null;
-        if (r) rects.push(r);
-      }
-      return unionRects(rects);
-    },
+    // Blockly stacks are vertical columns of statement blocks; both
+    // the workspace scan (one head-block per stack) and the toolbox
+    // flyout scan read as top-to-bottom lists.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.blocks.length) {
         // Sentinel pop → stay on the same region for re-entry.
@@ -831,10 +767,8 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
-    // The menu is a single DOM container, so its bounding rect already
-    // encloses every row — no per-item union needed.
-    groupRect: (_frame, ctx) =>
-      ctx.actionMenuEl?.getBoundingClientRect() ?? null,
+    // Action menu is a vertical popup — rows stacked top-to-bottom.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
         // "Back" sentinel — bail out without acting on the block,
@@ -945,10 +879,8 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
-    // Dropdown menu is a single DOM container — its bounding rect
-    // encloses every option.
-    groupRect: (_frame, ctx) =>
-      ctx.dropdownMenuEl?.getBoundingClientRect() ?? null,
+    // Dropdown menu is a vertical popup — options stacked top-to-bottom.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.options.length) {
         // Bail without changing the field's value. Pop both the
@@ -1021,16 +953,12 @@ const STRATEGIES: Strategies = {
         ? getConnectionViewportRect(pair.target, ctx.workspace)
         : null;
     },
-    groupRect: (frame, ctx) => {
-      // Union of every drop-slot's small square rect — the cluster of
-      // connection points around the moving block.
-      const rects: DOMRect[] = [];
-      for (const pair of frame.candidates) {
-        const r = getConnectionViewportRect(pair.target, ctx.workspace);
-        if (r) rects.push(r);
-      }
-      return unionRects(rects);
-    },
+    // Candidates are scattered connection points around the moving
+    // block; there's no obvious reading order, but vertical reads
+    // acceptably since the Cancel chip is on the right of the maze
+    // anyway and this frame uses its own cancelChipEl, not the shared
+    // sentinel chip.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.candidates.length) {
         // Cancel slot: nothing to undo (we never entered Blockly move
@@ -1181,11 +1109,6 @@ export class SwitchScanController {
   // DOM overlay elements; created once per enable, removed on disable.
   private highlightEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
-  // Semi-transparent panel drawn over the sentinel's group bounding box
-  // so the sentinel chip reads as an exit from the group rather than a
-  // free-floating affordance. Hidden except when the active frame is at
-  // its sentinel slot and a group rect is available.
-  private groupMaskEl: HTMLDivElement | null = null;
   // Auto-scan idle affordance — visible only when scanMode === 'auto'
   // and autoState === 'idle' so the user sees a "press to start" hint
   // before the timer is running. Without this, an auto-mode page load
@@ -1359,13 +1282,11 @@ export class SwitchScanController {
     }
     this.highlightEl?.remove();
     this.sentinelChip?.remove();
-    this.groupMaskEl?.remove();
     this.autoIdleChip?.remove();
     this.actionMenuEl?.remove();
     this.dropdownMenuEl?.remove();
     this.highlightEl = null;
     this.sentinelChip = null;
-    this.groupMaskEl = null;
     this.autoIdleChip = null;
     this.actionMenuEl = null;
     this.dropdownMenuEl = null;
@@ -1704,15 +1625,6 @@ export class SwitchScanController {
     this.highlightEl.style.display = 'none';
     document.body.appendChild(this.highlightEl);
 
-    // Group mask is appended BEFORE the sentinel chip so later siblings
-    // win paint order at the same stacking context; combined with the
-    // mask's lower z-index this keeps the chip visually on top of its
-    // greyed-out group.
-    this.groupMaskEl = document.createElement('div');
-    this.groupMaskEl.className = 'switch-scan-group-mask';
-    this.groupMaskEl.style.display = 'none';
-    document.body.appendChild(this.groupMaskEl);
-
     this.sentinelChip = document.createElement('div');
     this.sentinelChip.className = 'switch-scan-sentinel';
     this.sentinelChip.textContent = '↩ Back';
@@ -1834,7 +1746,6 @@ export class SwitchScanController {
     if (!frame) {
       this.highlightEl.style.display = 'none';
       this.sentinelChip.style.display = 'none';
-      if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
       if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
       return;
     }
@@ -1860,18 +1771,13 @@ export class SwitchScanController {
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
       this.highlightEl.style.display = 'none';
-      const group = strategyFor(frame).groupRect(
-        frame as never,
-        this.getStrategyCtx(),
-      );
-      this.applySentinelChip(group);
+      this.applySentinelChip(frame);
       if (shouldSpeak) this.speakCurrentLabel();
       return;
     }
 
     // Pointing at a concrete target — hide chip, position outline.
     this.sentinelChip.style.display = 'none';
-    if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
 
     const rect = strategyFor(frame).rectAt(frame as never, this.getStrategyCtx());
 
@@ -1893,20 +1799,34 @@ export class SwitchScanController {
   }
 
   /**
-   * Position the sentinel chip relative to its group bounding box and
-   * draw the accompanying grey mask when appropriate. Thin controller-
-   * side wrapper around {@link applySentinelChip}; see that function
-   * for the branch policy.
+   * Position the sentinel chip for the given sentinel-slot frame.
+   * Thin controller-side wrapper: resolves the strategy's last-item
+   * rect (by probing `rectAt` at the index just before the sentinel)
+   * and the preferred flow direction, then delegates to the module-
+   * level {@link applySentinelChip} placement helper.
    *
-   * @param groupRect Bounding box of the group the sentinel exits
-   *     from, or `null` when the active strategy can't compute one.
+   * @param frame The active sentinel-slot frame.
    */
-  private applySentinelChip(groupRect: DOMRect | null): void {
+  private applySentinelChip(frame: ScanFrame): void {
     if (!this.sentinelChip) return;
+    const strategy = strategyFor(frame);
+    const ctx = this.getStrategyCtx();
+    const cycleLen = strategy.cycleLen(frame as never, ctx);
+    // Sentinel-bearing frames use cycleLen = items.length + 1; the
+    // last real item sits one index below the sentinel.
+    const lastRealIndex = cycleLen - 2;
+    const lastItemRect = lastRealIndex >= 0
+      ? strategy.rectAt(
+          {...frame, index: lastRealIndex} as never,
+          ctx,
+        )
+      : null;
+    const horizontal =
+      strategy.preferredDirection(frame as never, ctx) === 'horizontal';
     applySentinelChip(
       this.sentinelChip,
-      this.groupMaskEl,
-      groupRect,
+      lastItemRect,
+      horizontal,
       window.innerWidth,
       window.innerHeight,
     );
@@ -1992,7 +1912,6 @@ export class SwitchScanController {
   private tearDownOverlaysForRun(): void {
     if (this.highlightEl) this.highlightEl.style.display = 'none';
     if (this.sentinelChip) this.sentinelChip.style.display = 'none';
-    if (this.groupMaskEl) this.groupMaskEl.style.display = 'none';
     if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
@@ -2925,15 +2844,14 @@ export class SwitchScanController {
 
 /**
  * Internal surface exposed for unit tests only. Not for production use —
- * the strategy registry, union helper, and sentinel-chip placement
- * function are module-private because the controller is the only
- * production caller. Tests reach them through this handle so the
- * strategy policy and chip-branch policy can be exercised without
- * standing up a full controller + Blockly workspace.
+ * the strategy registry and sentinel-chip placement function are
+ * module-private because the controller is the only production caller.
+ * Tests reach them through this handle so the strategy policy and chip
+ * placement policy can be exercised without standing up a full
+ * controller + Blockly workspace.
  */
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const __testOnly = {
   STRATEGIES,
-  unionRects,
   applySentinelChip,
 };
