@@ -1191,9 +1191,8 @@ body.grid-coding-mode .switch-access-section {
   font-style: italic;
 }
 
-/* Dim Phase 4 (scan speed) + Phase 5 (audio) sections so they're
-   visibly inert in Step A. Step B onwards may enable the relevant
-   bits per mode. */
+/* Dim the scan-speed + audio sections so they're visibly inert
+   when the relevant mode doesn't enable them. */
 .switch-settings-disabled {
   opacity: 0.5;
 }
@@ -1203,9 +1202,8 @@ body.grid-coding-mode .switch-access-section {
   cursor: not-allowed;
 }
 
-/* Switch B group is hidden when the user picks auto-scan mode (Step B
-   UI; the Phase 4 timer that actually drives auto-scan isn't built
-   yet). Scoped to the group id so we don't fight the generic .hidden
+/* Switch B group is hidden when the user picks auto-scan mode.
+   Scoped to the group id so we don't fight the generic .hidden
    rules elsewhere. */
 #switchBGroup.hidden {
   display: none;
@@ -2280,18 +2278,31 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   border-radius: 6px;
   z-index: 9999;
 }
+/* Sentinel chip: positioning is left to the caller. `applySentinelChip`
+ * anchors the chip's top-left corner via `top`/`left` next to the
+ * last preceding item in the active group's reading flow; if neither
+ * the primary nor the wrap placement fits, it falls back to a fixed
+ * `bottom`/`right` corner slot. The move-candidates frame uses its
+ * own Cancel chip anchored to its own fixed slot.
+ */
 .switch-scan-sentinel {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
+  transform: none;
   padding: 10px 16px;
-  background: #ff8f00;
+  background: #fff;
   color: #1a1a1a;
   font-weight: 700;
   font-size: 14px;
   border-radius: 999px;
-  border: 2px solid #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  /* Pill-shaped scan-cursor ring on the chip itself: amber ring that
+   * matches `.switch-scan-highlight`, with the same outer-dark /
+   * inner-light rings for contrast on light and dark surfaces, plus a
+   * drop shadow so the chip lifts off whatever is behind it. */
+  border: 4px solid #ff8f00;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
 }

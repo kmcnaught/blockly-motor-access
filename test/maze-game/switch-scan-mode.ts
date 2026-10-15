@@ -106,7 +106,7 @@ interface SwitchScanSettingsLike {
 }
 
 /**
- * Minimal contract the controller needs from the TTS helper (Phase 5).
+ * Minimal contract the controller needs from the TTS helper.
  * Kept as a structural type so the controller doesn't pull in
  * `SpeechSynthesisUtterance` types or care about the feature-detect
  * branch — it just speaks / cancels and lets the helper figure out
@@ -119,7 +119,7 @@ interface SwitchScanTtsLike {
 }
 
 /**
- * One end of the header-dropdown wiring (Phase 3 Step 2).
+ * One end of the header-dropdown wiring.
  *
  * A header button tagged `data-scan-dropdown-source="<name>"` (e.g.
  * `#pegmanButton`, `#languageSelect`) opens a NATIVE popover when
@@ -163,7 +163,7 @@ export interface HeaderDropdownSource {
  * `'Enter'` for Enter). Human-readable aliases like `'Space'` are also
  * accepted (see {@link normalizeKey}).
  *
- * Phase 4: `scanMode` toggles between two-switch step scan (the default)
+ * `scanMode` toggles between two-switch step scan (the default)
  * and single-switch auto scan. In auto mode only the advance key is
  * consulted — the first press starts a self-paced timer that advances
  * the highlight every `scanSpeedMs` milliseconds; subsequent presses
@@ -171,7 +171,7 @@ export interface HeaderDropdownSource {
  * entirely under `scanMode === 'auto'` (Switch B is hidden in the
  * settings panel and unused in this flow).
  *
- * Phase 3 Step 2: `headerDropdowns` registers per-source providers
+ * `headerDropdowns` registers per-source providers
  * keyed by the `data-scan-dropdown-source` attribute on a header
  * button. When the user selects such a button in the header sub-scan,
  * the controller opens a `dropdown-values` sub-scan over the source's
@@ -209,12 +209,29 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 /**
- * Normalize a configured key string to its `KeyboardEvent.key` form so
- * `event.key === normalized` works regardless of whether the user wrote
- * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
- *
- * @param key
+ * Fixed-slot inset for the fallback chip position when the active
+ * strategy can't measure the last preceding item (or an adjacent
+ * placement would overflow the viewport). Keeps the chip reachable
+ * in a predictable bottom-right corner.
  */
+const SENTINEL_FIXED_SLOT_INSET = 16;
+
+/**
+ * Gap between the last item's trailing edge and the sentinel chip in
+ * the natural-flow placement — the chip reads as "the next slot after
+ * the last item" with a small amount of breathing room.
+ */
+const SENTINEL_NEXT_SLOT_GAP = 8;
+
+/**
+ * Guestimates of the sentinel chip's rendered dimensions. Used to
+ * predict viewport overflow of the primary (and then the wrap) natural-
+ * flow placement without needing a measure-reflow cycle: the chip has
+ * fixed text + padding so the real size is close to these constants.
+ */
+const SENTINEL_CHIP_WIDTH_ESTIMATE = 200;
+const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
+
 /**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
  * `cycleLen` is 0 so a caller doesn't have to pre-check.
@@ -227,8 +244,89 @@ function wrapIndex(index: number, cycleLen: number): number {
   return ((index % cycleLen) + cycleLen) % cycleLen;
 }
 
+/**
+ * Normalize a configured key string to its `KeyboardEvent.key` form so
+ * `event.key === normalized` works regardless of whether the user wrote
+ * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
+ *
+ * @param key
+ */
 function normalizeKey(key: string): string {
   return KEY_ALIASES[key] ?? key;
+}
+
+/**
+ * Position the sentinel chip relative to the group's **last preceding
+ * item**. The chip reads as the next slot in the group's reading flow:
+ * for a horizontal group, to the right of the last item; for a
+ * vertical group, below the last item. If the primary direction would
+ * push the chip off the viewport, wrap to the perpendicular direction.
+ * If both overflow (or `lastItemRect` is `null`), park the chip in a
+ * fixed bottom-right slot so it stays reachable.
+ *
+ * Exposed on {@link __testOnly} for unit tests.
+ *
+ * @param sentinelChip The "Back" chip element.
+ * @param lastItemRect Viewport rect of the last real item in the group
+ *     (the one preceding the sentinel slot), or `null` when the active
+ *     strategy can't compute one.
+ * @param horizontal `true` if the group's items flow left-to-right —
+ *     the chip tries to the right first, then wraps below. `false` for
+ *     a vertical column — chip tries below first, then wraps right.
+ * @param viewportWidth Current viewport width in CSS pixels.
+ * @param viewportHeight Current viewport height in CSS pixels.
+ */
+function applySentinelChip(
+  sentinelChip: HTMLElement,
+  lastItemRect: DOMRect | null,
+  horizontal: boolean,
+  viewportWidth: number,
+  viewportHeight: number,
+): void {
+  sentinelChip.style.transform = 'none';
+  sentinelChip.style.display = 'block';
+
+  if (!lastItemRect) {
+    // No measurable last item — park the chip in the fixed slot so
+    // it stays reachable.
+    sentinelChip.style.top = '';
+    sentinelChip.style.left = '';
+    sentinelChip.style.bottom = `${SENTINEL_FIXED_SLOT_INSET}px`;
+    sentinelChip.style.right = `${SENTINEL_FIXED_SLOT_INSET}px`;
+    return;
+  }
+
+  const gap = SENTINEL_NEXT_SLOT_GAP;
+  const rightOfItem = {left: lastItemRect.right + gap, top: lastItemRect.top};
+  const belowItem = {left: lastItemRect.left, top: lastItemRect.bottom + gap};
+  const primary = horizontal ? rightOfItem : belowItem;
+  const wrap = horizontal ? belowItem : rightOfItem;
+
+  const fits = (anchor: {left: number; top: number}): boolean =>
+    anchor.left + SENTINEL_CHIP_WIDTH_ESTIMATE <= viewportWidth &&
+    anchor.top + SENTINEL_CHIP_HEIGHT_ESTIMATE <= viewportHeight;
+
+  // Prefer primary when it fits unmodified. Otherwise use the wrap
+  // anchor, clamped into the viewport so a last-item near a screen
+  // edge still gets a visible chip near it (rather than teleporting
+  // to the fixed slot).
+  const chosen = fits(primary)
+    ? primary
+    : {
+        left: Math.max(
+          0,
+          Math.min(wrap.left, viewportWidth - SENTINEL_CHIP_WIDTH_ESTIMATE),
+        ),
+        top: Math.max(
+          0,
+          Math.min(wrap.top, viewportHeight - SENTINEL_CHIP_HEIGHT_ESTIMATE),
+        ),
+      };
+
+  sentinelChip.style.bottom = '';
+  sentinelChip.style.right = '';
+  sentinelChip.style.left = `${chosen.left}px`;
+  sentinelChip.style.top = `${chosen.top}px`;
 }
 
 /**
@@ -274,10 +372,10 @@ type ScanFrame =
   | {
       // The `dropdown-values` frame is used for TWO entry paths that
       // share the same visual menu + cycle semantics:
-      //  1. Block Edit (Phase 1): `block` + `field` are set, and the
+      //  1. Block Edit: `block` + `field` are set, and the
       //     commit path calls `field.setValue(value)`. `anchor` is the
       //     workspace block being edited (menu sits below it).
-      //  2. Header dropdown (Phase 3 Step 2 — Character / Language):
+      //  2. Header dropdown (Character / Language):
       //     `commitHandler` is set; `block` / `field` are absent. The
       //     anchor is the header button (`#pegmanButton` or the
       //     `<select id="languageSelect">`), so the menu drops below
@@ -294,9 +392,9 @@ type ScanFrame =
       >;
       index: number;
       topLevelIndex: number;
-      // Phase 3 Step 2: optional commit override for header dropdowns.
+      // Optional commit override for header dropdowns.
       // When set, takes precedence over `field.setValue`. The block-
-      // Edit path leaves this unset, preserving the original behavior.
+      // Edit path leaves this unset.
       commitHandler?: (value: string) => void;
     }
   | {
@@ -373,11 +471,11 @@ interface StrategyCtx {
  * matching variant, so strategy bodies see concrete fields without an
  * internal `switch(frame.kind)` guard.
  *
- * The five methods are the full per-kind dispatch surface: cycle length,
- * sentinel detection, TTS label, highlight rect, and Select action. The
- * controller's `cycleLen` / `atSentinel` / `currentItemLabel` /
- * `renderHighlight` / `handleSelect` methods are thin delegators onto
- * these.
+ * The six methods are the full per-kind dispatch surface: cycle length,
+ * sentinel detection, TTS label, highlight rect, preferred reading-flow
+ * direction, and Select action. The controller's `cycleLen` /
+ * `atSentinel` / `currentItemLabel` / `renderHighlight` / `handleSelect`
+ * methods are thin delegators onto these.
  */
 interface FrameStrategy<K extends ScanFrame['kind']> {
   cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
@@ -391,6 +489,19 @@ interface FrameStrategy<K extends ScanFrame['kind']> {
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
   ): DOMRect | null;
+  /**
+   * Reading-flow direction the group's items are laid out in. The
+   * sentinel chip uses this to decide which direction counts as "the
+   * next slot in the cycle": `'horizontal'` → try right of the last
+   * item first; `'vertical'` → try below the last item first.
+   *
+   * Not called for frames with no sentinel (`top`); strategies without
+   * a sentinel can return either value.
+   */
+  preferredDirection(
+    frame: Extract<ScanFrame, {kind: K}>,
+    ctx: StrategyCtx,
+  ): 'horizontal' | 'vertical';
   handleSelect(
     frame: Extract<ScanFrame, {kind: K}>,
     ctx: StrategyCtx,
@@ -410,8 +521,9 @@ type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
  * Strategy registry. One entry per `ScanFrame` kind, enforced
  * exhaustive by the mapped-type annotation (`: Strategies`). Each
  * entry owns the per-kind body for cycle length, sentinel detection,
- * TTS label, highlight rect, and Select action; the controller's
- * delegators dispatch here via {@link strategyFor}.
+ * TTS label, highlight rect, preferred reading-flow direction, and
+ * Select action; the controller's delegators dispatch here via
+ * {@link strategyFor}.
  */
 /* eslint-disable @typescript-eslint/naming-convention
    -- frame.kind strings are kebab-case by design; renaming them would
@@ -425,6 +537,9 @@ const STRATEGIES: Strategies = {
       return region?.name ?? null;
     },
     rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
+    // No sentinel at the top level, so the direction is never
+    // consulted. Returned for exhaustiveness.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       // No sentinel at the top level — every index is a real region.
       const region = ctx.regions[frame.index];
@@ -452,7 +567,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.items.length + 1,
     atSentinel: (frame) => frame.index === frame.items.length,
     labelAt: (frame) => {
-      if (frame.index === frame.items.length) return 'Back to top';
+      if (frame.index === frame.items.length) return 'Back';
       const item = frame.items[frame.index];
       if (!item) return null;
       const aria = item.getAttribute('aria-label');
@@ -462,17 +577,30 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame) =>
       frame.items[frame.index]?.getBoundingClientRect() ?? null,
+    // dom-items is the generic kind — direction depends on the actual
+    // DOM layout. Measure the items' X-spread vs Y-spread: header /
+    // info bar / game-panel rows read horizontal; stacked modal rows
+    // read vertical.
+    preferredDirection: (frame) => {
+      if (frame.items.length < 2) return 'vertical';
+      const rects = frame.items.map((el) => el.getBoundingClientRect());
+      const xs = rects.map((r) => r.left);
+      const ys = rects.map((r) => r.top);
+      const xRange = Math.max(...xs) - Math.min(...xs);
+      const yRange = Math.max(...ys) - Math.min(...ys);
+      return xRange > yRange ? 'horizontal' : 'vertical';
+    },
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
         // Sentinel: bail out of the sub-scan without firing anything.
         // Land on the SAME region the user just left so they can re-enter
-        // it (matches user's mental model of "back to top = let me try
-        // again from where I was").
+        // it (matches user's mental model of "Back = let me try again
+        // from where I was").
         ctx.popToSameRegion(frame.topLevelIndex);
         return;
       }
       const item = frame.items[frame.index];
-      // Phase 3 Step 2: header dropdowns. Some header items open a
+      // Header dropdowns. Some header items open a
       // native popover (`<select>`, the custom #pegmanMenu) that the
       // switch scanner can't reach. Those items are tagged with
       // `data-scan-dropdown-source="<name>"`; if a matching provider
@@ -512,7 +640,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.blocks.length + 1,
     atSentinel: (frame) => frame.index === frame.blocks.length,
     labelAt: (frame) => {
-      if (frame.index === frame.blocks.length) return 'Back to top';
+      if (frame.index === frame.blocks.length) return 'Back';
       const block = frame.blocks[frame.index];
       if (!block) return null;
       try {
@@ -558,6 +686,10 @@ const STRATEGIES: Strategies = {
         return svgRoot?.getBoundingClientRect() ?? null;
       }
     },
+    // Blockly stacks are vertical columns of statement blocks; both
+    // the workspace scan (one head-block per stack) and the toolbox
+    // flyout scan read as top-to-bottom lists.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.blocks.length) {
         // Sentinel pop → stay on the same region for re-entry.
@@ -619,10 +751,10 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.items.length + 1,
     atSentinel: (frame) => frame.index === frame.items.length,
     labelAt: (frame) => {
-      if (frame.index === frame.items.length) return 'Back to top';
+      if (frame.index === frame.items.length) return 'Back';
       // The menu rows carry their human-readable label directly. No
-      // i18n today (matches the visual rendering — Phase 5 doesn't
-      // localize menu chrome).
+      // i18n today (matches the visual rendering — the TTS layer
+      // doesn't localize menu chrome).
       const item = frame.items[frame.index];
       return item?.label ?? null;
     },
@@ -636,9 +768,11 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
+    // Action menu is a vertical popup — rows stacked top-to-bottom.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.items.length) {
-        // "Back to top" sentinel — bail out without acting on the block,
+        // "Back" sentinel — bail out without acting on the block,
         // stay on the same top region (workspace) so the user can pick a
         // different block.
         ctx.popToSameRegion(frame.topLevelIndex);
@@ -727,7 +861,7 @@ const STRATEGIES: Strategies = {
     cycleLen: (frame) => frame.options.length + 1,
     atSentinel: (frame) => frame.index === frame.options.length,
     labelAt: (frame) => {
-      if (frame.index === frame.options.length) return 'Back to top';
+      if (frame.index === frame.options.length) return 'Back';
       const option = frame.options[frame.index];
       if (!option) return null;
       const label = option[0];
@@ -744,6 +878,8 @@ const STRATEGIES: Strategies = {
       );
       return itemEl?.getBoundingClientRect() ?? null;
     },
+    // Dropdown menu is a vertical popup — options stacked top-to-bottom.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.options.length) {
         // Bail without changing the field's value. Pop both the
@@ -760,7 +896,7 @@ const STRATEGIES: Strategies = {
       if (option) {
         try {
           if (frame.commitHandler) {
-            // Phase 3 Step 2 — header dropdowns. The provider owns the
+            // Header dropdowns. The provider owns the
             // semantics (changePegman vs. dispatch change on
             // languageSelect); we just hand it the chosen value.
             frame.commitHandler(option[1]);
@@ -816,6 +952,12 @@ const STRATEGIES: Strategies = {
         ? getConnectionViewportRect(pair.target, ctx.workspace)
         : null;
     },
+    // Candidates are scattered connection points around the moving
+    // block; there's no obvious reading order, but vertical reads
+    // acceptably since the Cancel chip is on the right of the maze
+    // anyway and this frame uses its own cancelChipEl, not the shared
+    // sentinel chip.
+    preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.candidates.length) {
         // Cancel slot: nothing to undo (we never entered Blockly move
@@ -916,11 +1058,10 @@ export class SwitchScanController {
   private switchSelect = 'Enter';
   private switchBack = 'Escape';
 
-  // Phase 4 — single-switch auto-scan state.
+  // Single-switch auto-scan state.
   //
-  // `scanMode === 'step'` is the original two-switch flow: advance key
-  // bumps the highlight, select key acts on the current item. Behavior
-  // is byte-identical to pre-Phase-4 for step-mode users.
+  // `scanMode === 'step'` is the two-switch flow: advance key
+  // bumps the highlight, select key acts on the current item.
   //
   // `scanMode === 'auto'` is the single-switch flow described in
   // PLAN_switch_scanning.md §"Auto-Scan Behavior (one-switch mode)":
@@ -948,7 +1089,7 @@ export class SwitchScanController {
   // down while the modal's live key-capture is reading the next press.
   private settings: SwitchScanSettingsLike | null = null;
 
-  // TTS helper (Phase 5). Optional: when null, the controller never
+  // TTS helper. Optional: when null, the controller never
   // emits speak calls. When set, every renderHighlight() will derive
   // a label for the current item and ask the helper to speak it; the
   // helper itself decides whether to emit based on its enabled flag.
@@ -956,7 +1097,7 @@ export class SwitchScanController {
   // doesn't need to worry about queueing.
   private tts: SwitchScanTtsLike | null = null;
 
-  // Phase 3 Step 2 — providers for header dropdowns (Character /
+  // Providers for header dropdowns (Character /
   // Language). Keyed by the `data-scan-dropdown-source` attribute on
   // the header button. Populated from {@link SwitchScanOptions} at
   // construction; left as an empty record when no header dropdowns
@@ -964,8 +1105,9 @@ export class SwitchScanController {
   // and falls through to the standard `.click()` path.
   private headerDropdowns: Record<string, HeaderDropdownSource> = {};
 
-  // Top-level regions, discovered on enable(). Index === regions.length
-  // represents the synthetic "back to top" sentinel.
+  // Top-level regions, discovered on enable(). The top-level cycle has
+  // no sentinel — wrapping past the last region returns to the first
+  // (see {@link cycleLen}).
   private regions: ScanRegion[] = [];
 
   // Stack of active scan frames. The last entry is the active frame.
@@ -1054,7 +1196,7 @@ export class SwitchScanController {
   /**
    * Enable switch scan mode.
    *
-   * Phase 4: in auto mode the scanner enters in `autoState === 'idle'`
+   * In auto mode the scanner enters in `autoState === 'idle'`
    * — no timer is started. The highlight is rendered at the initial
    * frame so the user sees WHERE they'll be when scanning begins, but
    * nothing cycles until the user's first switch press transitions to
@@ -1078,7 +1220,7 @@ export class SwitchScanController {
 
     // Bind keyboard + viewport-change events.
     // Capture-phase keydown so we run BEFORE Blockly's container-level
-    // shortcut handler. Required during Phase 3 Move mode: if the
+    // shortcut handler. Required during Move mode: if the
     // user's Advance switch happens to be Space or Enter, those keys
     // are ALSO bound to Blockly's `finish_move` / `enter` shortcuts.
     // Without capture-phase intercept, pressing Advance during a move
@@ -1108,7 +1250,7 @@ export class SwitchScanController {
       this.tearDownOverlaysForRun();
     } else {
       // Initial render so the user sees the highlight immediately.
-      // Phase 5: don't speak here — there's been no user gesture yet,
+      // Don't speak here — there's been no user gesture yet,
       // so the browser would either silently swallow the utterance or
       // (worse) start talking the moment the page loads. The first
       // real speak happens on the user's first advance/select press.
@@ -1141,14 +1283,14 @@ export class SwitchScanController {
       this.reflowRafHandle = null;
     }
 
-    // Phase 4: clear any auto-scan timer so a `disable()` mid-scanning
+    // Clear any auto-scan timer so a `disable()` mid-scanning
     // doesn't leave the interval firing into a torn-down controller.
     // Reset autoState so a subsequent enable() starts idle again
     // (matches `enable()`'s contract — fresh idle scanner per session).
     this.clearAutoTimer();
     this.autoState = 'idle';
 
-    // Phase 5: silence any in-progress utterance so a disable doesn't
+    // Silence any in-progress utterance so a disable doesn't
     // leave the voice talking over a now-hidden highlight.
     this.tts?.cancel();
 
@@ -1292,7 +1434,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — update the scan mode (and optionally the auto-scan
+   * Update the scan mode (and optionally the auto-scan
    * speed) without tearing down scan state.
    *
    * Called by the settings panel's Save handler so a mode toggle takes
@@ -1372,7 +1514,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Wire the controller to the TTS helper (Phase 5).
+   * Wire the controller to the TTS helper.
    *
    * Same structural-type pattern as {@link setSettings} — the
    * controller doesn't import {@link SwitchScanTts} directly so the
@@ -1387,7 +1529,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Speak the label for the currently-highlighted item (Phase 5).
+   * Speak the label for the currently-highlighted item.
    *
    * Exposed publicly so the host page can confirm a settings toggle
    * by speaking the current label as soon as audio is enabled — the
@@ -1517,7 +1659,7 @@ export class SwitchScanController {
 
     this.sentinelChip = document.createElement('div');
     this.sentinelChip.className = 'switch-scan-sentinel';
-    this.sentinelChip.textContent = '↺ Back to top';
+    this.sentinelChip.textContent = '↩ Back';
     this.sentinelChip.style.display = 'none';
     document.body.appendChild(this.sentinelChip);
 
@@ -1573,12 +1715,11 @@ export class SwitchScanController {
   /**
    * Cycle length for a given frame.
    *
-   * Sub-scan frames append a sentinel "Back to top" slot so the user has
+   * Sub-scan frames append a sentinel "Back" slot so the user has
    * an explicit way to bail out without committing an action. The top-
    * level frame does NOT carry a sentinel — wrapping past the last real
-   * region already returns the user to the start, so an extra
-   * "back to top" step would just add a dead beat to the cycle every
-   * pass.
+   * region already returns the user to the start, so an extra "Back"
+   * step would just add a dead beat to the cycle every pass.
    *
    * @param frame
    */
@@ -1599,11 +1740,11 @@ export class SwitchScanController {
 
   /**
    * Derive a human-readable label for the currently-highlighted item
-   * (Phase 5 TTS). Returns `null` when there's no meaningful string to
+   * (TTS). Returns `null` when there's no meaningful string to
    * read (e.g. defensive cases where the active frame is missing).
    *
    * Label source by frame kind:
-   *  - sentinel slot of any frame → "Back to top" (mirrors the chip's
+   *  - sentinel slot of any frame → "Back" (mirrors the chip's
    *    on-screen text so the audio + visual cues match).
    *  - `top` at a real region → the region's `name` ("header",
    *    "toolbox", "workspace", "maze-actions"). The names are
@@ -1642,13 +1783,13 @@ export class SwitchScanController {
    *  - `top` at a real region → region's `getRect()` outline.
    *  - `top` at sentinel       → sentinel chip.
    *  - `dom-items` at an item  → item's `getBoundingClientRect()`.
-   *  - `dom-items` at sentinel → sentinel chip (same "Back to top"
+   *  - `dom-items` at sentinel → sentinel chip (same "Back"
    *    affordance — pops the frame instead of resetting index).
    *  - `blocks` at a block     → block SVG root's bounding rect
    *    (viewport coordinates work with our `position: fixed` outline).
    *  - `blocks` at sentinel    → sentinel chip.
    *
-   * Phase 5: after positioning the highlight, also asks the TTS helper
+   * After positioning the highlight, also asks the TTS helper
    * to speak the current item's label (if non-null). The helper handles
    * the cancel-and-replace contract internally so rapid advances don't
    * queue a backlog. The `speak` option is set to `false` by the
@@ -1684,7 +1825,7 @@ export class SwitchScanController {
       this.autoIdleChip.style.display = showIdleChip ? 'block' : 'none';
     }
 
-    // Phase 5: speak the current label, unless this render was
+    // Speak the current label, unless this render was
     // triggered by a non-user reflow (resize/scroll) where re-speaking
     // would be noisy. The helper handles cancel-and-replace and the
     // disabled-state no-op, so we don't branch on those here.
@@ -1714,7 +1855,7 @@ export class SwitchScanController {
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
       this.highlightEl.style.display = 'none';
-      this.sentinelChip.style.display = 'block';
+      this.applySentinelChip(frame);
       if (shouldSpeak) this.speakCurrentLabel();
       return;
     }
@@ -1739,6 +1880,40 @@ export class SwitchScanController {
     this.highlightEl.style.height = `${rect.height}px`;
 
     if (shouldSpeak) this.speakCurrentLabel();
+  }
+
+  /**
+   * Position the sentinel chip for the given sentinel-slot frame.
+   * Thin controller-side wrapper: resolves the strategy's last-item
+   * rect (by probing `rectAt` at the index just before the sentinel)
+   * and the preferred flow direction, then delegates to the module-
+   * level {@link applySentinelChip} placement helper.
+   *
+   * @param frame The active sentinel-slot frame.
+   */
+  private applySentinelChip(frame: ScanFrame): void {
+    if (!this.sentinelChip) return;
+    const strategy = strategyFor(frame);
+    const ctx = this.getStrategyCtx();
+    const cycleLen = strategy.cycleLen(frame as never, ctx);
+    // Sentinel-bearing frames use cycleLen = items.length + 1; the
+    // last real item sits one index below the sentinel.
+    const lastRealIndex = cycleLen - 2;
+    const lastItemRect = lastRealIndex >= 0
+      ? strategy.rectAt(
+          {...frame, index: lastRealIndex} as never,
+          ctx,
+        )
+      : null;
+    const horizontal =
+      strategy.preferredDirection(frame as never, ctx) === 'horizontal';
+    applySentinelChip(
+      this.sentinelChip,
+      lastItemRect,
+      horizontal,
+      window.innerWidth,
+      window.innerHeight,
+    );
   }
 
   /**
@@ -1770,12 +1945,12 @@ export class SwitchScanController {
    */
   private handleRunStart(): void {
     this.executing = true;
-    // Phase 5: cut off any in-progress utterance so the speech voice
+    // Cut off any in-progress utterance so the speech voice
     // doesn't keep talking over the maze animation. The TTS helper's
     // own no-op-when-disabled behavior makes this safe to call
     // unconditionally.
     this.tts?.cancel();
-    // Phase 4: pause the auto-scan timer and drop back to idle. The
+    // Pause the auto-scan timer and drop back to idle. The
     // scanner has no business cycling while the user watches their
     // program execute; `handleRunEnd` leaves us idle so the user
     // re-arms scanning with a fresh switch press, matching the design
@@ -1795,7 +1970,7 @@ export class SwitchScanController {
    * a run, the highlight is always back at the top, ready for the
    * next interaction.
    *
-   * Phase 4: in auto mode we leave `autoState === 'idle'` (handleRunStart
+   * In auto mode we leave `autoState === 'idle'` (handleRunStart
    * already cleared the timer). The user's next switch press re-arms
    * the timer, matching the design doc's "resumes idle after Reset" —
    * we interpret that as "the scanner becomes idle after any run end,
@@ -1888,7 +2063,7 @@ export class SwitchScanController {
       // re-render on a clean top-frame anyway, and resizing mid-run
       // shouldn't pop the scanner back on top of the animation.
       if (this.executing) return;
-      // Phase 5: reflow renders shouldn't re-speak the current item —
+      // Reflow renders shouldn't re-speak the current item —
       // the scan position hasn't changed, only the geometry has.
       this.renderHighlight({speak: false});
     });
@@ -1988,7 +2163,7 @@ export class SwitchScanController {
     }
 
     if (this.scanMode === 'auto') {
-      // Phase 4: single-switch auto-scan. The advance key is the ONLY
+      // Single-switch auto-scan. The advance key is the ONLY
       // input — its meaning depends on `autoState`:
       //  - `idle`  → start the timer (no other side effect; the user's
       //              press is consumed as the "wake up" gesture, NOT a
@@ -2050,7 +2225,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — start the auto-advance interval timer.
+   * Start the auto-advance interval timer.
    *
    * Idempotent: if a timer is already running, the existing one is
    * cleared first so we never end up with two intervals racing. The
@@ -2081,7 +2256,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — stop the auto-advance interval timer if one is running.
+   * Stop the auto-advance interval timer if one is running.
    *
    * Does NOT flip `autoState` — the caller owns that decision. Used by
    * `handleRunStart` (run pauses scanning), `handleRunEnd` (back to
@@ -2511,7 +2686,7 @@ export class SwitchScanController {
 
   /**
    * Push a `dropdown-values` sub-scan over a HEADER dropdown source
-   * (Phase 3 Step 2 — Character / Language).
+   * (Character / Language).
    *
    * Mirrors {@link enterDropdownValues} for the Block-Edit case but
    * anchors the menu off the header button rather than a workspace
@@ -2709,13 +2884,17 @@ export class SwitchScanController {
     }
 
     // Floating Cancel chip — visually the sentinel slot of the cycle.
-    // Reuses the existing sentinel chip styling so the affordance reads
-    // consistently with the rest of the scanner. Anchored bottom-right
-    // by the shared class; the chip itself is what the highlight outlines
-    // when index === candidates.length.
+    // Reuses the sentinel chip styling so the affordance reads
+    // consistently with the rest of the scanner, with an inline bottom-
+    // right anchor since the shared class leaves positioning to the
+    // caller. The chip itself is what the highlight outlines when
+    // index === candidates.length.
     const cancelChipEl = document.createElement('div');
     cancelChipEl.className = 'switch-scan-sentinel';
     cancelChipEl.textContent = '✕ Cancel';
+    cancelChipEl.style.bottom = '16px';
+    cancelChipEl.style.right = '16px';
+    cancelChipEl.style.transform = 'none';
     document.body.appendChild(cancelChipEl);
 
     this.frameStack.push({
@@ -2786,3 +2965,17 @@ export class SwitchScanController {
     return this as unknown as StrategyCtx;
   }
 }
+
+/**
+ * Internal surface exposed for unit tests only. Not for production use —
+ * the strategy registry and sentinel-chip placement function are
+ * module-private because the controller is the only production caller.
+ * Tests reach them through this handle so the strategy policy and chip
+ * placement policy can be exercised without standing up a full
+ * controller + Blockly workspace.
+ */
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export const __testOnly = {
+  STRATEGIES,
+  applySentinelChip,
+};
