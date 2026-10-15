@@ -72,6 +72,17 @@ export class ConnectionHighlighter {
   /** Set of blocks that have highlights, used to detect overlapping descendants. */
   private highlightedBlocks: Set<BlockSvg> = new Set();
 
+  /**
+   * Snapshot of the `(local, neighbour, distance)` pairs drawn by the
+   * most recent `highlightValidConnections` call. Exposed via
+   * {@link getLastValidConnections} so external drivers (e.g. the maze
+   * game's switch-scan controller) can use the drawn highlights as the
+   * source of truth for their scan candidate list — avoiding the drift
+   * that occurs when a parallel enumeration runs on a different block
+   * state than the highlighter saw.
+   */
+  private lastValidConnections: ValidConnection[] = [];
+
   constructor(
     workspace: WorkspaceSvg,
     onConnectionClick?: (connection: RenderedConnection) => void,
@@ -143,6 +154,7 @@ export class ConnectionHighlighter {
       allConnections,
       localConnections,
     );
+    this.lastValidConnections = validConnections;
 
     // Apply visual highlighting to each valid connection
     // Sort by AST depth (parents first) so child highlights are added after and render on top
@@ -964,6 +976,24 @@ export class ConnectionHighlighter {
 
     this.highlightedElements.clear();
     this.highlightedBlocks.clear();
+    this.lastValidConnections = [];
+  }
+
+  /**
+   * Returns the `(local, neighbour, distance)` pairs produced by the
+   * most recent {@link highlightValidConnections} call — the drawn
+   * highlights, in the same order the highlighter processed them.
+   *
+   * Switch-scan uses this to drive its scan candidate list from the
+   * same source of truth as the on-screen green dots, avoiding drift
+   * between what the user sees as valid targets and what the scan
+   * cursor actually visits. Returns an empty array when no highlight
+   * pass has run (or after {@link clearHighlights}).
+   *
+   * @returns A fresh array of the last-drawn valid connections.
+   */
+  getLastValidConnections(): ValidConnection[] {
+    return this.lastValidConnections.slice();
   }
 
   /**

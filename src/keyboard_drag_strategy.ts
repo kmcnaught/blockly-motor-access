@@ -130,11 +130,15 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
       );
     }
 
+    // Pin the dragging block to its pre-drag location — super.startDrag
+    // has detached it, and without this call Blockly's base behaviour
+    // leaves it floating wherever the drag start computed. Needed in
+    // switch-scan mode too, otherwise the block visually pops to a new
+    // position with no preview motion to explain it.
+    // @ts-expect-error block and startLoc are private.
+    this.block.moveDuringDrag(this.startLoc);
+
     if (!this.switchScanMode) {
-      // Set position of the dragging block, so that it doesn't pop
-      // to the top left of the workspace.
-      // @ts-expect-error block and startLoc are private.
-      this.block.moveDuringDrag(this.startLoc);
       // @ts-expect-error connectionCandidate is private.
       this.connectionCandidate = this.createInitialCandidate();
       // @ts-expect-error connectionCandidate is private.

@@ -2959,11 +2959,18 @@ export class SwitchScanController {
    * "Cancel" chip anchored near the block.
    *
    * Delegates to Blockly's native move mode (via `Mover.startMove` with
-   * `switchScanMode: true`) when a Mover is wired in. That path draws
-   * the green connection highlights, keeps the block visually at origin
-   * (switch-scan supplies its own scan cursor over the highlights), and
-   * routes commit/abort through the Mover so Events-group bookkeeping
-   * matches the keyboard-move path exactly.
+   * `switchScanMode: true`) when a Mover is wired in. That path paints
+   * the green connection highlights via `ConnectionHighlighter`. The
+   * scan candidate list is then read back from the highlighter so it
+   * cannot drift from what the user sees — a parallel enumeration on
+   * the pre-startMove block state misses the slots the moving block
+   * just vacated, producing a scan cycle shorter than the drawn
+   * highlights.
+   *
+   * The block stays visually at origin: `switchScanMode: true`
+   * suppresses the keyboard-mode preview offset, and the drag
+   * strategy's `moveDuringDrag(startLoc)` call keeps the block pinned
+   * through the detach that `super.startDrag` performs.
    *
    * @param block
    * @param topLevelIndex
@@ -2977,26 +2984,24 @@ export class SwitchScanController {
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
 
-    const candidates = this.enumerateValidConnectionTargets(block);
-    if (candidates.length === 0) {
-      // Defensive: the action menu only surfaces Move when at least one
-      // candidate exists, so we shouldn't get here. Bail back to the
-      // same region so the user can try something else.
+    // Gate: the action menu surfaces "Move" only when at least one
+    // candidate exists, but defend against a race (workspace mutation
+    // between menu open and action pick). This enumeration runs on the
+    // still-connected block and is only used to decide "should we
+    // enter move mode at all"; the authoritative scan list comes from
+    // the highlighter below.
+    if (this.enumerateValidConnectionTargets(block).length === 0) {
       this.popToSameRegion(topLevelIndex);
       return;
     }
 
     // Enter native move mode so the connection highlighter paints green
-    // dots on every valid target. The scan cursor hops those dots
-    // (handled in later steps' rectAt / handleSelect updates); the
-    // block itself stays at origin because `switchScanMode: true`
-    // suppresses the preview offset the keyboard flow uses.
-    //
-    // Mover.canMove requires the plugin to be in WORKSPACE state, but
-    // at this point focus is on the action-menu DOM. Refocus the block
-    // first so the state check passes; the switch-scan key handler will
-    // reclaim event routing on the next keydown via its capture-phase
-    // listener.
+    // dots on every valid target. Mover.canMove requires WORKSPACE
+    // focus state, but at this point the action-menu DOM has focus —
+    // refocus the block first so canMove passes. The switch-scan key
+    // handler is capture-phase on document, so it reclaims routing on
+    // the next keydown regardless.
+    let candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}> = [];
     if (this.mover) {
       Blockly.getFocusManager().focusNode(block);
       if (!this.mover.canMove(this.workspace, block)) {
@@ -3016,14 +3021,42 @@ export class SwitchScanController {
         this.popToSameRegion(topLevelIndex);
         return;
       }
+      // Read the scan list back from the drawn highlights so the two
+      // can't diverge: ConnectionHighlighter sees the block *after*
+      // super.startDrag detached it (slots the block vacated become
+      // free), which a pre-startMove enumeration would have filtered
+      // out as "occupied".
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dragStrategy = (block as any).dragStrategy as
+        | {connectionHighlighter?: {getLastValidConnections?: () => Array<{local: Blockly.RenderedConnection; neighbour: Blockly.RenderedConnection}>}}
+        | undefined;
+      const highlighted =
+        dragStrategy?.connectionHighlighter?.getLastValidConnections?.() ?? [];
+      candidates = highlighted.map((vc) => ({local: vc.local, target: vc.neighbour}));
+    } else {
+      // Fallback for embedders without a Mover (tests, non-maze demos):
+      // use the pre-startMove enumeration. The two-source divergence
+      // doesn't apply here because no native move mode is entered.
+      candidates = this.enumerateValidConnectionTargets(block);
     }
 
-    // Floating Cancel chip — visually the sentinel slot of the cycle.
-    // Reuses the sentinel chip styling so the affordance reads
-    // consistently with the rest of the scanner, with an inline bottom-
-    // right anchor since the shared class leaves positioning to the
-    // caller. The chip itself is what the highlight outlines when
-    // index === candidates.length.
+    if (candidates.length === 0) {
+      // No highlights were drawn (e.g. the renderer's highlight layer
+      // isn't available). Abort the move we started and bail — leaving
+      // the user mid-move with a Cancel chip and nothing to scan is a
+      // trap.
+      if (this.mover?.isMoving(this.workspace)) {
+        this.mover.abortMove(this.workspace);
+      }
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+
+    // Floating Cancel chip — the sentinel slot of the cycle. Shared
+    // class with other sub-scans' sentinel chips; the chip itself is
+    // what the highlight outlines when index === candidates.length.
+    // A later commit repositions this near the block via inline styles
+    // in renderHighlight.
     const cancelChipEl = document.createElement('div');
     cancelChipEl.className = 'switch-scan-sentinel';
     cancelChipEl.textContent = '✕ Cancel';
