@@ -1019,6 +1019,21 @@ export class ConnectionHighlighter {
   }
 
   /**
+   * Return the connection this highlight element represents, or null if
+   * the element isn't a tracked highlight. Switch-scan uses this to
+   * route "click a green dot to commit" through its own
+   * `handleSelect` path — otherwise the dot's own click handler would
+   * fire the Mover's commit via a parallel route that switch-scan has
+   * no hook into for frame cleanup.
+   *
+   * @param element A DOM element the caller suspects is a drawn highlight.
+   * @returns The target `RenderedConnection`, or `null` if not tracked.
+   */
+  getConnectionForElement(element: Element): RenderedConnection | null {
+    return this.elementToConnection.get(element) ?? null;
+  }
+
+  /**
    * Updates highlight positions based on workspace scroll and zoom.
    */
   updateHighlights(): void {

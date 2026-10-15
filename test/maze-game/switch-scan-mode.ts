@@ -2189,10 +2189,50 @@ export class SwitchScanController {
    *
    * @param _e Unused; the handler reacts purely to active-frame state.
    */
-  private onOutsidePointerDown(_e: PointerEvent): void {
+  private onOutsidePointerDown(e: PointerEvent): void {
     if (!this.enabled) return;
     const frame = this.activeFrame();
     if (!frame) return;
+
+    // Click-to-commit on move-candidates: if the pointerdown landed on
+    // one of the drawn green connection highlights, route it through
+    // our own `handleSelect` for that candidate (same path the scan
+    // Enter press uses) rather than popping the frame as a dismiss.
+    // Stops propagation so the highlight's own click handler doesn't
+    // ALSO fire — that handler commits via `KeyboardDragStrategy`'s
+    // own path and would leave our frame stack holding a stale
+    // reference to a finished move.
+    if (
+      frame.kind === 'move-candidates' &&
+      this.mover &&
+      e.target instanceof Element
+    ) {
+      const highlightEl = e.target.closest('.blocklyPotentialConnection');
+      if (highlightEl) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dragStrategy = (frame.block as any).dragStrategy as
+          | {connectionHighlighter?: {getConnectionForElement?: (el: Element) => Blockly.RenderedConnection | null}}
+          | undefined;
+        const clicked =
+          dragStrategy?.connectionHighlighter?.getConnectionForElement?.(
+            highlightEl,
+          ) ?? null;
+        if (clicked) {
+          const idx = frame.candidates.findIndex((p) => p.target === clicked);
+          if (idx >= 0) {
+            e.stopPropagation();
+            e.preventDefault();
+            frame.index = idx;
+            strategyFor(frame).handleSelect(
+              frame as never,
+              this.getStrategyCtx(),
+            );
+            return;
+          }
+        }
+      }
+    }
+
     if (
       frame.kind === 'action-menu' ||
       frame.kind === 'dropdown-values' ||
@@ -3116,6 +3156,25 @@ export class SwitchScanController {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (a.target as any).x - (b.target as any).x;
       });
+      // Dedup by target workspace position: Blockly's unplug(healStack)
+      // reconnects the parent's NEXT to the next-sibling's PREVIOUS, so
+      // after detaching a middle block of a stack those two connections
+      // sit at the same visual point. ConnectionHighlighter emits one
+      // valid-pair per matching (local, neighbour), so we end up with
+      // two candidates whose targets are spatially coincident and whose
+      // commits produce the same insertion. Keeping both just adds a
+      // confusing "tiny nudge" scan stop. Quantize to integer workspace
+      // coords and keep the first entry seen per cell.
+      const uniqByPosition: typeof candidates = [];
+      const seenPositions = new Set<string>();
+      for (const pair of candidates) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const key = `${Math.round((pair.target as any).x)},${Math.round((pair.target as any).y)}`;
+        if (seenPositions.has(key)) continue;
+        seenPositions.add(key);
+        uniqByPosition.push(pair);
+      }
+      candidates = uniqByPosition;
       const blockY = block.getRelativeToSurfaceXY().y;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const startIdx = candidates.findIndex((p) => (p.target as any).y > blockY);
