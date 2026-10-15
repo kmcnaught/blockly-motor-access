@@ -1975,16 +1975,15 @@ export class SwitchScanController {
       }
     }
 
-    // Keep the move-candidates Cancel chip pinned to the moving block
-    // on every render — scrolling / zooming / scan cycling would
-    // otherwise drift the chip away from the block it refers to.
-    // Offset to the right of the block so the chip doesn't overlap
-    // the column of green connection highlights that hang off the
-    // left edge of the stack (previous / next notches).
+    // Keep the move-candidates Cancel chip pinned directly right of
+    // the moving block on every render — scrolling / zooming / scan
+    // cycling would otherwise drift the chip away. Top-aligned with
+    // the block so the chip reads as "beside this block" and doesn't
+    // disrupt the top-to-bottom visual order of the scan sweep.
     if (frame.kind === 'move-candidates') {
       const blockRect = this.getSingleBlockViewportRect(frame.block);
       if (blockRect && blockRect.width > 0 && blockRect.height > 0) {
-        frame.cancelChipEl.style.top = `${blockRect.bottom + 10}px`;
+        frame.cancelChipEl.style.top = `${blockRect.top}px`;
         frame.cancelChipEl.style.left = `${blockRect.right + 20}px`;
       }
     }
