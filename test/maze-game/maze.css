@@ -1191,9 +1191,8 @@ body.grid-coding-mode .switch-access-section {
   font-style: italic;
 }
 
-/* Dim Phase 4 (scan speed) + Phase 5 (audio) sections so they're
-   visibly inert in Step A. Step B onwards may enable the relevant
-   bits per mode. */
+/* Dim the scan-speed + audio sections so they're visibly inert
+   when the relevant mode doesn't enable them. */
 .switch-settings-disabled {
   opacity: 0.5;
 }
@@ -1203,9 +1202,8 @@ body.grid-coding-mode .switch-access-section {
   cursor: not-allowed;
 }
 
-/* Switch B group is hidden when the user picks auto-scan mode (Step B
-   UI; the Phase 4 timer that actually drives auto-scan isn't built
-   yet). Scoped to the group id so we don't fight the generic .hidden
+/* Switch B group is hidden when the user picks auto-scan mode.
+   Scoped to the group id so we don't fight the generic .hidden
    rules elsewhere. */
 #switchBGroup.hidden {
   display: none;

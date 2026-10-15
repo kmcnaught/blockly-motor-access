@@ -106,7 +106,7 @@ interface SwitchScanSettingsLike {
 }
 
 /**
- * Minimal contract the controller needs from the TTS helper (Phase 5).
+ * Minimal contract the controller needs from the TTS helper.
  * Kept as a structural type so the controller doesn't pull in
  * `SpeechSynthesisUtterance` types or care about the feature-detect
  * branch — it just speaks / cancels and lets the helper figure out
@@ -119,7 +119,7 @@ interface SwitchScanTtsLike {
 }
 
 /**
- * One end of the header-dropdown wiring (Phase 3 Step 2).
+ * One end of the header-dropdown wiring.
  *
  * A header button tagged `data-scan-dropdown-source="<name>"` (e.g.
  * `#pegmanButton`, `#languageSelect`) opens a NATIVE popover when
@@ -163,7 +163,7 @@ export interface HeaderDropdownSource {
  * `'Enter'` for Enter). Human-readable aliases like `'Space'` are also
  * accepted (see {@link normalizeKey}).
  *
- * Phase 4: `scanMode` toggles between two-switch step scan (the default)
+ * `scanMode` toggles between two-switch step scan (the default)
  * and single-switch auto scan. In auto mode only the advance key is
  * consulted — the first press starts a self-paced timer that advances
  * the highlight every `scanSpeedMs` milliseconds; subsequent presses
@@ -171,7 +171,7 @@ export interface HeaderDropdownSource {
  * entirely under `scanMode === 'auto'` (Switch B is hidden in the
  * settings panel and unused in this flow).
  *
- * Phase 3 Step 2: `headerDropdowns` registers per-source providers
+ * `headerDropdowns` registers per-source providers
  * keyed by the `data-scan-dropdown-source` attribute on a header
  * button. When the user selects such a button in the header sub-scan,
  * the controller opens a `dropdown-values` sub-scan over the source's
@@ -372,10 +372,10 @@ type ScanFrame =
   | {
       // The `dropdown-values` frame is used for TWO entry paths that
       // share the same visual menu + cycle semantics:
-      //  1. Block Edit (Phase 1): `block` + `field` are set, and the
+      //  1. Block Edit: `block` + `field` are set, and the
       //     commit path calls `field.setValue(value)`. `anchor` is the
       //     workspace block being edited (menu sits below it).
-      //  2. Header dropdown (Phase 3 Step 2 — Character / Language):
+      //  2. Header dropdown (Character / Language):
       //     `commitHandler` is set; `block` / `field` are absent. The
       //     anchor is the header button (`#pegmanButton` or the
       //     `<select id="languageSelect">`), so the menu drops below
@@ -392,9 +392,9 @@ type ScanFrame =
       >;
       index: number;
       topLevelIndex: number;
-      // Phase 3 Step 2: optional commit override for header dropdowns.
+      // Optional commit override for header dropdowns.
       // When set, takes precedence over `field.setValue`. The block-
-      // Edit path leaves this unset, preserving the original behavior.
+      // Edit path leaves this unset.
       commitHandler?: (value: string) => void;
     }
   | {
@@ -600,7 +600,7 @@ const STRATEGIES: Strategies = {
         return;
       }
       const item = frame.items[frame.index];
-      // Phase 3 Step 2: header dropdowns. Some header items open a
+      // Header dropdowns. Some header items open a
       // native popover (`<select>`, the custom #pegmanMenu) that the
       // switch scanner can't reach. Those items are tagged with
       // `data-scan-dropdown-source="<name>"`; if a matching provider
@@ -753,8 +753,8 @@ const STRATEGIES: Strategies = {
     labelAt: (frame) => {
       if (frame.index === frame.items.length) return 'Back';
       // The menu rows carry their human-readable label directly. No
-      // i18n today (matches the visual rendering — Phase 5 doesn't
-      // localize menu chrome).
+      // i18n today (matches the visual rendering — the TTS layer
+      // doesn't localize menu chrome).
       const item = frame.items[frame.index];
       return item?.label ?? null;
     },
@@ -898,7 +898,7 @@ const STRATEGIES: Strategies = {
       if (option) {
         try {
           if (frame.commitHandler) {
-            // Phase 3 Step 2 — header dropdowns. The provider owns the
+            // Header dropdowns. The provider owns the
             // semantics (changePegman vs. dispatch change on
             // languageSelect); we just hand it the chosen value.
             frame.commitHandler(option[1]);
@@ -1050,11 +1050,10 @@ export class SwitchScanController {
   private switchSelect = 'Enter';
   private switchBack = 'Escape';
 
-  // Phase 4 — single-switch auto-scan state.
+  // Single-switch auto-scan state.
   //
-  // `scanMode === 'step'` is the original two-switch flow: advance key
-  // bumps the highlight, select key acts on the current item. Behavior
-  // is byte-identical to pre-Phase-4 for step-mode users.
+  // `scanMode === 'step'` is the two-switch flow: advance key
+  // bumps the highlight, select key acts on the current item.
   //
   // `scanMode === 'auto'` is the single-switch flow described in
   // PLAN_switch_scanning.md §"Auto-Scan Behavior (one-switch mode)":
@@ -1082,7 +1081,7 @@ export class SwitchScanController {
   // down while the modal's live key-capture is reading the next press.
   private settings: SwitchScanSettingsLike | null = null;
 
-  // TTS helper (Phase 5). Optional: when null, the controller never
+  // TTS helper. Optional: when null, the controller never
   // emits speak calls. When set, every renderHighlight() will derive
   // a label for the current item and ask the helper to speak it; the
   // helper itself decides whether to emit based on its enabled flag.
@@ -1090,7 +1089,7 @@ export class SwitchScanController {
   // doesn't need to worry about queueing.
   private tts: SwitchScanTtsLike | null = null;
 
-  // Phase 3 Step 2 — providers for header dropdowns (Character /
+  // Providers for header dropdowns (Character /
   // Language). Keyed by the `data-scan-dropdown-source` attribute on
   // the header button. Populated from {@link SwitchScanOptions} at
   // construction; left as an empty record when no header dropdowns
@@ -1181,7 +1180,7 @@ export class SwitchScanController {
   /**
    * Enable switch scan mode.
    *
-   * Phase 4: in auto mode the scanner enters in `autoState === 'idle'`
+   * In auto mode the scanner enters in `autoState === 'idle'`
    * — no timer is started. The highlight is rendered at the initial
    * frame so the user sees WHERE they'll be when scanning begins, but
    * nothing cycles until the user's first switch press transitions to
@@ -1201,7 +1200,7 @@ export class SwitchScanController {
 
     // Bind keyboard + viewport-change events.
     // Capture-phase keydown so we run BEFORE Blockly's container-level
-    // shortcut handler. Required during Phase 3 Move mode: if the
+    // shortcut handler. Required during Move mode: if the
     // user's Advance switch happens to be Space or Enter, those keys
     // are ALSO bound to Blockly's `finish_move` / `enter` shortcuts.
     // Without capture-phase intercept, pressing Advance during a move
@@ -1230,7 +1229,7 @@ export class SwitchScanController {
       this.tearDownOverlaysForRun();
     } else {
       // Initial render so the user sees the highlight immediately.
-      // Phase 5: don't speak here — there's been no user gesture yet,
+      // Don't speak here — there's been no user gesture yet,
       // so the browser would either silently swallow the utterance or
       // (worse) start talking the moment the page loads. The first
       // real speak happens on the user's first advance/select press.
@@ -1260,14 +1259,14 @@ export class SwitchScanController {
       this.reflowRafHandle = null;
     }
 
-    // Phase 4: clear any auto-scan timer so a `disable()` mid-scanning
+    // Clear any auto-scan timer so a `disable()` mid-scanning
     // doesn't leave the interval firing into a torn-down controller.
     // Reset autoState so a subsequent enable() starts idle again
     // (matches `enable()`'s contract — fresh idle scanner per session).
     this.clearAutoTimer();
     this.autoState = 'idle';
 
-    // Phase 5: silence any in-progress utterance so a disable doesn't
+    // Silence any in-progress utterance so a disable doesn't
     // leave the voice talking over a now-hidden highlight.
     this.tts?.cancel();
 
@@ -1409,7 +1408,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — update the scan mode (and optionally the auto-scan
+   * Update the scan mode (and optionally the auto-scan
    * speed) without tearing down scan state.
    *
    * Called by the settings panel's Save handler so a mode toggle takes
@@ -1489,7 +1488,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Wire the controller to the TTS helper (Phase 5).
+   * Wire the controller to the TTS helper.
    *
    * Same structural-type pattern as {@link setSettings} — the
    * controller doesn't import {@link SwitchScanTts} directly so the
@@ -1504,7 +1503,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Speak the label for the currently-highlighted item (Phase 5).
+   * Speak the label for the currently-highlighted item.
    *
    * Exposed publicly so the host page can confirm a settings toggle
    * by speaking the current label as soon as audio is enabled — the
@@ -1679,7 +1678,7 @@ export class SwitchScanController {
 
   /**
    * Derive a human-readable label for the currently-highlighted item
-   * (Phase 5 TTS). Returns `null` when there's no meaningful string to
+   * (TTS). Returns `null` when there's no meaningful string to
    * read (e.g. defensive cases where the active frame is missing).
    *
    * Label source by frame kind:
@@ -1728,7 +1727,7 @@ export class SwitchScanController {
    *    (viewport coordinates work with our `position: fixed` outline).
    *  - `blocks` at sentinel    → sentinel chip.
    *
-   * Phase 5: after positioning the highlight, also asks the TTS helper
+   * After positioning the highlight, also asks the TTS helper
    * to speak the current item's label (if non-null). The helper handles
    * the cancel-and-replace contract internally so rapid advances don't
    * queue a backlog. The `speak` option is set to `false` by the
@@ -1763,7 +1762,7 @@ export class SwitchScanController {
       this.autoIdleChip.style.display = showIdleChip ? 'block' : 'none';
     }
 
-    // Phase 5: speak the current label, unless this render was
+    // Speak the current label, unless this render was
     // triggered by a non-user reflow (resize/scroll) where re-speaking
     // would be noisy. The helper handles cancel-and-replace and the
     // disabled-state no-op, so we don't branch on those here.
@@ -1862,12 +1861,12 @@ export class SwitchScanController {
    */
   private handleRunStart(): void {
     this.executing = true;
-    // Phase 5: cut off any in-progress utterance so the speech voice
+    // Cut off any in-progress utterance so the speech voice
     // doesn't keep talking over the maze animation. The TTS helper's
     // own no-op-when-disabled behavior makes this safe to call
     // unconditionally.
     this.tts?.cancel();
-    // Phase 4: pause the auto-scan timer and drop back to idle. The
+    // Pause the auto-scan timer and drop back to idle. The
     // scanner has no business cycling while the user watches their
     // program execute; `handleRunEnd` leaves us idle so the user
     // re-arms scanning with a fresh switch press, matching the design
@@ -1887,7 +1886,7 @@ export class SwitchScanController {
    * a run, the highlight is always back at the top, ready for the
    * next interaction.
    *
-   * Phase 4: in auto mode we leave `autoState === 'idle'` (handleRunStart
+   * In auto mode we leave `autoState === 'idle'` (handleRunStart
    * already cleared the timer). The user's next switch press re-arms
    * the timer, matching the design doc's "resumes idle after Reset" —
    * we interpret that as "the scanner becomes idle after any run end,
@@ -1940,7 +1939,7 @@ export class SwitchScanController {
       // re-render on a clean top-frame anyway, and resizing mid-run
       // shouldn't pop the scanner back on top of the animation.
       if (this.executing) return;
-      // Phase 5: reflow renders shouldn't re-speak the current item —
+      // Reflow renders shouldn't re-speak the current item —
       // the scan position hasn't changed, only the geometry has.
       this.renderHighlight({speak: false});
     });
@@ -2040,7 +2039,7 @@ export class SwitchScanController {
     }
 
     if (this.scanMode === 'auto') {
-      // Phase 4: single-switch auto-scan. The advance key is the ONLY
+      // Single-switch auto-scan. The advance key is the ONLY
       // input — its meaning depends on `autoState`:
       //  - `idle`  → start the timer (no other side effect; the user's
       //              press is consumed as the "wake up" gesture, NOT a
@@ -2102,7 +2101,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — start the auto-advance interval timer.
+   * Start the auto-advance interval timer.
    *
    * Idempotent: if a timer is already running, the existing one is
    * cleared first so we never end up with two intervals racing. The
@@ -2133,7 +2132,7 @@ export class SwitchScanController {
   }
 
   /**
-   * Phase 4 — stop the auto-advance interval timer if one is running.
+   * Stop the auto-advance interval timer if one is running.
    *
    * Does NOT flip `autoState` — the caller owns that decision. Used by
    * `handleRunStart` (run pauses scanning), `handleRunEnd` (back to
@@ -2563,7 +2562,7 @@ export class SwitchScanController {
 
   /**
    * Push a `dropdown-values` sub-scan over a HEADER dropdown source
-   * (Phase 3 Step 2 — Character / Language).
+   * (Character / Language).
    *
    * Mirrors {@link enterDropdownValues} for the Block-Edit case but
    * anchors the menu off the header button rather than a workspace

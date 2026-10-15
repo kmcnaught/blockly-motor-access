@@ -115,10 +115,10 @@ const SWITCH_SCAN_LS_KEYS = {
   // Default 'Escape'; empty string disables the binding.
   back: 'mazeSwitchScan.switchBack',
   mode: 'mazeSwitchScan.mode',
-  // Phase 5: TTS on/off. Stored as the literal string 'on' / 'off'
+  // TTS on/off. Stored as the literal string 'on' / 'off'
   // so the resolver helper can compare without parsing.
   audio: 'mazeSwitchScan.audio',
-  // Phase 4: auto-scan period in ms. Stored as a string ("1500") so the
+  // Auto-scan period in ms. Stored as a string ("1500") so the
   // resolveSwitchScanSetting helper can reuse its string-typed plumbing;
   // parsing / clamping happens at the call site.
   scanSpeedMs: 'mazeSwitchScan.scanSpeedMs',
@@ -129,7 +129,7 @@ const SWITCH_SCAN_LS_KEYS = {
   enabled: 'mazeSwitchScan.enabled',
 } as const;
 
-// Phase 4 — auto-scan timing bounds. Match the slider's `min`/`max`/
+// Auto-scan timing bounds. Match the slider's `min`/`max`/
 // `step` in `index.html` so a hand-edited URL or stale localStorage
 // can't push the timer to an unusably fast (<500ms) or slow (>4s) period.
 const SCAN_SPEED_MIN_MS = 500;
@@ -183,10 +183,10 @@ const switchScanUrlOverrideActive =
   getStringParamFromUrl('switchSelect', '') !== '' ||
   getStringParamFromUrl('switchBack', '') !== '' ||
   getStringParamFromUrl('scanMode', '') !== '' ||
-  // Phase 5: scanAudio joins the URL-override family so the modal's
+  // scanAudio joins the URL-override family so the modal's
   // "URL settings active" note appears whenever audio is being forced.
   getStringParamFromUrl('scanAudio', '') !== '' ||
-  // Phase 4: scanSpeedMs joins the family for the same reason — a
+  // scanSpeedMs joins the family for the same reason — a
   // ?scanSpeedMs=… URL override should surface the "URL settings active"
   // note so the user understands why their saved value isn't winning.
   getStringParamFromUrl('scanSpeedMs', '') !== '';
@@ -231,7 +231,7 @@ const switchScanInitialMode: SwitchScanModeValue = (() => {
   return v === 'auto' ? 'auto' : 'step';
 })();
 
-// Phase 5 TTS — resolve `?scanAudio=on/off` > localStorage > 'off'.
+// TTS — resolve `?scanAudio=on/off` > localStorage > 'off'.
 // Stored as string ('on' / 'off') so the same resolver helper works;
 // converted to boolean here for the controller / settings interface.
 // Default is intentionally OFF (design doc lines 223-235): switch
@@ -245,7 +245,7 @@ const switchScanInitialAudio: boolean = (() => {
   return v === 'on';
 })();
 
-// Phase 4 — resolve `?scanSpeedMs=…` > localStorage > 1500.
+// Resolve `?scanSpeedMs=…` > localStorage > 1500.
 // Stored as a string for resolver consistency; parseInt + NaN fallback +
 // clamp to the slider's [SCAN_SPEED_MIN_MS, SCAN_SPEED_MAX_MS] range
 // keeps a corrupted LS entry or hand-edited URL from producing a runaway
@@ -2928,7 +2928,7 @@ function initializeGridCodingMode(): void {
 initializeGridCodingMode();
 
 /**
- * Phase 3 Step 2 — build the per-source providers the switch-scan
+ * Build the per-source providers the switch-scan
  * controller uses to open a sub-scan over header dropdowns.
  *
  * Two sources are registered:

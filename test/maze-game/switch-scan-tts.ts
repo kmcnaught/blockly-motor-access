@@ -5,7 +5,7 @@
  */
 
 /**
- * @fileoverview Switch Scan TTS helper (Phase 5).
+ * @fileoverview Switch Scan TTS helper.
  *
  * Thin wrapper around the Web Speech API used to read the currently
  * highlighted scan item aloud each time the user advances or selects.
