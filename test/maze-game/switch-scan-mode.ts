@@ -1213,6 +1213,13 @@ export class SwitchScanController {
   // that don't instantiate the keyboard-navigation plugin).
   private mover: Mover | null = null;
 
+  // Re-entry guard for teardownPoppedFrame's move-candidates abort.
+  // See the comment on that branch for why — short version: Mover
+  // events are synchronous and workspace listeners (including our own
+  // outside-pointerdown handler, via unrelated DOM paths) could pop
+  // again while we're still inside the first abort.
+  private tearingDownMove = false;
+
   // rAF handle for throttled reflow on resize/scroll, so we don't
   // re-render on every wheel tick.
   private reflowRafHandle: number | null = null;
@@ -1942,10 +1949,40 @@ export class SwitchScanController {
       }
     }
 
+    // Keep the move-candidates Cancel chip pinned to the moving block
+    // on every render — scrolling / zooming / scan cycling would
+    // otherwise drift the chip away from the block it refers to.
+    if (frame.kind === 'move-candidates') {
+      const blockRect = this.getSingleBlockViewportRect(frame.block);
+      if (blockRect && blockRect.width > 0 && blockRect.height > 0) {
+        frame.cancelChipEl.style.top = `${blockRect.bottom + 10}px`;
+        frame.cancelChipEl.style.left = `${blockRect.left}px`;
+      }
+    }
+
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
-      this.highlightEl.style.display = 'none';
-      this.applySentinelChip(frame);
+      if (frame.kind === 'move-candidates') {
+        // Move-candidates owns a frame-local Cancel chip near the
+        // block; the shared sentinelChip would duplicate it. Route the
+        // amber scan rect over the Cancel chip instead so the sentinel
+        // reads as "the scan cursor is on Cancel", continuing the
+        // linear sweep that passed through the green dots.
+        this.sentinelChip.style.display = 'none';
+        const chipRect = frame.cancelChipEl.getBoundingClientRect();
+        if (chipRect.width > 0 && chipRect.height > 0) {
+          this.highlightEl.style.display = 'block';
+          this.highlightEl.style.top = `${chipRect.top}px`;
+          this.highlightEl.style.left = `${chipRect.left}px`;
+          this.highlightEl.style.width = `${chipRect.width}px`;
+          this.highlightEl.style.height = `${chipRect.height}px`;
+        } else {
+          this.highlightEl.style.display = 'none';
+        }
+      } else {
+        this.highlightEl.style.display = 'none';
+        this.applySentinelChip(frame);
+      }
       if (shouldSpeak) this.speakCurrentLabel();
       return;
     }
@@ -2485,8 +2522,20 @@ export class SwitchScanController {
       // `isMoving` returns false and `abortMove` is skipped. Any other
       // path that pops a move-candidates frame while a move is still in
       // progress is an abort → revert the block to origin.
-      if (this.mover?.isMoving(this.workspace)) {
-        this.mover.abortMove(this.workspace);
+      //
+      // Re-entry guard: `abortMove` fires workspace events (block
+      // reposition after unplug) that reach any listeners the user has
+      // installed. If one of those listeners synchronously triggers
+      // another pop, we'd re-enter here with the same move still being
+      // torn down — the flag short-circuits the second visit so we
+      // don't double-abort (and don't crash on a now-empty move slot).
+      if (!this.tearingDownMove && this.mover?.isMoving(this.workspace)) {
+        this.tearingDownMove = true;
+        try {
+          this.mover.abortMove(this.workspace);
+        } finally {
+          this.tearingDownMove = false;
+        }
       }
     }
   }
@@ -3033,6 +3082,25 @@ export class SwitchScanController {
       const highlighted =
         dragStrategy?.connectionHighlighter?.getLastValidConnections?.() ?? [];
       candidates = highlighted.map((vc) => ({local: vc.local, target: vc.neighbour}));
+      // Visit order mirrors keyboard-move's `Down` traversal: y/x
+      // ascending (same sort KeyboardDragStrategy uses to build its
+      // `allConnections` list), rotated so the first candidate the scan
+      // visits is the one just below the moving block's current y
+      // position. Wraps naturally when the user cycles past the last
+      // dot — matching "press Down repeatedly, loop round" semantics.
+      candidates.sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dy = (a.target as any).y - (b.target as any).y;
+        if (dy !== 0) return dy;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (a.target as any).x - (b.target as any).x;
+      });
+      const blockY = block.getRelativeToSurfaceXY().y;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const startIdx = candidates.findIndex((p) => (p.target as any).y > blockY);
+      if (startIdx > 0) {
+        candidates = [...candidates.slice(startIdx), ...candidates.slice(0, startIdx)];
+      }
     } else {
       // Fallback for embedders without a Mover (tests, non-maze demos):
       // use the pre-startMove enumeration. The two-source divergence
@@ -3052,16 +3120,17 @@ export class SwitchScanController {
       return;
     }
 
-    // Floating Cancel chip — the sentinel slot of the cycle. Shared
-    // class with other sub-scans' sentinel chips; the chip itself is
-    // what the highlight outlines when index === candidates.length.
-    // A later commit repositions this near the block via inline styles
-    // in renderHighlight.
+    // Floating Cancel chip — the sentinel slot of the cycle. Shares
+    // the `.switch-scan-sentinel` visual styling but overrides its
+    // default bottom-right anchor: we position it near the moving block
+    // so Cancel reads as the natural end of the scan's linear sequence
+    // (and not as a disconnected affordance pinned to the viewport
+    // corner). `renderHighlight` keeps the position in sync on reflow.
     const cancelChipEl = document.createElement('div');
     cancelChipEl.className = 'switch-scan-sentinel';
     cancelChipEl.textContent = '✕ Cancel';
-    cancelChipEl.style.bottom = '16px';
-    cancelChipEl.style.right = '16px';
+    cancelChipEl.style.bottom = 'auto';
+    cancelChipEl.style.right = 'auto';
     cancelChipEl.style.transform = 'none';
     document.body.appendChild(cancelChipEl);
 

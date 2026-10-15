@@ -314,11 +314,23 @@ export class Mover {
     // DON'T call updateTotalDelta() here - totalDelta should start at (0, 0)
     // The preview offset shown by forceShowPreview() is temporary visual feedback
     // and should NOT be reflected in totalDelta until the user actually moves
-    // In case a block is detached, ensure that it still retains focus
-    // (otherwise dragging will break). This is also the point a new block's
-    // initial insert position is scrolled into view.
-    workspace.getCursor().setCurNode(draggable);
-    draggable.getFocusableElement().addEventListener('blur', blurListener);
+    if (!switchScanMode) {
+      // Keyboard-move affordances we deliberately opt OUT of for the
+      // switch-scan driver:
+      //   - `setCurNode(draggable)` runs `scrollBoundsIntoView` on
+      //     the dragging block; combined with `ConnectionHighlighter`'s
+      //     `scrollListener` (registered moments later) it cascades
+      //     into updateHighlights during the detach window, which can
+      //     thrash layout.
+      //   - The blur listener auto-aborts / auto-commits the move on
+      //     any focus churn — appropriate when the user is driving
+      //     focus via arrow-keyboard navigation, but switch-scan owns
+      //     focus deliberately and routes abort through its own
+      //     `teardownPoppedFrame` hook; letting both paths fire can
+      //     double-abort or commit at the wrong moment.
+      workspace.getCursor().setCurNode(draggable);
+      draggable.getFocusableElement().addEventListener('blur', blurListener);
+    }
 
     // Register a keyboard shortcut under the key combos of all existing
     // keyboard shortcuts that commits the move before allowing the real
