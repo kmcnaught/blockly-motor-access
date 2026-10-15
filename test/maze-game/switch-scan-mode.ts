@@ -1103,12 +1103,14 @@ export class SwitchScanController {
   // Capture-phase pointerdown handler. Dismisses subject-bearing sub-
   // scan frames (action-menu, dropdown-values, move-candidates) whenever
   // the user interacts outside the switch-scan flow — a stale action
-  // menu with a dashed pinned outline anchored to a block the user has
-  // visually moved on from is confusing. Pointerdown rather than
-  // mousedown because Blockly's workspace captures the pointer on
-  // block-pointerdown and suppresses the subsequent mousedown. Our
-  // overlays all set `pointer-events: none`, so any pointerdown target
-  // is "elsewhere" by definition — no target filtering needed.
+  // menu / dashed pinned outline anchored to a block the user has
+  // visually moved on from is confusing, and an in-progress native
+  // move must be aborted so the user doesn't commit it by accident.
+  // Pointerdown rather than mousedown because Blockly's workspace
+  // captures the pointer on block-pointerdown and suppresses the
+  // subsequent mousedown. Our overlays all set `pointer-events: none`,
+  // so any pointerdown target is "elsewhere" by definition — no target
+  // filtering needed.
   private boundOutsidePointerDown: (e: PointerEvent) => void;
   // Subscription registered with mazeGame.onExecutionStateChange on
   // enable() and removed via offExecutionStateChange on disable(). The
@@ -1186,9 +1188,10 @@ export class SwitchScanController {
   // Dashed outline marking the "pinned subject" of the current action
   // frame (e.g. the block whose action menu or Edit dropdown is open).
   // Persists across sub-scans so the subject stays visually anchored
-  // while the solid scan cursor cycles through menu items / candidate
-  // connectors. Positioned by `renderHighlight`; hidden when no frame
-  // has a subject block.
+  // while the solid scan cursor cycles through menu items / dropdown
+  // values. Positioned by `renderHighlight`; hidden when no frame has a
+  // subject block (which includes `move-candidates`, where the block
+  // itself stays at origin and acts as its own anchor).
   private pinnedEl: HTMLDivElement | null = null;
   private sentinelChip: HTMLDivElement | null = null;
   // Auto-scan idle affordance — visible only when scanMode === 'auto'
@@ -1769,11 +1772,15 @@ export class SwitchScanController {
    * the dashed `pinnedEl` outline) across sub-scans even while the solid
    * scan cursor cycles over menu items / candidate connectors.
    *
-   * Only subject-bearing frames return a block; everything else returns
-   * `null` and the dashed outline is hidden. `dropdown-values` carries a
-   * nullable block because header dropdowns (Character / Language) have
-   * no block subject — in that case we fall through to `null`, which is
-   * the correct no-outline behavior.
+   * Only subject-bearing frames whose scan cursor leaves the block
+   * return a block; everything else returns `null` and the dashed
+   * outline is hidden. `dropdown-values` carries a nullable block
+   * because header dropdowns (Character / Language) have no block
+   * subject — in that case we fall through to `null`, which is the
+   * correct no-outline behavior. `move-candidates` returns `null` too:
+   * the block stays visually at its origin for the whole sub-scan, so
+   * the subject is already its own anchor and a dashed ring would be
+   * redundant with the block itself.
    *
    * Adding a new subject-bearing frame kind is a one-line edit here.
    *
@@ -1786,7 +1793,8 @@ export class SwitchScanController {
       case 'dropdown-values':
         return frame.block;
       case 'move-candidates':
-        return frame.block;
+        // Block stays visually at origin — no pinned outline needed.
+        return null;
       case 'top':
       case 'dom-items':
       case 'blocks':
@@ -1915,8 +1923,8 @@ export class SwitchScanController {
 
     // Dashed "pinned subject" outline: anchors the block the current
     // action will operate on while the solid scan cursor roams over
-    // menu items / candidate connectors / the sentinel slot. Resolved
-    // from the active frame so it persists across sub-scans and tracks
+    // menu items / dropdown values / the sentinel slot. Resolved from
+    // the active frame so it persists across sub-scans and tracks
     // through sentinel positions.
     if (this.pinnedEl) {
       const pinnedBlock = this.pinnedBlockForFrame(frame);
@@ -2100,8 +2108,11 @@ export class SwitchScanController {
    * on any pointer interaction — a user who clicks the toolbox / a
    * workspace block / a header dropdown / anywhere outside the switch-
    * scan flow has visually moved on, and leaving a stale pinned
-   * outline, action menu, and solid highlight anchored to a block
-   * they're no longer thinking about is confusing.
+   * outline, action menu, or solid highlight anchored to a block
+   * they're no longer thinking about is confusing. For
+   * `move-candidates`, the pop also routes through `teardownPoppedFrame`
+   * so an in-progress native move gets aborted rather than silently
+   * committed by a later Enter.
    *
    * Pointerdown rather than mousedown: Blockly's workspace captures the
    * pointer on block-pointerdown, which can suppress the subsequent

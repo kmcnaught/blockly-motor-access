@@ -1,3 +1,4 @@
 2026-10-15 10:41 UTC  Step 1 (variant A): Mover plumbing + switchScanMode option; enterMoveCandidates now enters native move mode but select/cancel still on old path.
 2026-10-15 10:44 UTC  Step 2 (variant A): rectAt validated — amber already sits on green highlight; added disposed/dead-block guard.
 2026-10-15 10:49 UTC  Step 3 (variant A): handleSelect routes commit via Mover.finishMove; teardownPoppedFrame centralises abortMove on cancel/back/outside-pointerdown.
+2026-10-15 10:52 UTC  Step 4 (variant A): pinnedBlockForFrame returns null for move-candidates — block stays at origin and is its own anchor.

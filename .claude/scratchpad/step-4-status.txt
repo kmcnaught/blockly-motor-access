@@ -1,0 +1,13 @@
+Done:
+- pinnedBlockForFrame now returns null for the 'move-candidates' case (action-menu and dropdown-values still return frame.block, unchanged). The exhaustive switch keeps compile-time safety for future frame kinds.
+- Refreshed the pinnedBlockForFrame docstring to describe current behaviour: subject-bearing frames whose scan cursor leaves the block return a block; move-candidates returns null because the block stays visually at origin and is its own anchor.
+- Refreshed three nearby prose comments that previously grouped move-candidates with the pinned-outline frames: pinnedEl field doc (lines ~1046), outside-pointerdown handler docstring (lines ~1915), and the field-level pointerdown comment (lines ~961). Move-candidates is still dismissed on outside-pointerdown (Step 3 teardownPoppedFrame routes abortMove through it), so I preserved that frame in the dismiss list and clarified the per-kind rationale instead of removing it. Also fixed the "candidate connectors" phrasing in renderHighlight's pinned-outline comment since those no longer get a dashed ring.
+- No breadcrumb comments; descriptions reflect the current state only.
+- No tests reference pinnedBlockForFrame — only test/maze-game/test/switch_scan_pinned_test.ts covers the overlay and it explicitly scopes to plumbing (element presence, hidden-on-top), not per-frame-kind resolver behaviour. No test updates needed.
+- `npm run build` compiles cleanly.
+
+Files touched:
+- test/maze-game/switch-scan-mode.ts
+
+Open issues / followups:
+- None scoped to Step 4. Step 5 manual verification should confirm the move-candidates sub-scan now has no dashed ring, which matches the UX principle in memory `project-switch-scan-ux-principles`.
