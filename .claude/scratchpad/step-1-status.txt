@@ -1,0 +1,23 @@
+Done:
+- Added `switchScanMode` option on Mover.startMove -> patchDragStrategy -> KeyboardDragStrategy ctor (default false, keyboard-mode untouched).
+- KeyboardDragStrategy.startDrag now still enumerates allConnections + draws highlights when switchScanMode=true, but skips moveDuringDrag(startLoc) / createInitialCandidate / forceShowPreview / addIcon(MoveIcon). endDrag mirrors this (skips removeIcon).
+- Exposed Mover via NavigationController.getMover() and KeyboardNavigation.getMover().
+- SwitchScanOptions grew a `mover?: Mover` field; controller stores it and in enterMoveCandidates: focuses the block (so Mover.canMove passes), calls startMove(..., switchScanMode=true), early-returns to popToSameRegion on failure. Updated the stale "we deliberately do NOT enter Blockly's own move mode" comment.
+- Wired keyboardNavigation.getMover() into the SwitchScanController construction in test/maze-game/index.ts.
+- `npm run build` compiles cleanly. No new lint errors (existing ones in mover.ts/keyboard_drag_strategy.ts predate this change).
+
+Files touched:
+- src/actions/mover.ts
+- src/keyboard_drag_strategy.ts
+- src/navigation_controller.ts
+- src/index.ts
+- test/maze-game/switch-scan-mode.ts
+- test/maze-game/index.ts
+- package-lock.json (incidental: jsdom entry added by `npm install` to resolve pre-existing devDependency)
+
+Open issues / followups for next steps:
+- `canMove` requires navigation.getState() === WORKSPACE; the action-menu DOM has focus at the point of entry, so Step 1 refocuses the block (Blockly.getFocusManager().focusNode(block)) before calling startMove. Step 3/5 should verify this focus-shuffle doesn't disturb the switch-scan key-capture handler (it shouldn't — the handler is on document, capture-phase).
+- Mover registers a document-level blurListener and a global commit-move shortcut for every key except arrows/enter/escape/m/backspace/delete. During the move-candidates frame the switch-scan controller already stops propagation for its own keys, but Step 3 should confirm the blurListener doesn't fire spuriously when Blockly refocuses the dragging block, and that the commit-move shortcut's broad keyCodes list doesn't eat something the controller needs.
+- `drag()` is never called in switchScanMode (no pointer-move events), so searchNode / currentDragDirection stay null. finishMove reads only connectionCandidate, so it's fine — flagged for Step 6 regression tests.
+- initialConnectionNeighbour stays null in switchScanMode; relied on only by findNearestCandidateExcluding, which this flow doesn't invoke. OK.
+- Not yet wired: finishMove on select, abortMove on cancel/back/outside-pointerdown (Step 3). The old `pair.target.connect(pair.local)` path still runs on select.

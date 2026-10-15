@@ -399,6 +399,17 @@ export class KeyboardNavigation {
   }
 
   /**
+   * Returns the Mover driving keyboard-move. Exposed for external
+   * movement drivers (e.g. the maze game's switch-scan controller) that
+   * need to start a move via the same path keyboard shortcuts use.
+   *
+   * @returns The Mover instance used by this plugin.
+   */
+  getMover() {
+    return this.navigationController.getMover();
+  }
+
+  /**
    * Registers a default toolbox implementation that doesn't handle
    * keydown events, since we now handle them in this plugin. If you
    * use the default toolbox, call this function before calling

@@ -76,6 +76,16 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
   /** Whether to use single-block drag mode (vs stack drag). */
   private singleBlockDragMode: boolean = false;
 
+  /**
+   * Whether this drag is driven by the switch-scan controller rather
+   * than the keyboard-move shortcuts. In this mode the strategy still
+   * enumerates connections and draws highlights, but suppresses the
+   * initial preview jump, the preview offset on the dragged block, and
+   * the move-mode block icon — the switch-scan scan cursor owns the
+   * on-screen "which candidate" affordance instead.
+   */
+  private switchScanMode = false;
+
   constructor(
     private block: BlockSvg,
     public moveType: MoveType,
@@ -83,11 +93,13 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
     highlightingEnabled = true,
     onMoveComplete?: () => void,
     onMoveFinished?: () => void,
+    switchScanMode = false,
   ) {
     super(block);
     this.highlightingEnabled = highlightingEnabled;
     this.onMoveComplete = onMoveComplete;
     this.onMoveFinished = onMoveFinished;
+    this.switchScanMode = switchScanMode;
 
     // Create connection highlighter with click handler
     const onConnectionClick = (connection: RenderedConnection) => {
@@ -118,20 +130,25 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
       );
     }
 
-    // Set position of the dragging block, so that it doesn't pop
-    // to the top left of the workspace.
-    // @ts-expect-error block and startLoc are private.
-    this.block.moveDuringDrag(this.startLoc);
-    // @ts-expect-error connectionCandidate is private.
-    this.connectionCandidate = this.createInitialCandidate();
-    // @ts-expect-error connectionCandidate is private.
-    const candidate = this.connectionCandidate;
-    this.initialConnectionNeighbour = candidate?.neighbour ?? null;
-    this.forceShowPreview();
-    this.block.addIcon(new MoveIcon(this.block));
+    if (!this.switchScanMode) {
+      // Set position of the dragging block, so that it doesn't pop
+      // to the top left of the workspace.
+      // @ts-expect-error block and startLoc are private.
+      this.block.moveDuringDrag(this.startLoc);
+      // @ts-expect-error connectionCandidate is private.
+      this.connectionCandidate = this.createInitialCandidate();
+      // @ts-expect-error connectionCandidate is private.
+      const candidate = this.connectionCandidate;
+      this.initialConnectionNeighbour = candidate?.neighbour ?? null;
+      this.forceShowPreview();
+      this.block.addIcon(new MoveIcon(this.block));
+    }
 
     // Show connection highlights for normal keyboard moves if enabled
-    // (Sticky mode will override this via setClickAndStickMode)
+    // (Sticky mode will override this via setClickAndStickMode).
+    // Switch-scan mode uses the highlights as its scan targets, so we
+    // draw them even though the keyboard-mode preview/move-icon above
+    // were suppressed.
     if (this.highlightingEnabled) {
       // @ts-expect-error getLocalConnections is private.
       const localConnections = this.getLocalConnections(this.block);
@@ -189,7 +206,12 @@ export class KeyboardDragStrategy extends dragging.BlockDragStrategy {
   override endDrag(e?: PointerEvent) {
     super.endDrag(e);
     this.allConnections = [];
-    this.block.removeIcon(MoveIcon.type);
+    // Switch-scan mode never installed the move icon, so skip removal
+    // (removeIcon on a non-existent icon is a no-op in current Blockly,
+    // but being explicit keeps the pairing with startDrag obvious).
+    if (!this.switchScanMode) {
+      this.block.removeIcon(MoveIcon.type);
+    }
 
     // Clear highlights when drag ends (unless in click-and-stick mode)
     // Sticky mode keeps highlights visible until explicitly cleared

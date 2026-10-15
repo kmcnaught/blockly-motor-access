@@ -1,0 +1,1 @@
+2026-10-15 10:41 UTC  Step 1 (variant A): Mover plumbing + switchScanMode option; enterMoveCandidates now enters native move mode but select/cancel still on old path.

@@ -3084,6 +3084,7 @@ if (!isGridMode && !isGridCodingMode) {
     scanMode: switchScanInitialMode,
     scanSpeedMs: switchScanInitialScanSpeedMs,
     headerDropdowns: buildHeaderDropdownSources(),
+    mover: keyboardNavigation.getMover(),
   });
   switchScanController.setTts(switchScanTts);
 

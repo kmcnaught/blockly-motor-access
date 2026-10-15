@@ -220,6 +220,12 @@ export class Mover {
    * @returns True iff a move has successfully begun.
    * @param onMoveFinished Optional callback when move finishes.
    * @param isClickAndStick Whether this move is a click-and-stick operation.
+   * @param switchScanMode Whether this move is driven by the switch-scan
+   *     controller, which supplies its own scan cursor and commits via
+   *     an externally set `connectionCandidate`. When true, the
+   *     drag strategy still draws connection highlights but suppresses
+   *     the keyboard-mode affordances (initial preview offset, move
+   *     icon) that would otherwise fight the scan cursor.
    */
   startMove(
     workspace: WorkspaceSvg,
@@ -228,9 +234,10 @@ export class Mover {
     startPoint: RenderedConnection | null,
     onMoveFinished?: () => void,
     isClickAndStick = false,
+    switchScanMode = false,
   ) {
     if (draggable instanceof BlockSvg) {
-      this.patchDragStrategy(draggable, moveType, startPoint, onMoveFinished, isClickAndStick);
+      this.patchDragStrategy(draggable, moveType, startPoint, onMoveFinished, isClickAndStick, switchScanMode);
     } else if (draggable instanceof comments.RenderedWorkspaceComment) {
       this.moveIndicator = new MoveIndicatorBubble(draggable);
     }
@@ -619,7 +626,11 @@ export class Mover {
    * @param moveType Whether this is an insert or a move.
    * @param startPoint Where to start the move, or null to use the current
    *     location if any.
-   * @param onMoveFinished
+   * @param onMoveFinished Optional callback when move finishes.
+   * @param isClickAndStick Whether this move is a click-and-stick operation.
+   * @param switchScanMode Whether this move is driven by the switch-scan
+   *     controller. Suppresses keyboard-move affordances inside the
+   *     drag strategy; see `Mover.startMove`.
    */
   private patchDragStrategy(
     block: BlockSvg,
@@ -627,6 +638,7 @@ export class Mover {
     startPoint: RenderedConnection | null,
     onMoveFinished?: () => void,
     isClickAndStick = false,
+    switchScanMode = false,
   ) {
     // @ts-expect-error block.dragStrategy is private.
     const currentStrategy = block.dragStrategy;
@@ -645,6 +657,7 @@ export class Mover {
       this.highlightConnections,
       onMoveComplete,
       onMoveFinished,
+      switchScanMode,
     );
     keyboardDragStrategy.setFatterConnections(this.fatterConnections);
     keyboardDragStrategy.setConnectionSize(this.connectionSize);

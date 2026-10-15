@@ -106,6 +106,18 @@ export class NavigationController {
   }
 
   /**
+   * Gets the Mover instance used by this controller. Exposed so external
+   * movement drivers (e.g. switch-scan) can start a move through the same
+   * mechanism keyboard shortcuts use, instead of bypassing the drag
+   * strategy with a direct `connect()` call.
+   *
+   * @returns The Mover instance.
+   */
+  getMover(): Mover {
+    return this.mover;
+  }
+
+  /**
    * Original Toolbox.prototype.onShortcut method, saved by
    * addShortcutHandlers.
    */

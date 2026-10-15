@@ -78,6 +78,7 @@
 
 import * as Blockly from 'blockly/core';
 import {scrollBoundsIntoView} from '../../src/workspace_utilities';
+import {Mover, MoveType} from '../../src/actions/mover';
 import {MazeGame} from './maze';
 import {insertBlockAfterCursor} from './block-insertion';
 import {
@@ -195,6 +196,15 @@ export interface SwitchScanOptions {
   scanMode?: 'step' | 'auto';
   scanSpeedMs?: number;
   headerDropdowns?: Record<string, HeaderDropdownSource>;
+  /**
+   * Mover borrowed from the keyboard-navigation plugin, used to drive
+   * the Move sub-scan through Blockly's native move mode (connection
+   * highlights, Mover-managed events) rather than a direct
+   * `connect()` call. Optional for backwards compatibility: when
+   * absent, the move-candidates frame has no path to native move mode
+   * (later steps rely on this being wired up).
+   */
+  mover?: Mover;
 }
 
 /**
@@ -1138,6 +1148,12 @@ export class SwitchScanController {
   private actionMenuEl: HTMLDivElement | null = null;
   private dropdownMenuEl: HTMLDivElement | null = null;
 
+  // Mover driving the move-candidates sub-scan. Null when the embedder
+  // didn't inject one — the move-candidates frame still falls back to
+  // the direct-connect path in that case (used by tests and demos
+  // that don't instantiate the keyboard-navigation plugin).
+  private mover: Mover | null = null;
+
   // rAF handle for throttled reflow on resize/scroll, so we don't
   // re-render on every wheel tick.
   private reflowRafHandle: number | null = null;
@@ -1172,6 +1188,9 @@ export class SwitchScanController {
     }
     if (options.headerDropdowns) {
       this.headerDropdowns = options.headerDropdowns;
+    }
+    if (options.mover) {
+      this.mover = options.mover;
     }
 
     // Bind handlers so add/removeEventListener get matching references.
@@ -2862,12 +2881,15 @@ export class SwitchScanController {
   /**
    * Enter the move-candidates sub-scan: the scan highlight jumps
    * directly onto each valid drop slot in the workspace; advance walks
-   * the list; select commits via `target.connect(local)`. The +1
-   * sentinel slot is a "Cancel" chip anchored near the block. We
-   * deliberately do NOT enter Blockly's own move mode — bypassing it
-   * means we don't have to keep an internal `Mover` cursor in lock-step
-   * with our own index, and we don't have to unwind a drag-strategy
-   * patch if the user backs out.
+   * the list; select commits via the Mover. The +1 sentinel slot is a
+   * "Cancel" chip anchored near the block.
+   *
+   * Delegates to Blockly's native move mode (via `Mover.startMove` with
+   * `switchScanMode: true`) when a Mover is wired in. That path draws
+   * the green connection highlights, keeps the block visually at origin
+   * (switch-scan supplies its own scan cursor over the highlights), and
+   * routes commit/abort through the Mover so Events-group bookkeeping
+   * matches the keyboard-move path exactly.
    *
    * @param block
    * @param topLevelIndex
@@ -2888,6 +2910,38 @@ export class SwitchScanController {
       // same region so the user can try something else.
       this.popToSameRegion(topLevelIndex);
       return;
+    }
+
+    // Enter native move mode so the connection highlighter paints green
+    // dots on every valid target. The scan cursor hops those dots
+    // (handled in later steps' rectAt / handleSelect updates); the
+    // block itself stays at origin because `switchScanMode: true`
+    // suppresses the preview offset the keyboard flow uses.
+    //
+    // Mover.canMove requires the plugin to be in WORKSPACE state, but
+    // at this point focus is on the action-menu DOM. Refocus the block
+    // first so the state check passes; the switch-scan key handler will
+    // reclaim event routing on the next keydown via its capture-phase
+    // listener.
+    if (this.mover) {
+      Blockly.getFocusManager().focusNode(block);
+      if (!this.mover.canMove(this.workspace, block)) {
+        this.popToSameRegion(topLevelIndex);
+        return;
+      }
+      const started = this.mover.startMove(
+        this.workspace,
+        block,
+        MoveType.Move,
+        null,
+        undefined,
+        false,
+        true,
+      );
+      if (!started) {
+        this.popToSameRegion(topLevelIndex);
+        return;
+      }
     }
 
     // Floating Cancel chip — visually the sentinel slot of the cycle.
