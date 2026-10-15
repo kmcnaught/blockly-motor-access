@@ -988,11 +988,12 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame, ctx) => {
       // 'move-candidates': the scan highlight jumps directly onto each
-      // valid drop slot in the workspace, visually sitting on top of the
-      // green connection highlight the native move mode paints there.
-      // The sentinel (Cancel chip) case is handled by `renderHighlight`
-      // directly — callers must gate on `!atSentinel(frame)` before
-      // invoking this.
+      // valid drop slot in the workspace, sized to wrap the green
+      // highlight the native move mode paints there (statement notches
+      // extend to the right of the connection point, so a point-centred
+      // rect would under-cover them). The sentinel (Cancel chip) case
+      // is handled by `renderHighlight` directly — callers must gate
+      // on `!atSentinel(frame)` before invoking this.
       const pair = frame.candidates[frame.index];
       if (!pair) return null;
       // Defensive: a candidate's target connection or its source block
@@ -1006,6 +1007,23 @@ const STRATEGIES: Strategies = {
         | Blockly.BlockSvg
         | null;
       if (!sourceBlock || sourceBlock.isDeadOrDying()) return null;
+      // Prefer the drawn green highlight's actual DOM bounds so the
+      // amber scan rect wraps the whole shape (notch outline for
+      // statements, socket outline for value inputs). Fall back to the
+      // small point-centred rect only when no highlighter is wired or
+      // the current target isn't among the drawn highlights (edge
+      // case: enumeration + highlighter disagreement).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dragStrategy = (frame.block as any).dragStrategy as
+        | {connectionHighlighter?: {getBoundsForConnection?: (c: Blockly.RenderedConnection) => DOMRect | null}}
+        | undefined;
+      const highlightBounds =
+        dragStrategy?.connectionHighlighter?.getBoundsForConnection?.(
+          pair.target as Blockly.RenderedConnection,
+        ) ?? null;
+      if (highlightBounds && highlightBounds.width > 0 && highlightBounds.height > 0) {
+        return highlightBounds;
+      }
       return getConnectionViewportRect(pair.target, ctx.workspace);
     },
     // Candidates are scattered connection points around the moving
@@ -1952,11 +1970,14 @@ export class SwitchScanController {
     // Keep the move-candidates Cancel chip pinned to the moving block
     // on every render — scrolling / zooming / scan cycling would
     // otherwise drift the chip away from the block it refers to.
+    // Offset to the right of the block so the chip doesn't overlap
+    // the column of green connection highlights that hang off the
+    // left edge of the stack (previous / next notches).
     if (frame.kind === 'move-candidates') {
       const blockRect = this.getSingleBlockViewportRect(frame.block);
       if (blockRect && blockRect.width > 0 && blockRect.height > 0) {
         frame.cancelChipEl.style.top = `${blockRect.bottom + 10}px`;
-        frame.cancelChipEl.style.left = `${blockRect.left}px`;
+        frame.cancelChipEl.style.left = `${blockRect.right + 20}px`;
       }
     }
 

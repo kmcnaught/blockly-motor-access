@@ -997,6 +997,28 @@ export class ConnectionHighlighter {
   }
 
   /**
+   * Return the live viewport-space bounding rect of the drawn green
+   * highlight for `connection`, or null if no highlight is currently
+   * drawn for it. External scan drivers (switch-scan) use this to
+   * position their own outline so it visually surrounds the green
+   * highlight — a connection-point rect would be too small for
+   * statement notches (which extend to the right of the point).
+   *
+   * @param connection The target connection whose highlight bounds
+   *     the caller wants.
+   * @returns The highlight element's `getBoundingClientRect()`, or
+   *     `null` if no highlight is tracked for this connection.
+   */
+  getBoundsForConnection(connection: RenderedConnection): DOMRect | null {
+    for (const element of this.highlightedElements) {
+      if (this.elementToConnection.get(element) === connection) {
+        return element.getBoundingClientRect();
+      }
+    }
+    return null;
+  }
+
+  /**
    * Updates highlight positions based on workspace scroll and zoom.
    */
   updateHighlights(): void {
