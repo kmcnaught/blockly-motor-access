@@ -340,6 +340,33 @@ function applySentinelChip(
 }
 
 /**
+ * Seed the user's chosen `(local, target)` pair as the active
+ * {@link KeyboardDragStrategy}'s `connectionCandidate`, so
+ * {@link Mover.finishMove} commits the move onto that connection.
+ * `connectionCandidate` is a private field on the strategy; we access it
+ * through a narrow `any` cast mirroring the pattern Blockly's own
+ * `mover.ts` uses (see `finishMove`'s dragStrategy access).
+ *
+ * @param block The block being moved (its `dragStrategy` is a
+ *     `KeyboardDragStrategy` while a move is in progress).
+ * @param pair The `(local, target)` connection pair the user selected.
+ */
+function setConnectionCandidate(
+  block: Blockly.BlockSvg,
+  pair: {local: Blockly.Connection; target: Blockly.Connection},
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dragStrategy = (block as any).dragStrategy;
+  if (!dragStrategy) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (dragStrategy as any).connectionCandidate = {
+    local: pair.local,
+    neighbour: pair.target,
+    distance: 0,
+  };
+}
+
+/**
  * One frame in the scan stack. The active (top) frame owns the cursor
  * and dictates what the highlight is positioned over.
  *
@@ -411,10 +438,12 @@ type ScanFrame =
       // Switch-scan over the workspace's valid drop slots for `block`.
       // We enumerate every legal `(local, target)` connection pair
       // ourselves and the scan highlight jumps directly onto each target
-      // connection — no inline "Next / Place" menu, no Blockly move mode.
-      // Each advance moves to the next candidate; select commits via
-      // `target.connect(local)`; the sentinel slot doubles as Cancel
-      // (anchored by `cancelChipEl`).
+      // connection, visually sitting on top of the green dot Blockly's
+      // native move mode paints. Each advance moves to the next candidate;
+      // select routes through the Mover (`finishMove`) so Blockly's drag
+      // path commits the move with the right Events-group bookkeeping;
+      // the sentinel slot doubles as Cancel (anchored by `cancelChipEl`)
+      // and routes through `abortMove` to revert cleanly.
       kind: 'move-candidates';
       block: Blockly.BlockSvg;
       candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}>;
@@ -443,8 +472,9 @@ interface ActionItem {
  *
  * `rectAt` reads workspace plus the two menu-element fields; `labelAt`
  * / `cycleLen` only read `regions`; `handleSelect` reads every enter
- * helper, `popToSameRegion`, both menu fields, `headerDropdowns`, and
- * `findFirstEditableDropdown`.
+ * helper, `popToSameRegion`, both menu fields, `headerDropdowns`,
+ * `findFirstEditableDropdown`, and `mover` (for the Move sub-scan's
+ * commit/abort via Blockly's native move mode).
  */
 interface StrategyCtx {
   readonly workspace: Blockly.WorkspaceSvg;
@@ -452,6 +482,10 @@ interface StrategyCtx {
   readonly headerDropdowns: Readonly<Record<string, HeaderDropdownSource>>;
   readonly actionMenuEl: HTMLDivElement | null;
   readonly dropdownMenuEl: HTMLDivElement | null;
+  // Mover is nullable because non-maze-game embedders may construct the
+  // controller without wiring one in. The `move-candidates` strategy
+  // guards on this and falls back to the direct-connect path when null.
+  readonly mover: Mover | null;
   enterDomRegionSubScan(name: string, topLevelIndex: number): void;
   enterToolboxSubScan(topLevelIndex: number): void;
   enterWorkspaceSubScan(topLevelIndex: number): void;
@@ -982,9 +1016,10 @@ const STRATEGIES: Strategies = {
     preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
       if (frame.index === frame.candidates.length) {
-        // Cancel slot: nothing to undo (we never entered Blockly move
-        // mode), just pop back to the same top-level region so the user
-        // can pick a different block.
+        // Cancel slot. If a Mover drove the move-candidates sub-scan,
+        // the pop below runs `teardownPoppedFrame`, which will route the
+        // abort through `Mover.abortMove`. Calling it here too would be
+        // redundant — teardown is the single centralised abort hook.
         ctx.popToSameRegion(frame.topLevelIndex);
         return;
       }
@@ -994,16 +1029,25 @@ const STRATEGIES: Strategies = {
         ctx.popToSameRegion(frame.topLevelIndex);
         return;
       }
-      // Commit the connection. Wrap in an Events group so undo treats
-      // it as a single step (otherwise the disconnect-old + connect-new
-      // pair would require two undos to revert).
-      Blockly.Events.setGroup(true);
-      try {
-        pair.target.connect(pair.local);
-      } catch (err) {
-        console.warn('[switch-scan] connection commit failed:', err);
-      } finally {
-        Blockly.Events.setGroup(false);
+      if (ctx.mover && ctx.mover.isMoving(ctx.workspace)) {
+        // Hand off to the Mover: seed the chosen (local, target) pair as
+        // the strategy's `connectionCandidate`, then `finishMove` reads it,
+        // aligns the block, and commits via Blockly's drag path (correct
+        // Events-group bookkeeping for a single undo step).
+        setConnectionCandidate(frame.block, pair);
+        ctx.mover.finishMove(ctx.workspace);
+      } else {
+        // Fallback for embedders that didn't inject a Mover (tests,
+        // non-maze-game demos). Wrap in an Events group so undo treats
+        // the disconnect-old + connect-new pair as a single step.
+        Blockly.Events.setGroup(true);
+        try {
+          pair.target.connect(pair.local);
+        } catch (err) {
+          console.warn('[switch-scan] connection commit failed:', err);
+        } finally {
+          Blockly.Events.setGroup(false);
+        }
       }
       ctx.popToSameRegion(frame.topLevelIndex);
     },
@@ -2422,10 +2466,17 @@ export class SwitchScanController {
       this.dropdownMenuEl?.remove();
       this.dropdownMenuEl = null;
     } else if (popped.kind === 'move-candidates') {
-      // Floating Cancel chip created in enterMoveCandidates. No Blockly
-      // move state to unwind — the new flow commits via
-      // `connection.connect()` directly without entering move mode.
+      // Floating Cancel chip created in enterMoveCandidates.
       popped.cancelChipEl.remove();
+      // Centralised abort hook: cancel, back-switch, and outside-
+      // pointerdown all route pops here. A committed select will have
+      // already run `finishMove` in handleSelect, so by this point
+      // `isMoving` returns false and `abortMove` is skipped. Any other
+      // path that pops a move-candidates frame while a move is still in
+      // progress is an abort → revert the block to origin.
+      if (this.mover?.isMoving(this.workspace)) {
+        this.mover.abortMove(this.workspace);
+      }
     }
   }
 

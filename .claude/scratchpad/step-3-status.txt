@@ -1,0 +1,16 @@
+Done:
+- STRATEGIES['move-candidates'].handleSelect now routes commit through Mover.finishMove (seeding connectionCandidate via a narrow setConnectionCandidate helper that mirrors mover.ts's dragStrategy access pattern). Cancel branch no longer calls the old pair.target.connect(pair.local) path — it just pops; abort runs centrally in teardownPoppedFrame.
+- Added setConnectionCandidate module helper (eslint-disable one-liner, ts-safe cast on private field, same style as the ambient private-field accesses already in the file).
+- Added `mover: Mover | null` to StrategyCtx (StrategyCtx is a cast of the controller, so no plumbing changes needed in getStrategyCtx). Guarded handleSelect with `ctx.mover && ctx.mover.isMoving()` — falls back to the old direct-connect path when no Mover is wired (keeps non-maze embedders working).
+- teardownPoppedFrame now calls mover.abortMove on move-candidates pop when a move is still in progress. Single centralised abort hook covers back-switch (pop target:'parent'), cancel-sentinel select, and outside-pointerdown — verified all three paths route through pop() → teardownPoppedFrame.
+- Verified: on a committed select, finishMove runs before pop → isMoving returns false by the time teardownPoppedFrame fires → abortMove is skipped. Correct semantics without race.
+- Refreshed stale comments: ScanFrame move-candidates docstring no longer says "no Blockly move mode" / "commits via target.connect(local)"; StrategyCtx docstring now mentions mover; teardownPoppedFrame comment describes current behaviour. No breadcrumb comments.
+- `npm run build` compiles cleanly.
+
+Files touched:
+- test/maze-game/switch-scan-mode.ts
+
+Open issues / followups:
+- handleRunEnd resets frameStack directly (does NOT call teardownPoppedFrame) — if a run start fires while a move-candidates sub-scan is active, the Mover will be left in isMoving=true state. Edge case (user would need to press Run while mid-move), not covered by this step's "cancel/back/outside-pointerdown" scope, but worth adding to Step 5 manual verification.
+- enumerateValidConnectionTargets kept per plan — still used by the action-menu's Move visibility predicate.
+- The `setConnectionCandidate` helper uses `as any` rather than `@ts-expect-error`; chose `any` to match the pattern mover.ts already uses on `(info.draggable as any).dragStrategy` (mover.ts:401, 406). Keeps the escape consistent across the two files.
