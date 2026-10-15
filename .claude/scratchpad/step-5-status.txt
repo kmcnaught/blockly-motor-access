@@ -1,0 +1,21 @@
+Done:
+- Dev server up on port 8100 (webpack-dev-server, tunneled range per ports.txt=8100-8109).
+- `npm run start:maze -- --port 8100 --no-open` → "compiled successfully" in 17s; page HTTP 200, title "Maze", bundle served.
+- No TS or webpack errors in build output across Steps 1–4.
+- Manual verification itself (visual: green dots appear, block stays at origin, amber over green, Enter/Cancel/Back semantics) requires the user to actually drive the UI — no headless browser in the project. Deferred to the user; URL below is live for their session.
+
+Files touched:
+- None (verification step; no code changes).
+
+Open issues / followups for user manual check (test matrix from plan):
+- Stackable block → nested slot: green dots appear, scan hops dots, Enter snaps block to selected dot.
+- Value block → value input: same.
+- Cancel sentinel → block back at origin (`abortMove` ran via teardownPoppedFrame).
+- Back-switch during move → same.
+- Outside pointerdown during move → same.
+- Multiple candidates on the same source block (output + previous, if any) → all appear as green dots, all scannable.
+- Auto-scan on → amber hops dots on timer; feels OK because block doesn't move (open risk from design memory).
+- Flagged earlier in step-2-status: enumerateValidConnectionTargets vs ConnectionHighlighter apply slightly different filters (highlighter caps at 50 and sorts by distance). Worth watching: a scan candidate without a visible green dot would look confusing.
+- Flagged in step-3-status: handleRunEnd resets frameStack directly without routing through teardownPoppedFrame — pressing Run mid-move would leak Mover isMoving=true state. Edge case; a future fix should push through pop/teardown instead.
+
+Live URL for user manual verification: http://localhost:8100/

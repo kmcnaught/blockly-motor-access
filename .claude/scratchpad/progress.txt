@@ -2,3 +2,4 @@
 2026-10-15 10:44 UTC  Step 2 (variant A): rectAt validated — amber already sits on green highlight; added disposed/dead-block guard.
 2026-10-15 10:49 UTC  Step 3 (variant A): handleSelect routes commit via Mover.finishMove; teardownPoppedFrame centralises abortMove on cancel/back/outside-pointerdown.
 2026-10-15 10:52 UTC  Step 4 (variant A): pinnedBlockForFrame returns null for move-candidates — block stays at origin and is its own anchor.
+2026-10-15 11:14 UTC  Step 6 (variant A): regression test for Mover handoff — startMove switchScanMode, abort, finishMove with seeded candidate.
