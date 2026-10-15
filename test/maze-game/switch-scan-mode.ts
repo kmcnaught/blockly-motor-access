@@ -3107,6 +3107,19 @@ export class SwitchScanController {
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
 
+    // Replace the action-menu frame on the stack with the upcoming
+    // move-candidates frame — the menu was just a route to pick Move,
+    // and back-switch from Move should return the user to workspace
+    // block selection (where they chose this block from), not to the
+    // transient menu. Popping here also sidesteps the stale-menu
+    // positioning bug where the menu would re-render at the block's
+    // old coords after a workspace reflow.
+    const topFrame = this.frameStack[this.frameStack.length - 1];
+    if (topFrame?.kind === 'action-menu') {
+      this.frameStack.pop();
+      this.teardownPoppedFrame(topFrame);
+    }
+
     // Gate: the action menu surfaces "Move" only when at least one
     // candidate exists, but defend against a race (workspace mutation
     // between menu open and action pick). This enumeration runs on the
