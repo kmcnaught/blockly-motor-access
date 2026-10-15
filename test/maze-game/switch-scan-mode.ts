@@ -1234,6 +1234,12 @@ export class SwitchScanController {
     document.addEventListener('pointerdown', this.boundOutsidePointerDown, true);
     window.addEventListener('resize', this.boundReflow);
     window.addEventListener('scroll', this.boundReflow, true);
+    // `applyPageZoom` dispatches this when the user hits the zoom
+    // buttons. The window itself doesn't resize (only the scale-wrapper
+    // transforms), so neither resize nor scroll fires, and overlays
+    // computed from the (now-different) viewport math would otherwise
+    // drift until the next incidental reflow.
+    window.addEventListener('page-zoom-changed', this.boundReflow);
 
     // Subscribe to maze execution state for the duration of this enable
     // session. disable() calls offExecutionStateChange with the same
@@ -1275,6 +1281,7 @@ export class SwitchScanController {
     document.removeEventListener('pointerdown', this.boundOutsidePointerDown, true);
     window.removeEventListener('resize', this.boundReflow);
     window.removeEventListener('scroll', this.boundReflow, true);
+    window.removeEventListener('page-zoom-changed', this.boundReflow);
     this.mazeGame.offExecutionStateChange(this.boundExecutionStateHandler);
 
     // Cancel any pending reflow frame.

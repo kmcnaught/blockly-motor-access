@@ -374,6 +374,20 @@ const ZOOM_STEP = 0.1;
 
 let pageZoom = 1;
 
+/**
+ * The current in-page zoom factor applied via `transform: scale(...)` on
+ * `#page-scale-wrapper`. Anything that reads `getBoundingClientRect()`
+ * on an element inside the wrapper already sees viewport-correct coords
+ * (the transform propagates through), but helpers that compose their own
+ * viewport math from pre-transform values (e.g. Blockly's
+ * `wsToScreenCoordinates`, which adds workspace-origin offsets in logical
+ * CSS pixels to the already-transformed `getInjectionDiv().getBoundingClientRect().left`)
+ * need to fold this factor in to stay visually aligned.
+ */
+export function getPageZoom(): number {
+  return pageZoom;
+}
+
 export function computeFitZoom(): number {
   // Horizontal constraint — minimum total width needed by the two panels.
   // Use mode-aware minimums so practice mode isn't over-constrained by flyout width.
@@ -446,6 +460,12 @@ export function applyPageZoom(zoom: number) {
   const label = document.getElementById('zoomLabel');
   if (label) label.textContent = `${Math.round(pageZoom * 100)}%`;
   updateZoomButtons();
+
+  // Notify overlays painted on `document.body` (outside the scale wrapper)
+  // that read `getPageZoom()` for their own math — they won't see a
+  // window resize/scroll from this change, so without this event their
+  // positions would drift until the next incidental reflow.
+  window.dispatchEvent(new CustomEvent('page-zoom-changed', {detail: {zoom: pageZoom}}));
 }
 
 // ========== NARROW BLOCKLY DETECTION ==========

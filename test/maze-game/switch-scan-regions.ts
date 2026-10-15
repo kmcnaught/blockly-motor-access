@@ -25,6 +25,8 @@
 
 import * as Blockly from 'blockly/core';
 
+import {getPageZoom} from './layout';
+
 /**
  * A discoverable top-level scan region. `getRect` is a thunk because
  * Blockly's flyout / workspace DOM may not be measurable at the moment
@@ -147,8 +149,10 @@ export function discoverRegions(
   // Instead, use Blockly's own metrics: viewWidth/viewHeight describe
   // the visible workspace (flyout excluded), and absoluteLeft/
   // absoluteTop give that view's offset within the injection div.
-  // Translate to viewport coords by anchoring to the injection div's
-  // bounding rect. This matches the workspace focus ring used by
+  // {@link getWorkspaceViewportRect} anchors to the injection div's
+  // bounding rect AND folds in `getPageZoom()`, so the resulting
+  // overlay — painted outside the scale wrapper — stays aligned at
+  // any pageZoom. This matches the workspace focus ring used by
   // src/index.ts:resizeFocusRingInternal.
   //
   // Visual nudge: shift the outline LEFT by `toolbox_width / 10` and
@@ -221,11 +225,19 @@ export function getWorkspaceViewportRect(
   const m = workspace.getMetrics();
   if (!m) return null;
   const divRect = injectionDiv.getBoundingClientRect();
+  // `divRect` is already in visual viewport coords (CSS transforms on
+  // ancestors propagate through `getBoundingClientRect`), but the
+  // workspace metrics (`absoluteLeft/Top`, `viewWidth/Height`) are in
+  // pre-transform CSS pixels of the scale-wrapper's logical layout.
+  // Fold in the page zoom so the overlay — painted at viewport
+  // coordinates on a non-transformed body — aligns with the visually
+  // scaled workspace. See `getPageZoom()` in layout.ts.
+  const z = getPageZoom();
   return new DOMRect(
-    divRect.left + m.absoluteLeft,
-    divRect.top + m.absoluteTop,
-    m.viewWidth,
-    m.viewHeight,
+    divRect.left + m.absoluteLeft * z,
+    divRect.top + m.absoluteTop * z,
+    m.viewWidth * z,
+    m.viewHeight * z,
   );
 }
 
@@ -243,11 +255,10 @@ export function getWorkspaceViewportRect(
  * Approach: Blockly's `BlockSvg.getBoundingRectangleWithoutChildren()`
  * returns a {@link Blockly.utils.Rect} in WORKSPACE coordinates that
  * uses the block's own `height`/`width` only (no descendants). We
- * convert each corner to viewport (screen) coordinates via the public
- * `Blockly.utils.svgMath.wsToScreenCoordinates` helper — same path
- * Blockly itself uses for context-menu placement — which folds in
- * workspace scale, scroll, the injection div's viewport offset, and
- * the workspace origin offset in one call.
+ * convert each corner to viewport coordinates via the local
+ * {@link wsToViewport} helper, which folds in workspace scale, scroll,
+ * the injection div's viewport offset, the workspace origin offset,
+ * AND the in-page zoom applied by `#page-scale-wrapper`.
  *
  * Returns `null` if the block has no rendered SVG root (the renderer
  * already skips these elsewhere; this is just defensive).
@@ -262,14 +273,8 @@ export function getSingleBlockViewportRect(
 ): DOMRect | null {
   if (!block.getSvgRoot?.()) return null;
   const wsRect = block.getBoundingRectangleWithoutChildren();
-  const topLeft = Blockly.utils.svgMath.wsToScreenCoordinates(
-    workspace,
-    new Blockly.utils.Coordinate(wsRect.left, wsRect.top),
-  );
-  const bottomRight = Blockly.utils.svgMath.wsToScreenCoordinates(
-    workspace,
-    new Blockly.utils.Coordinate(wsRect.right, wsRect.bottom),
-  );
+  const topLeft = wsToViewport(workspace, wsRect.left, wsRect.top);
+  const bottomRight = wsToViewport(workspace, wsRect.right, wsRect.bottom);
   // RTL: workspace `left` may be > `right` numerically, but converting
   // both corners and re-normalising via min/max keeps the DOMRect's
   // width/height positive without us caring which direction is which.
@@ -281,12 +286,36 @@ export function getSingleBlockViewportRect(
 }
 
 /**
+ * Workspace→visual-viewport conversion that also folds in the in-page
+ * zoom applied via `#page-scale-wrapper`. Blockly's own
+ * `svgMath.wsToScreenCoordinates` composes
+ * `getInjectionDiv().getBoundingClientRect().left` (already
+ * post-transform) with the workspace origin offset and scaled coords
+ * (both in logical pre-transform CSS pixels), so at any `pageZoom != 1`
+ * its return value is skewed by that factor. We rebuild the math here
+ * and multiply the logical portion by `getPageZoom()`.
+ */
+function wsToViewport(
+  workspace: Blockly.WorkspaceSvg,
+  wsX: number,
+  wsY: number,
+): {x: number; y: number} {
+  const divRect = workspace.getInjectionDiv().getBoundingClientRect();
+  const origin = workspace.getOriginOffsetInPixels();
+  const z = getPageZoom();
+  return {
+    x: divRect.left + (origin.x + wsX * workspace.scale) * z,
+    y: divRect.top + (origin.y + wsY * workspace.scale) * z,
+  };
+}
+
+/**
  * Compute a small fixed-size viewport-coordinate rect centred on a
  * connection point. The connection's source block provides its workspace
  * coordinates; the connection's local offset within that block adds the
- * connection's position; the same `wsToScreenCoordinates` helper used by
- * {@link getSingleBlockViewportRect} folds in workspace scale, scroll
- * and viewport offset to produce a screen-space anchor.
+ * connection's position; the shared {@link wsToViewport} helper folds
+ * in workspace scale, scroll, viewport offset, and page zoom to produce
+ * a screen-space anchor.
  *
  * Returns a {@link CONNECTION_HIGHLIGHT_SIZE}-px square centred on the
  * connection point so the switch-scan outline visibly hugs the
@@ -308,11 +337,11 @@ export function getConnectionViewportRect(
     | undefined;
   if (!offset) return null;
   const blockXY = block.getRelativeToSurfaceXY();
-  const wsPoint = new Blockly.utils.Coordinate(
+  const screen = wsToViewport(
+    workspace,
     blockXY.x + offset.x,
     blockXY.y + offset.y,
   );
-  const screen = Blockly.utils.svgMath.wsToScreenCoordinates(workspace, wsPoint);
   const half = CONNECTION_HIGHLIGHT_SIZE / 2;
   return new DOMRect(
     screen.x - half,
