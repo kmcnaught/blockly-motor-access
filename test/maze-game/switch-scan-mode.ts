@@ -3156,20 +3156,36 @@ export class SwitchScanController {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (a.target as any).x - (b.target as any).x;
       });
-      // Dedup by target workspace position: Blockly's unplug(healStack)
-      // reconnects the parent's NEXT to the next-sibling's PREVIOUS, so
-      // after detaching a middle block of a stack those two connections
-      // sit at the same visual point. ConnectionHighlighter emits one
-      // valid-pair per matching (local, neighbour), so we end up with
-      // two candidates whose targets are spatially coincident and whose
-      // commits produce the same insertion. Keeping both just adds a
-      // confusing "tiny nudge" scan stop. Quantize to integer workspace
-      // coords and keep the first entry seen per cell.
+      // Dedup coincident candidates. After unplug(healStack: true), the
+      // parent block's NEXT reconnects to the next-sibling's PREVIOUS,
+      // so those two connections literally occupy the same slot and
+      // both pair validly with the moving block's locals — committing
+      // either produces the same insertion. ConnectionHighlighter
+      // doesn't collapse this on its own, so without dedup the scan
+      // visits two indistinguishable stops.
+      //
+      // Primary dedup is semantic: if candidate A's target is currently
+      // the `targetConnection` of candidate B's target, drop whichever
+      // comes second in sort order. Falls back to a position-bucket
+      // dedup (10px) for any remaining visual coincidences the
+      // pairing check missed (e.g. shadow-block edge cases).
+      const targetSet = new Set(candidates.map((p) => p.target));
+      const semanticDropped = new Set<Blockly.Connection>();
+      const afterSemantic: typeof candidates = [];
+      for (const pair of candidates) {
+        if (semanticDropped.has(pair.target)) continue;
+        afterSemantic.push(pair);
+        const other = pair.target.targetConnection as Blockly.Connection | null;
+        if (other && targetSet.has(other)) semanticDropped.add(other);
+      }
       const uniqByPosition: typeof candidates = [];
       const seenPositions = new Set<string>();
-      for (const pair of candidates) {
+      for (const pair of afterSemantic) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const key = `${Math.round((pair.target as any).x)},${Math.round((pair.target as any).y)}`;
+        const bx = Math.round((pair.target as any).x / 10) * 10;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const by = Math.round((pair.target as any).y / 10) * 10;
+        const key = `${bx},${by}`;
         if (seenPositions.has(key)) continue;
         seenPositions.add(key);
         uniqByPosition.push(pair);
