@@ -954,13 +954,25 @@ const STRATEGIES: Strategies = {
     },
     rectAt: (frame, ctx) => {
       // 'move-candidates': the scan highlight jumps directly onto each
-      // valid drop slot in the workspace. The sentinel (Cancel chip)
-      // case is handled by `renderHighlight` directly — callers must
-      // gate on `!atSentinel(frame)` before invoking this.
+      // valid drop slot in the workspace, visually sitting on top of the
+      // green connection highlight the native move mode paints there.
+      // The sentinel (Cancel chip) case is handled by `renderHighlight`
+      // directly — callers must gate on `!atSentinel(frame)` before
+      // invoking this.
       const pair = frame.candidates[frame.index];
-      return pair
-        ? getConnectionViewportRect(pair.target, ctx.workspace)
-        : null;
+      if (!pair) return null;
+      // Defensive: a candidate's target connection or its source block
+      // could have been disposed after enumeration (e.g. a listener
+      // mutated the workspace between enter and the next advance tick).
+      // Returning null lets `renderHighlight`'s existing zero-rect guard
+      // hide the amber outline rather than splatting it at (0, 0).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((pair.target as any).disposed) return null;
+      const sourceBlock = pair.target.getSourceBlock() as
+        | Blockly.BlockSvg
+        | null;
+      if (!sourceBlock || sourceBlock.isDeadOrDying()) return null;
+      return getConnectionViewportRect(pair.target, ctx.workspace);
     },
     // Candidates are scattered connection points around the moving
     // block; there's no obvious reading order, but vertical reads

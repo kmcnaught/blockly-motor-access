@@ -1,0 +1,15 @@
+Done:
+- Validated: STRATEGIES['move-candidates'].rectAt already returns getConnectionViewportRect(pair.target, workspace), which places the amber scan rect on the same workspace point the ConnectionHighlighter paints its green dot/outline (both derive from the connection's workspace coords; different coordinate spaces, visually coincident).
+- renderHighlight already hides the amber rect on null / zero-sized rects (switch-scan-mode.ts:1746), so the fallback path for an unmeasurable connection was already covered.
+- Added a defensive guard inside the move-candidates rectAt: if the current pair's target connection has `disposed === true`, or its source block is missing / `isDeadOrDying()`, return null so renderHighlight's existing zero-rect branch hides the overlay instead of placing it at (0, 0) via a stale offset.
+- Refreshed the strategy comment to describe current behaviour (amber sits on the green highlight the native move mode paints) — no breadcrumbs about prior behaviour.
+- `npm run build` compiles cleanly.
+
+Files touched:
+- test/maze-game/switch-scan-mode.ts (STRATEGIES['move-candidates'].rectAt only)
+
+Open issues / followups:
+- Pinned-outline question (resolver still returns frame.block for move-candidates) deliberately deferred to Step 4 per plan.
+- handleSelect still runs the direct `pair.target.connect(pair.local)` path; Step 3 rewires to Mover.finishMove / abortMove.
+- ConnectionHighlighter and enumerateValidConnectionTargets apply slightly different filters (highlighter caps at 50, drops already-occupied-by-moving-block targets, sorts by distance) — scan list could in principle contain a candidate without a drawn green dot, or vice versa. Not fatal (amber still positions correctly), but worth a note for Step 5 manual verification.
+- `(pair.target as any).disposed` uses a cast because the public Connection typings only expose `disposed` on the ambient d.ts (surfaced at runtime); kept minimal with an eslint-disable one-liner.
