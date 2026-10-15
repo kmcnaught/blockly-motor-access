@@ -447,6 +447,14 @@ type ScanFrame =
       kind: 'move-candidates';
       block: Blockly.BlockSvg;
       candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}>;
+      // Workspace change listener installed during enterMoveCandidates
+      // and removed in teardownPoppedFrame. Fires renderHighlight so
+      // the amber tracks Blockly's post-detach layout settling (block
+      // positions can shift upward over multiple frames as the gap
+      // closes). Nullable because the fallback-path (no Mover wired)
+      // doesn't need the hook.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      changeListener?: (e: any) => void;
       cancelChipEl: HTMLElement;
       index: number;
       topLevelIndex: number;
@@ -2577,6 +2585,12 @@ export class SwitchScanController {
     } else if (popped.kind === 'move-candidates') {
       // Floating Cancel chip created in enterMoveCandidates.
       popped.cancelChipEl.remove();
+      // Remove the layout-settle change listener installed in
+      // enterMoveCandidates. Without this, listeners pile up each
+      // time the user re-enters the Move sub-scan.
+      if (popped.changeListener) {
+        this.workspace.removeChangeListener(popped.changeListener);
+      }
       // Centralised abort hook: cancel, back-switch, and outside-
       // pointerdown all route pops here. A committed select will have
       // already run `finishMove` in handleSelect, so by this point
@@ -3230,11 +3244,30 @@ export class SwitchScanController {
     cancelChipEl.style.transform = 'none';
     document.body.appendChild(cancelChipEl);
 
+    // Blockly's post-detach layout keeps settling for a few frames
+    // after startMove — block positions shift upward as the gap left
+    // by the detached block closes, and connection coords update
+    // alongside them. The initial render below captures the pre-settle
+    // positions; without a listener the amber stays painted at those
+    // stale coords while the green highlights slide to new positions.
+    // Subscribe to workspace change events for the duration of this
+    // frame so renderHighlight re-runs on each settle step.
+    let changeListener: ((e: unknown) => void) | undefined;
+    if (this.mover) {
+      changeListener = () => {
+        if (this.activeFrame()?.kind === 'move-candidates') {
+          this.renderHighlight({speak: false});
+        }
+      };
+      this.workspace.addChangeListener(changeListener);
+    }
+
     this.frameStack.push({
       kind: 'move-candidates',
       block,
       candidates,
       cancelChipEl,
+      changeListener,
       index: 0,
       topLevelIndex,
     });
