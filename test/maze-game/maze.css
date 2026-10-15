@@ -2274,7 +2274,7 @@ body.grid-coding-mode .screen-padding {
   /* Pill-shaped scan-cursor ring on the chip itself: amber ring that
    * matches `.switch-scan-highlight`, with the same outer-dark /
    * inner-light rings for contrast on light and dark surfaces, plus a
-   * drop shadow so the chip lifts off a greyed group mask. */
+   * drop shadow so the chip lifts off whatever is behind it. */
   border: 4px solid #ff8f00;
   box-shadow:
     0 0 0 2px rgba(0, 0, 0, 0.55),

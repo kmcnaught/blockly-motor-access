@@ -153,7 +153,7 @@ suite('switch-scan: applySentinelChip — horizontal flow (primary: right of las
     // Last item: 100x40 at (820, 10). Primary (right-of) overflows
     // width → wrap below. Wrap anchor left=820 + chip width 200 =
     // 1020 > viewport 1000, so clamp left to viewportWidth - chipWidth
-    // = 800. The chip still sits under / overlapping Language's slot.
+    // = 800.
     const lastItem = rect(820, 10, 100, 40);
     applySentinelChip(chip, lastItem, true, 1000, 800);
     expect(chip.style.left).to.equal('800px');

@@ -233,13 +233,6 @@ const SENTINEL_CHIP_WIDTH_ESTIMATE = 200;
 const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 
 /**
- * Normalize a configured key string to its `KeyboardEvent.key` form so
- * `event.key === normalized` works regardless of whether the user wrote
- * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
- *
- * @param key
- */
-/**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
  * `cycleLen` is 0 so a caller doesn't have to pre-check.
  *
@@ -251,6 +244,13 @@ function wrapIndex(index: number, cycleLen: number): number {
   return ((index % cycleLen) + cycleLen) % cycleLen;
 }
 
+/**
+ * Normalize a configured key string to its `KeyboardEvent.key` form so
+ * `event.key === normalized` works regardless of whether the user wrote
+ * `?switchAdvance=Space` or `?switchAdvance=+` in the URL.
+ *
+ * @param key
+ */
 function normalizeKey(key: string): string {
   return KEY_ALIASES[key] ?? key;
 }
@@ -472,10 +472,10 @@ interface StrategyCtx {
  * internal `switch(frame.kind)` guard.
  *
  * The six methods are the full per-kind dispatch surface: cycle length,
- * sentinel detection, TTS label, highlight rect, group bounding box,
- * and Select action. The controller's `cycleLen` / `atSentinel` /
- * `currentItemLabel` / `renderHighlight` / `handleSelect` methods are
- * thin delegators onto these.
+ * sentinel detection, TTS label, highlight rect, preferred reading-flow
+ * direction, and Select action. The controller's `cycleLen` /
+ * `atSentinel` / `currentItemLabel` / `renderHighlight` / `handleSelect`
+ * methods are thin delegators onto these.
  */
 interface FrameStrategy<K extends ScanFrame['kind']> {
   cycleLen(frame: Extract<ScanFrame, {kind: K}>, ctx: StrategyCtx): number;
@@ -521,8 +521,9 @@ type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
  * Strategy registry. One entry per `ScanFrame` kind, enforced
  * exhaustive by the mapped-type annotation (`: Strategies`). Each
  * entry owns the per-kind body for cycle length, sentinel detection,
- * TTS label, highlight rect, and Select action; the controller's
- * delegators dispatch here via {@link strategyFor}.
+ * TTS label, highlight rect, preferred reading-flow direction, and
+ * Select action; the controller's delegators dispatch here via
+ * {@link strategyFor}.
  */
 /* eslint-disable @typescript-eslint/naming-convention
    -- frame.kind strings are kebab-case by design; renaming them would
@@ -593,8 +594,8 @@ const STRATEGIES: Strategies = {
       if (frame.index === frame.items.length) {
         // Sentinel: bail out of the sub-scan without firing anything.
         // Land on the SAME region the user just left so they can re-enter
-        // it (matches user's mental model of "back to top = let me try
-        // again from where I was").
+        // it (matches user's mental model of "Back = let me try again
+        // from where I was").
         ctx.popToSameRegion(frame.topLevelIndex);
         return;
       }
@@ -1097,8 +1098,9 @@ export class SwitchScanController {
   // and falls through to the standard `.click()` path.
   private headerDropdowns: Record<string, HeaderDropdownSource> = {};
 
-  // Top-level regions, discovered on enable(). Index === regions.length
-  // represents the synthetic "back to top" sentinel.
+  // Top-level regions, discovered on enable(). The top-level cycle has
+  // no sentinel — wrapping past the last region returns to the first
+  // (see {@link cycleLen}).
   private regions: ScanRegion[] = [];
 
   // Stack of active scan frames. The last entry is the active frame.
@@ -1655,9 +1657,8 @@ export class SwitchScanController {
    * Sub-scan frames append a sentinel "Back" slot so the user has
    * an explicit way to bail out without committing an action. The top-
    * level frame does NOT carry a sentinel — wrapping past the last real
-   * region already returns the user to the start, so an extra
-   * "back to top" step would just add a dead beat to the cycle every
-   * pass.
+   * region already returns the user to the start, so an extra "Back"
+   * step would just add a dead beat to the cycle every pass.
    *
    * @param frame
    */
