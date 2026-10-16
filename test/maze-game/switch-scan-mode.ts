@@ -615,7 +615,8 @@ const STRATEGIES: Strategies = {
         region.name === 'header' ||
         region.name === 'maze-actions' ||
         region.name === 'instruction-bar' ||
-        region.name === 'practice-controls'
+        region.name === 'practice-controls' ||
+        region.name === 'workspace-actions'
       ) {
         ctx.enterDomRegionSubScan(region.name, frame.index);
       } else if (region.name === 'toolbox') {

@@ -154,36 +154,31 @@ export function discoverRegions(
   // overlay — painted outside the scale wrapper — stays aligned at
   // any pageZoom. This matches the workspace focus ring used by
   // src/index.ts:resizeFocusRingInternal.
-  //
-  // Visual nudge: shift the outline LEFT by `toolbox_width / 10` and
-  // narrow it by `toolbox_width / 6` so the rect doesn't visually
-  // hug the full available width. Toolbox width is read from
-  // `toolboxRectFn` (captured above) at render time so it tracks
-  // resizes; if the toolbox isn't measurable yet (null rect or zero
-  // width), fall through to the unmodified workspace rect.
   const injectionDiv = workspace.getInjectionDiv();
-  const capturedToolboxRectFn = toolboxRectFn;
   if (blocklyVisible && injectionDiv) {
     regions.push({
       name: 'workspace',
-      getRect: () => {
-        const base = getWorkspaceViewportRect(workspace, injectionDiv);
-        if (!base) return null;
-        const toolboxRect = capturedToolboxRectFn?.() ?? null;
-        const toolboxWidth = toolboxRect?.width ?? 0;
-        if (!toolboxWidth) return base;
-        const leftShift = toolboxWidth / 10;
-        const widthReduction = toolboxWidth / 6;
-        return new DOMRect(
-          base.left - leftShift,
-          base.top,
-          base.width - widthReduction,
-          base.height,
-        );
-      },
+      getRect: () => getWorkspaceViewportRect(workspace, injectionDiv),
     });
   } else if (blocklyVisible) {
     console.warn('[switch-scan] workspace region not found');
+  }
+
+  // Workspace action buttons (Delete block / Delete all). Sits visually
+  // between the workspace and the maze area; coupled to the workspace,
+  // so it's gated on `blocklyVisible` the same way `toolbox` and
+  // `workspace` are — in practice mode the whole blockly container
+  // collapses and these buttons go with it.
+  const workspaceActionsEl = document.querySelector<HTMLElement>(
+    '[data-scan-region="workspace-actions"]',
+  );
+  if (blocklyVisible && workspaceActionsEl) {
+    regions.push({
+      name: 'workspace-actions',
+      getRect: () => workspaceActionsEl.getBoundingClientRect(),
+    });
+  } else if (blocklyVisible) {
+    console.warn('[switch-scan] workspace-actions region not found');
   }
 
   // Maze actions — plain DOM region tagged in Step 2.
