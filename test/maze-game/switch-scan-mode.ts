@@ -1055,25 +1055,13 @@ const STRATEGIES: Strategies = {
         ctx.popToSameRegion(frame.topLevelIndex);
         return;
       }
-      if (ctx.mover && ctx.mover.isMoving(ctx.workspace)) {
-        // Hand off to the Mover: seed the chosen (local, target) pair as
-        // the strategy's `connectionCandidate`, then `finishMove` reads it,
-        // aligns the block, and commits via Blockly's drag path (correct
-        // Events-group bookkeeping for a single undo step).
+      // Hand off to the Mover: seed the chosen (local, target) pair as
+      // the strategy's `connectionCandidate`, then `finishMove` reads
+      // it, aligns the block, and commits via Blockly's drag path
+      // (correct Events-group bookkeeping for a single undo step).
+      if (ctx.mover?.isMoving(ctx.workspace)) {
         setConnectionCandidate(frame.block, pair);
         ctx.mover.finishMove(ctx.workspace);
-      } else {
-        // Fallback for embedders that didn't inject a Mover (tests,
-        // non-maze-game demos). Wrap in an Events group so undo treats
-        // the disconnect-old + connect-new pair as a single step.
-        Blockly.Events.setGroup(true);
-        try {
-          pair.target.connect(pair.local);
-        } catch (err) {
-          console.warn('[switch-scan] connection commit failed:', err);
-        } finally {
-          Blockly.Events.setGroup(false);
-        }
       }
       ctx.popToSameRegion(frame.topLevelIndex);
     },
@@ -2769,13 +2757,11 @@ export class SwitchScanController {
    * editable dropdowns, we'll edit the FIRST one — see
    * {@link findFirstEditableDropdown}; multi-field handling is a
    * later-phase enhancement).
-   * - `Move` is conditional on the block having at least one valid
-   * alternative connection on the workspace — see
-   * {@link enumerateValidConnectionTargets}. If there's nowhere else
-   * the block could go, entering the move sub-scan would just leave the
-   * user stuck cycling candidates that don't exist, so we hide the
-   * option entirely (matches the design doc instruction "skip this
-   * option").
+   * - `Move` is conditional on {@link Mover.canMove} — matches the
+   * M-key shortcut's own gating (movable block, workspace focus, no
+   * active move). If no destinations surface after startMove, the
+   * move-candidates entry auto-aborts and pops the user back to
+   * block selection.
    *
    * Order is `[Select, Edit, Move, Delete]` per the design doc —
    * Move sits between Edit and Delete so the most-destructive option
@@ -2800,19 +2786,11 @@ export class SwitchScanController {
     if (this.findFirstEditableDropdown(block)) {
       items.push({key: 'edit', label: 'Edit'});
     }
-    // Use the Mover's own `canMove` predicate rather than a parallel
-    // enumeration — the enumeration-based pre-check wrongly hid Move
-    // for anything already attached to a parent, because canConnect's
-    // same-root cycle check rejected every target in the current tree.
-    // `canMove` matches Blockly's own M-key gating: movable block in a
-    // workspace with no active move. If no valid destinations surface
-    // after entry, enterMoveCandidates auto-aborts and pops the user
-    // back to block selection — same user-visible result the old
-    // predicate's hide-the-menu-item achieved for the empty case.
-    const canMoveBlock = this.mover
-      ? this.mover.canMove(this.workspace, block)
-      : this.enumerateValidConnectionTargets(block).length > 0;
-    if (canMoveBlock) {
+    // Mover.canMove matches Blockly's own M-key gating: movable block
+    // in a workspace with no active move. If no valid destinations
+    // surface after entry, enterMoveCandidates auto-aborts and pops
+    // the user back to block selection.
+    if (this.mover?.canMove(this.workspace, block)) {
       items.push({key: 'move', label: 'Move'});
     }
     items.push({key: 'delete', label: 'Delete'});
@@ -3013,114 +2991,6 @@ export class SwitchScanController {
   }
 
   /**
-   * Enumerate every `(localConn, targetConn)` pair where one of
-   * `block`'s own connections could legally connect to a connection on
-   * some OTHER block on the workspace (excluding `block`'s own
-   * descendants — they move with it, so they aren't valid attachment
-   * targets).
-   *
-   * Returned in iteration order (outer: `block`'s own connections, inner:
-   * every other workspace block's connections). Stable order is what
-   * makes the switch-scan move sub-scan feel predictable across repeats —
-   * the user can rely on "advance N times to reach the same slot" without
-   * having to count past spurious reorderings.
-   *
-   * Used both as the source of truth for the move-candidates sub-scan and
-   * (via `.length > 0`) as the predicate for whether the action menu's
-   * "Move" entry should appear at all. Mirrors the same direction filter
-   * as the maze game's normal-mode `hasValidConnections` in `index.ts`.
-   *
-   * @param block
-   */
-  private enumerateValidConnectionTargets(
-    block: Blockly.BlockSvg,
-  ): Array<{local: Blockly.Connection; target: Blockly.Connection}> {
-    const pairs: Array<{local: Blockly.Connection; target: Blockly.Connection}> = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const localConnections = (block as any).getConnections_?.(false) as
-      | Blockly.Connection[]
-      | undefined;
-    if (!localConnections || localConnections.length === 0) return pairs;
-
-    // Dry-run detach so Blockly's canConnect same-root cycle check
-    // doesn't reject every potential target that currently shares a
-    // tree with `block`. The actual Move flow will detach via unplug()
-    // before enumerating candidates; mirroring that detach here keeps
-    // the predicate honest. Events are suppressed via a short-lived
-    // group so the disconnect/reconnect doesn't leak to listeners.
-    const prev = block.previousConnection as Blockly.Connection | null;
-    const out = block.outputConnection as Blockly.Connection | null;
-    const upstream =
-      prev && prev.isConnected()
-        ? prev
-        : out && out.isConnected()
-          ? out
-          : null;
-    const parentConn = upstream?.targetConnection ?? null;
-    const eventsAlreadyEnabled = Blockly.Events.isEnabled();
-    if (upstream && parentConn && eventsAlreadyEnabled) {
-      Blockly.Events.disable();
-    }
-    try {
-      if (upstream && parentConn) {
-        upstream.disconnect();
-      }
-      const movingDescendants = block.getDescendants(true) as Blockly.BlockSvg[];
-      const movingSet = new Set(movingDescendants);
-      const allWorkspaceConnections: Blockly.Connection[] = [];
-      for (const b of this.workspace.getAllBlocks(false)) {
-        if (movingSet.has(b as Blockly.BlockSvg)) continue;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const conns = (b as any).getConnections_?.(false) as
-          | Blockly.Connection[]
-          | undefined;
-        if (conns) allWorkspaceConnections.push(...conns);
-      }
-      if (allWorkspaceConnections.length === 0) return pairs;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const connectionChecker = (this.workspace as any).connectionChecker as
-        | {
-            canConnect(
-              a: Blockly.Connection,
-              b: Blockly.Connection,
-              isDragging: boolean,
-              distance: number,
-            ): boolean;
-          }
-        | undefined;
-      if (!connectionChecker) return pairs;
-
-      for (const local of localConnections) {
-        for (const ws of allWorkspaceConnections) {
-          const sourceBlock = ws.getSourceBlock();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (!sourceBlock || (sourceBlock as any).isInsertionMarker?.()) continue;
-          const isValidDirection =
-            (local.type === Blockly.ConnectionType.OUTPUT_VALUE &&
-              ws.type === Blockly.ConnectionType.INPUT_VALUE) ||
-            (local.type === Blockly.ConnectionType.PREVIOUS_STATEMENT &&
-              ws.type === Blockly.ConnectionType.NEXT_STATEMENT) ||
-            (local.type === Blockly.ConnectionType.NEXT_STATEMENT &&
-              ws.type === Blockly.ConnectionType.PREVIOUS_STATEMENT);
-          if (!isValidDirection) continue;
-          if (connectionChecker.canConnect(local, ws, true, Infinity)) {
-            pairs.push({local, target: ws});
-          }
-        }
-      }
-    } finally {
-      if (upstream && parentConn && !upstream.isConnected()) {
-        upstream.connect(parentConn);
-      }
-      if (upstream && parentConn && eventsAlreadyEnabled) {
-        Blockly.Events.enable();
-      }
-    }
-    return pairs;
-  }
-
-  /**
    * Enter the move-candidates sub-scan: the scan highlight jumps
    * directly onto each valid drop slot in the workspace; advance walks
    * the list; select commits via the Mover. The +1 sentinel slot is a
@@ -3171,97 +3041,93 @@ export class SwitchScanController {
     // refocus the block first so canMove passes. The switch-scan key
     // handler is capture-phase on document, so it reclaims routing on
     // the next keydown regardless.
-    let candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}> = [];
-    if (this.mover) {
-      Blockly.getFocusManager().focusNode(block);
-      if (!this.mover.canMove(this.workspace, block)) {
-        this.popToSameRegion(topLevelIndex);
-        return;
-      }
-      const started = this.mover.startMove(
-        this.workspace,
-        block,
-        MoveType.Move,
-        null,
-        undefined,
-        false,
-        true,
-      );
-      if (!started) {
-        this.popToSameRegion(topLevelIndex);
-        return;
-      }
-      // Read the scan list back from the drawn highlights so the two
-      // can't diverge: ConnectionHighlighter sees the block *after*
-      // super.startDrag detached it (slots the block vacated become
-      // free), which a pre-startMove enumeration would have filtered
-      // out as "occupied".
+    if (!this.mover) {
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+    Blockly.getFocusManager().focusNode(block);
+    if (!this.mover.canMove(this.workspace, block)) {
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+    const started = this.mover.startMove(
+      this.workspace,
+      block,
+      MoveType.Move,
+      null,
+      undefined,
+      false,
+      true,
+    );
+    if (!started) {
+      this.popToSameRegion(topLevelIndex);
+      return;
+    }
+    // Read the scan list back from the drawn highlights:
+    // ConnectionHighlighter sees the block *after* super.startDrag
+    // detached it, which is the only state in which already-connected
+    // slots the block just vacated appear as free candidates.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dragStrategy = (block as any).dragStrategy as
+      | {connectionHighlighter?: {getLastValidConnections?: () => Array<{local: Blockly.RenderedConnection; neighbour: Blockly.RenderedConnection}>}}
+      | undefined;
+    const highlighted =
+      dragStrategy?.connectionHighlighter?.getLastValidConnections?.() ?? [];
+    let candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}> =
+      highlighted.map((vc) => ({local: vc.local, target: vc.neighbour}));
+    // Visit order mirrors keyboard-move's `Down` traversal: y/x
+    // ascending (same sort KeyboardDragStrategy uses to build its
+    // `allConnections` list), rotated so the first candidate the scan
+    // visits is the one just below the moving block's current y
+    // position. Wraps naturally when the user cycles past the last
+    // dot — matching "press Down repeatedly, loop round" semantics.
+    candidates.sort((a, b) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dragStrategy = (block as any).dragStrategy as
-        | {connectionHighlighter?: {getLastValidConnections?: () => Array<{local: Blockly.RenderedConnection; neighbour: Blockly.RenderedConnection}>}}
-        | undefined;
-      const highlighted =
-        dragStrategy?.connectionHighlighter?.getLastValidConnections?.() ?? [];
-      candidates = highlighted.map((vc) => ({local: vc.local, target: vc.neighbour}));
-      // Visit order mirrors keyboard-move's `Down` traversal: y/x
-      // ascending (same sort KeyboardDragStrategy uses to build its
-      // `allConnections` list), rotated so the first candidate the scan
-      // visits is the one just below the moving block's current y
-      // position. Wraps naturally when the user cycles past the last
-      // dot — matching "press Down repeatedly, loop round" semantics.
-      candidates.sort((a, b) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dy = (a.target as any).y - (b.target as any).y;
-        if (dy !== 0) return dy;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (a.target as any).x - (b.target as any).x;
-      });
-      // Dedup coincident candidates. After unplug(healStack: true), the
-      // parent block's NEXT reconnects to the next-sibling's PREVIOUS,
-      // so those two connections literally occupy the same slot and
-      // both pair validly with the moving block's locals — committing
-      // either produces the same insertion. ConnectionHighlighter
-      // doesn't collapse this on its own, so without dedup the scan
-      // visits two indistinguishable stops.
-      //
-      // Primary dedup is semantic: if candidate A's target is currently
-      // the `targetConnection` of candidate B's target, drop whichever
-      // comes second in sort order. Falls back to a position-bucket
-      // dedup (10px) for any remaining visual coincidences the
-      // pairing check missed (e.g. shadow-block edge cases).
-      const targetSet = new Set(candidates.map((p) => p.target));
-      const semanticDropped = new Set<Blockly.Connection>();
-      const afterSemantic: typeof candidates = [];
-      for (const pair of candidates) {
-        if (semanticDropped.has(pair.target)) continue;
-        afterSemantic.push(pair);
-        const other = pair.target.targetConnection as Blockly.Connection | null;
-        if (other && targetSet.has(other)) semanticDropped.add(other);
-      }
-      const uniqByPosition: typeof candidates = [];
-      const seenPositions = new Set<string>();
-      for (const pair of afterSemantic) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const bx = Math.round((pair.target as any).x / 10) * 10;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const by = Math.round((pair.target as any).y / 10) * 10;
-        const key = `${bx},${by}`;
-        if (seenPositions.has(key)) continue;
-        seenPositions.add(key);
-        uniqByPosition.push(pair);
-      }
-      candidates = uniqByPosition;
-      const blockY = block.getRelativeToSurfaceXY().y;
+      const dy = (a.target as any).y - (b.target as any).y;
+      if (dy !== 0) return dy;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const startIdx = candidates.findIndex((p) => (p.target as any).y > blockY);
-      if (startIdx > 0) {
-        candidates = [...candidates.slice(startIdx), ...candidates.slice(0, startIdx)];
-      }
-    } else {
-      // Fallback for embedders without a Mover (tests, non-maze demos):
-      // use the pre-startMove enumeration. The two-source divergence
-      // doesn't apply here because no native move mode is entered.
-      candidates = this.enumerateValidConnectionTargets(block);
+      return (a.target as any).x - (b.target as any).x;
+    });
+    // Dedup coincident candidates. After unplug(healStack: true), the
+    // parent block's NEXT reconnects to the next-sibling's PREVIOUS,
+    // so those two connections literally occupy the same slot and
+    // both pair validly with the moving block's locals — committing
+    // either produces the same insertion. ConnectionHighlighter
+    // doesn't collapse this on its own, so without dedup the scan
+    // visits two indistinguishable stops.
+    //
+    // Primary dedup is semantic: if candidate A's target is currently
+    // the `targetConnection` of candidate B's target, drop whichever
+    // comes second in sort order. Falls back to a position-bucket
+    // dedup (10px) for any remaining visual coincidences the
+    // pairing check missed (e.g. shadow-block edge cases).
+    const targetSet = new Set(candidates.map((p) => p.target));
+    const semanticDropped = new Set<Blockly.Connection>();
+    const afterSemantic: typeof candidates = [];
+    for (const pair of candidates) {
+      if (semanticDropped.has(pair.target)) continue;
+      afterSemantic.push(pair);
+      const other = pair.target.targetConnection as Blockly.Connection | null;
+      if (other && targetSet.has(other)) semanticDropped.add(other);
+    }
+    const uniqByPosition: typeof candidates = [];
+    const seenPositions = new Set<string>();
+    for (const pair of afterSemantic) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bx = Math.round((pair.target as any).x / 10) * 10;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const by = Math.round((pair.target as any).y / 10) * 10;
+      const key = `${bx},${by}`;
+      if (seenPositions.has(key)) continue;
+      seenPositions.add(key);
+      uniqByPosition.push(pair);
+    }
+    candidates = uniqByPosition;
+    const blockY = block.getRelativeToSurfaceXY().y;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const startIdx = candidates.findIndex((p) => (p.target as any).y > blockY);
+    if (startIdx > 0) {
+      candidates = [...candidates.slice(startIdx), ...candidates.slice(0, startIdx)];
     }
 
     if (candidates.length === 0) {
@@ -3269,7 +3135,7 @@ export class SwitchScanController {
       // isn't available). Abort the move we started and bail — leaving
       // the user mid-move with a Cancel chip and nothing to scan is a
       // trap.
-      if (this.mover?.isMoving(this.workspace)) {
+      if (this.mover.isMoving(this.workspace)) {
         this.mover.abortMove(this.workspace);
       }
       this.popToSameRegion(topLevelIndex);
