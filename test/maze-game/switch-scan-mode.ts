@@ -595,13 +595,32 @@ type Strategies = {[K in ScanFrame['kind']]: FrameStrategy<K>};
 /* eslint-disable @typescript-eslint/naming-convention
    -- frame.kind strings are kebab-case by design; renaming them would
    break the discriminated-union discriminator everywhere else. */
+/**
+ * Human-readable region labels for TTS at the top-level scan cursor.
+ * The region `name` is a kebab-case internal id ("workspace-actions",
+ * "instruction-bar", …); passing it to `speechSynthesis` reads the
+ * hyphen as a brief pause and sometimes mispronounces the parts.
+ * Fall back to the raw name for any region added without a mapping,
+ * so a missing entry is noticeable but not silent.
+ */
+const REGION_SPEECH_LABELS: Record<string, string> = {
+  'header': 'Header',
+  'instruction-bar': 'Instructions',
+  'practice-controls': 'Practice controls',
+  'toolbox': 'Toolbox',
+  'workspace': 'Workspace',
+  'workspace-actions': 'Workspace actions',
+  'maze-actions': 'Maze actions',
+};
+
 const STRATEGIES: Strategies = {
   'top': {
     cycleLen: (frame, ctx) => ctx.regions.length,
     atSentinel: () => false,
     labelAt: (frame, ctx) => {
       const region = ctx.regions[frame.index];
-      return region?.name ?? null;
+      if (!region) return null;
+      return REGION_SPEECH_LABELS[region.name] ?? region.name;
     },
     rectAt: (frame, ctx) => ctx.regions[frame.index]?.getRect() ?? null,
     // No sentinel at the top level, so the direction is never
@@ -1335,8 +1354,12 @@ export class SwitchScanController {
 
     // Discover regions and create overlay DOM.
     this.regions = discoverRegions(this.workspace);
-    // Seed the stack with a fresh top-level frame at index 0.
-    this.frameStack = [{kind: 'top', index: 0}];
+    // HACK (phone preview, no Space key): seed the top-level frame on
+    // the 'workspace' region so the amber ring is visible there without
+    // a switch press to advance past the earlier regions. Revert to
+    // `index: 0` for normal operation.
+    const workspaceIndex = this.regions.findIndex((r) => r.name === 'workspace');
+    this.frameStack = [{kind: 'top', index: workspaceIndex >= 0 ? workspaceIndex : 0}];
     this.createOverlayElements();
 
     // Bind keyboard + viewport-change events.
@@ -1932,11 +1955,11 @@ export class SwitchScanController {
    * Label source by frame kind:
    *  - sentinel slot of any frame → "Back" (mirrors the chip's
    *    on-screen text so the audio + visual cues match).
-   *  - `top` at a real region → the region's `name` ("header",
-   *    "toolbox", "workspace", "maze-actions"). The names are
-   *    intentionally terse and machine-flavored — there's no
-   *    region-friendly map yet, and these strings happen to read fine
-   *    out loud.
+   *  - `top` at a real region → the region's human-readable label
+   *    from `REGION_SPEECH_LABELS` (e.g. "Workspace actions" for the
+   *    `workspace-actions` region). Falls back to the raw kebab-case
+   *    `name` for any region added without a mapping — audible but
+   *    noticeably rough, so missing entries are easy to spot.
    *  - `dom-items` → the item's `aria-label`, falling back to its
    *    `textContent`. The settings modal's controls already carry
    *    sensible aria-labels via the existing markup; bare buttons
