@@ -79,6 +79,7 @@
 import * as Blockly from 'blockly/core';
 import {scrollBoundsIntoView} from '../../src/workspace_utilities';
 import {Mover, MoveType} from '../../src/actions/mover';
+import {Direction} from '../../src/drag_direction';
 import {MazeGame} from './maze';
 import {
   insertBlockAfterCursor,
@@ -463,27 +464,15 @@ type ScanFrame =
       commitHandler?: (value: string) => void;
     }
   | {
-      // Switch-scan over the workspace's valid drop slots for `block`.
-      // We enumerate every legal `(local, target)` connection pair
-      // ourselves and the scan highlight jumps directly onto each target
-      // connection, visually sitting on top of the green dot Blockly's
-      // native move mode paints. Each advance moves to the next candidate;
-      // select routes through the Mover (`finishMove`) so Blockly's drag
-      // path commits the move with the right Events-group bookkeeping;
-      // the sentinel slot doubles as Cancel (anchored by `cancelChipEl`)
-      // and routes through `abortMove` to revert cleanly.
+      // Variant B's "step the preview" sub-scan. Blockly's own move
+      // mode drives the preview (`Mover.moveConstrained` on advance,
+      // `finishMove` on select); switch-scan supplies no scan cursor
+      // for this frame — the block preview itself is the cursor. The
+      // `candidates` list is empty (populated only by variant A); no
+      // Cancel chip (variant A has one). Esc / back-switch aborts.
       kind: 'move-candidates';
       block: Blockly.BlockSvg;
       candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}>;
-      // Workspace change listener installed during enterMoveCandidates
-      // and removed in teardownPoppedFrame. Fires renderHighlight so
-      // the amber tracks Blockly's post-detach layout settling (block
-      // positions can shift upward over multiple frames as the gap
-      // closes). Nullable because the fallback-path (no Mover wired)
-      // doesn't need the hook.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      changeListener?: (e: any) => void;
-      cancelChipEl: HTMLElement;
       index: number;
       topLevelIndex: number;
     };
@@ -1024,97 +1013,22 @@ const STRATEGIES: Strategies = {
     },
   },
   'move-candidates': {
-    cycleLen: (frame) => frame.candidates.length + 1,
-    atSentinel: (frame) => frame.index === frame.candidates.length,
-    labelAt: (frame) => {
-      // Move-candidates uses a "Cancel" sentinel chip (it doesn't loop
-      // back to the top — Select on it bails out of the move sub-scan).
-      if (frame.index === frame.candidates.length) return 'Cancel';
-      const pair = frame.candidates[frame.index];
-      if (!pair) return null;
-      const target = pair.target;
-      const sourceBlock = target.getSourceBlock();
-      let blockLabel = '';
-      try {
-        blockLabel = sourceBlock?.toString?.().trim() || sourceBlock?.type || '';
-      } catch {
-        blockLabel = sourceBlock?.type || '';
-      }
-      // Differentiate value-input slots from stack slots so the audio
-      // disambiguates a connection nested INSIDE a block from a
-      // connection AFTER one.
-      if (target.type === Blockly.ConnectionType.INPUT_VALUE) {
-        return blockLabel ? `input on ${blockLabel}` : 'input';
-      }
-      return blockLabel ? `slot after ${blockLabel}` : 'slot';
-    },
-    rectAt: (frame, ctx) => {
-      // 'move-candidates': the scan highlight jumps directly onto each
-      // valid drop slot in the workspace, sized to wrap the green
-      // highlight the native move mode paints there (statement notches
-      // extend to the right of the connection point, so a point-centred
-      // rect would under-cover them). The sentinel (Cancel chip) case
-      // is handled by `renderHighlight` directly — callers must gate
-      // on `!atSentinel(frame)` before invoking this.
-      const pair = frame.candidates[frame.index];
-      if (!pair) return null;
-      // Defensive: a candidate's target connection or its source block
-      // could have been disposed after enumeration (e.g. a listener
-      // mutated the workspace between enter and the next advance tick).
-      // Returning null lets `renderHighlight`'s existing zero-rect guard
-      // hide the amber outline rather than splatting it at (0, 0).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((pair.target as any).disposed) return null;
-      const sourceBlock = pair.target.getSourceBlock() as
-        | Blockly.BlockSvg
-        | null;
-      if (!sourceBlock || sourceBlock.isDeadOrDying()) return null;
-      // Prefer the drawn green highlight's actual DOM bounds so the
-      // amber scan rect wraps the whole shape (notch outline for
-      // statements, socket outline for value inputs). Fall back to the
-      // small point-centred rect only when no highlighter is wired or
-      // the current target isn't among the drawn highlights (edge
-      // case: enumeration + highlighter disagreement).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dragStrategy = (frame.block as any).dragStrategy as
-        | {connectionHighlighter?: {getBoundsForConnection?: (c: Blockly.RenderedConnection) => DOMRect | null}}
-        | undefined;
-      const highlightBounds =
-        dragStrategy?.connectionHighlighter?.getBoundsForConnection?.(
-          pair.target as Blockly.RenderedConnection,
-        ) ?? null;
-      if (highlightBounds && highlightBounds.width > 0 && highlightBounds.height > 0) {
-        return highlightBounds;
-      }
-      return getConnectionViewportRect(pair.target, ctx.workspace);
-    },
-    // Candidates are scattered connection points around the moving
-    // block; there's no obvious reading order, but vertical reads
-    // acceptably since the Cancel chip is on the right of the maze
-    // anyway and this frame uses its own cancelChipEl, not the shared
-    // sentinel chip.
+    // Variant B: no scan cycle — the user drives Blockly's move preview
+    // directly via `moveConstrained` on each advance keypress. Keep
+    // cycleLen at 1 so wrap arithmetic in `advance()` is a no-op if it
+    // ever runs on this frame (defensive: advance() short-circuits
+    // move-candidates to call moveConstrained instead).
+    cycleLen: () => 1,
+    atSentinel: () => false,
+    labelAt: () => 'moving block',
+    rectAt: () => null, // Amber scan rect is hidden — block preview IS the cursor.
     preferredDirection: () => 'vertical',
     handleSelect: (frame, ctx) => {
-      if (frame.index === frame.candidates.length) {
-        // Cancel slot. If a Mover drove the move-candidates sub-scan,
-        // the pop below runs `teardownPoppedFrame`, which will route the
-        // abort through `Mover.abortMove`. Calling it here too would be
-        // redundant — teardown is the single centralised abort hook.
-        ctx.popToSameRegion(frame.topLevelIndex);
-        return;
-      }
-      const pair = frame.candidates[frame.index];
-      if (!pair) {
-        // Defensive fallback.
-        ctx.popToSameRegion(frame.topLevelIndex);
-        return;
-      }
-      // Hand off to the Mover: seed the chosen (local, target) pair as
-      // the strategy's `connectionCandidate`, then `finishMove` reads
-      // it, aligns the block, and commits via Blockly's drag path
-      // (correct Events-group bookkeeping for a single undo step).
-      if (ctx.mover?.isMoving(ctx.workspace)) {
-        setConnectionCandidate(frame.block, pair);
+      // Select commits the current block-preview position via the
+      // Mover. finishMove reads the strategy's connectionCandidate
+      // (which Blockly's own keyboard flow has been maintaining as the
+      // user steps via moveConstrained).
+      if (ctx.mover && ctx.mover.isMoving(ctx.workspace)) {
         ctx.mover.finishMove(ctx.workspace);
       }
       ctx.popToSameRegion(frame.topLevelIndex);
@@ -1465,17 +1379,8 @@ export class SwitchScanController {
     // leave the voice talking over a now-hidden highlight.
     this.tts?.cancel();
 
-    // Tear down overlay DOM. If a move-candidates frame is on the stack
-    // its cancel chip is removed via teardownPoppedFrame during normal
-    // pops; on disable we don't drive those pops — the cancel chip is
-    // a body child, so removing the body's other overlay nodes plus
-    // resetting the stack below is enough. Defensive cleanup: walk the
-    // stack for any straggling cancel chips.
-    for (const frame of this.frameStack) {
-      if (frame.kind === 'move-candidates') {
-        frame.cancelChipEl.remove();
-      }
-    }
+    // Tear down overlay DOM. Resetting the stack below drops any
+    // move-candidates frame without walking the normal pop path.
     this.highlightEl?.remove();
     this.pinnedEl?.remove();
     this.sentinelChip?.remove();
@@ -2156,50 +2061,20 @@ export class SwitchScanController {
       }
     }
 
-    // Keep the move-candidates Cancel chip pinned directly right of
-    // the moving block on every render — scrolling / zooming / scan
-    // cycling would otherwise drift the chip away. Top-aligned with
-    // the block so the chip reads as "beside this block" and doesn't
-    // disrupt the top-to-bottom visual order of the scan sweep.
-    if (frame.kind === 'move-candidates') {
-      const blockRect = this.getSingleBlockViewportRect(frame.block);
-      if (blockRect && blockRect.width > 0 && blockRect.height > 0) {
-        frame.cancelChipEl.style.top = `${blockRect.top}px`;
-        frame.cancelChipEl.style.left = `${blockRect.right + 20}px`;
-      }
-    }
-
     const sentinel = this.atSentinel(frame);
     if (sentinel) {
-      if (frame.kind === 'move-candidates') {
-        // Move-candidates owns a frame-local Cancel chip near the
-        // block; the shared sentinelChip would duplicate it. Route the
-        // amber scan rect over the Cancel chip instead so the sentinel
-        // reads as "the scan cursor is on Cancel", continuing the
-        // linear sweep that passed through the green dots.
-        this.sentinelChip.style.display = 'none';
-        const chipRect = frame.cancelChipEl.getBoundingClientRect();
-        if (chipRect.width > 0 && chipRect.height > 0) {
-          this.highlightEl.style.display = 'block';
-          this.positionHighlightAround(
-            this.highlightEl,
-            chipRect,
-            ITEM_RING_PAD_PX,
-          );
-        } else {
-          this.highlightEl.style.display = 'none';
-        }
-      } else {
-        this.highlightEl.style.display = 'none';
-        // Modal sub-scans show "Esc" (dismiss the dialog) instead of
-        // "Back" (navigate up). Matches the keyboard affordance a
-        // sighted user would reach for and the universal "exit this
-        // modal context" vocabulary across input methods.
-        const inModal =
-          this.sentinelChip.parentElement instanceof HTMLDialogElement;
-        this.sentinelChip.textContent = inModal ? '↩ Esc' : '↩ Back';
-        this.applySentinelChip(frame);
-      }
+      this.highlightEl.style.display = 'none';
+      // Modal sub-scans show "Esc" (dismiss the dialog) instead of
+      // "Back" (navigate up). Matches the keyboard affordance a
+      // sighted user would reach for and the universal "exit this
+      // modal context" vocabulary across input methods. Variant B's
+      // move-candidates frame has `atSentinel === false`, so this
+      // branch never fires for Move — only toolbox / action-menu /
+      // dropdown / dom-items sub-scans reach it.
+      const inModal =
+        this.sentinelChip.parentElement instanceof HTMLDialogElement;
+      this.sentinelChip.textContent = inModal ? '↩ Esc' : '↩ Back';
+      this.applySentinelChip(frame);
       if (shouldSpeak) this.speakCurrentLabel();
       if (shouldRestart) this.restartAutoTimerIfScanning();
       return;
@@ -2359,14 +2234,6 @@ export class SwitchScanController {
     this.actionMenuEl = null;
     this.dropdownMenuEl?.remove();
     this.dropdownMenuEl = null;
-    // Remove any straggling cancel chips owned by an in-flight
-    // move-candidates frame. handleRunEnd resets the frame stack to a
-    // fresh top.
-    for (const frame of this.frameStack) {
-      if (frame.kind === 'move-candidates') {
-        frame.cancelChipEl.remove();
-      }
-    }
   }
 
   /**
@@ -2403,14 +2270,17 @@ export class SwitchScanController {
     const frame = this.activeFrame();
     if (!frame) return;
 
-    // Click-to-commit on move-candidates: if the pointerdown landed on
-    // one of the drawn green connection highlights, route it through
-    // our own `handleSelect` for that candidate (same path the scan
-    // Enter press uses) rather than popping the frame as a dismiss.
+    // Click-to-commit on move-candidates (variant B): if the pointerdown
+    // landed on one of the drawn green connection highlights, commit the
+    // move onto that connection via `Mover.finishMove`. Variant B has no
+    // scan candidate list, so we derive the matching `local` connection
+    // on the moving block from the clicked target's type:
+    //   NEXT_STATEMENT   → local PREVIOUS_STATEMENT
+    //   PREVIOUS_STATEMENT → local NEXT_STATEMENT
+    //   INPUT_VALUE      → local OUTPUT_VALUE
     // Stops propagation so the highlight's own click handler doesn't
-    // ALSO fire — that handler commits via `KeyboardDragStrategy`'s
-    // own path and would leave our frame stack holding a stale
-    // reference to a finished move.
+    // ALSO fire; that handler commits via `KeyboardDragStrategy`'s own
+    // path and would race with ours.
     if (
       frame.kind === 'move-candidates' &&
       this.mover &&
@@ -2427,15 +2297,26 @@ export class SwitchScanController {
             highlightEl,
           ) ?? null;
         if (clicked) {
-          const idx = frame.candidates.findIndex((p) => p.target === clicked);
-          if (idx >= 0) {
+          let local: Blockly.Connection | null = null;
+          switch (clicked.type) {
+            case Blockly.ConnectionType.NEXT_STATEMENT:
+              local = frame.block.previousConnection;
+              break;
+            case Blockly.ConnectionType.PREVIOUS_STATEMENT:
+              local = frame.block.nextConnection;
+              break;
+            case Blockly.ConnectionType.INPUT_VALUE:
+              local = frame.block.outputConnection;
+              break;
+            default:
+              local = null;
+          }
+          if (local && this.mover.isMoving(this.workspace)) {
             e.stopPropagation();
             e.preventDefault();
-            frame.index = idx;
-            strategyFor(frame).handleSelect(
-              frame as never,
-              this.getStrategyCtx(),
-            );
+            setConnectionCandidate(frame.block, {local, target: clicked});
+            this.mover.finishMove(this.workspace);
+            this.popToSameRegion(frame.topLevelIndex);
             return;
           }
         }
@@ -2633,6 +2514,15 @@ export class SwitchScanController {
   private advance(): void {
     const frame = this.activeFrame();
     if (!frame) return;
+    // Variant B: in the move-candidates frame, the advance key steps
+    // Blockly's move-mode preview to the next valid connection via
+    // `moveConstrained(Direction.Down)` — the keyboard-mode equivalent
+    // of pressing Down during move. The scan cursor doesn't advance
+    // because the block preview itself IS the on-screen cursor.
+    if (frame.kind === 'move-candidates' && this.mover?.isMoving(this.workspace)) {
+      this.mover.moveConstrained(this.workspace, Direction.Down);
+      return;
+    }
     const len = this.cycleLen(frame);
     if (len <= 0) return;
     frame.index = wrapIndex(frame.index + 1, len);
@@ -2890,20 +2780,12 @@ export class SwitchScanController {
       this.dropdownMenuEl?.remove();
       this.dropdownMenuEl = null;
     } else if (popped.kind === 'move-candidates') {
-      // Floating Cancel chip created in enterMoveCandidates.
-      popped.cancelChipEl.remove();
-      // Remove the layout-settle change listener installed in
-      // enterMoveCandidates. Without this, listeners pile up each
-      // time the user re-enters the Move sub-scan.
-      if (popped.changeListener) {
-        this.workspace.removeChangeListener(popped.changeListener);
-      }
-      // Centralised abort hook: cancel, back-switch, and outside-
-      // pointerdown all route pops here. A committed select will have
-      // already run `finishMove` in handleSelect, so by this point
-      // `isMoving` returns false and `abortMove` is skipped. Any other
-      // path that pops a move-candidates frame while a move is still in
-      // progress is an abort → revert the block to origin.
+      // Centralised abort hook: back-switch and outside-pointerdown
+      // route pops here. A committed select will have already run
+      // `finishMove` in handleSelect, so by this point `isMoving`
+      // returns false and `abortMove` is skipped. Any other path that
+      // pops a move-candidates frame while a move is still in progress
+      // is an abort → revert the block to origin.
       //
       // Re-entry guard: `abortMove` fires workspace events (block
       // reposition after unplug) that reach any listeners the user has
@@ -3079,9 +2961,7 @@ export class SwitchScanController {
    * later-phase enhancement).
    * - `Move` is conditional on {@link Mover.canMove} — matches the
    * M-key shortcut's own gating (movable block, workspace focus, no
-   * active move). If no destinations surface after startMove, the
-   * move-candidates entry auto-aborts and pops the user back to
-   * block selection.
+   * active move).
    *
    * Order is `[Select, Edit, Move, Delete]` per the design doc —
    * Move sits between Edit and Delete so the most-destructive option
@@ -3107,9 +2987,7 @@ export class SwitchScanController {
       items.push({key: 'edit', label: 'Edit'});
     }
     // Mover.canMove matches Blockly's own M-key gating: movable block
-    // in a workspace with no active move. If no valid destinations
-    // surface after entry, enterMoveCandidates auto-aborts and pops
-    // the user back to block selection.
+    // in a workspace with no active move.
     if (this.mover?.canMove(this.workspace, block)) {
       items.push({key: 'move', label: 'Move'});
     }
@@ -3311,24 +3189,18 @@ export class SwitchScanController {
   }
 
   /**
-   * Enter the move-candidates sub-scan: the scan highlight jumps
-   * directly onto each valid drop slot in the workspace; advance walks
-   * the list; select commits via the Mover. The +1 sentinel slot is a
-   * "Cancel" chip anchored near the block.
+   * Variant B: Enter the move-candidates sub-scan — Blockly's native
+   * move mode runs the preview, and the user steps the block preview
+   * through valid connections via the advance key (which invokes
+   * `Mover.moveConstrained(Direction.Down)` instead of cycling our own
+   * scan index). The block itself is the cursor; the amber scan rect
+   * is hidden for this frame kind.
    *
-   * Delegates to Blockly's native move mode (via `Mover.startMove` with
-   * `switchScanMode: true`) when a Mover is wired in. That path paints
-   * the green connection highlights via `ConnectionHighlighter`. The
-   * scan candidate list is then read back from the highlighter so it
-   * cannot drift from what the user sees — a parallel enumeration on
-   * the pre-startMove block state misses the slots the moving block
-   * just vacated, producing a scan cycle shorter than the drawn
-   * highlights.
-   *
-   * The block stays visually at origin: `switchScanMode: true`
-   * suppresses the keyboard-mode preview offset, and the drag
-   * strategy's `moveDuringDrag(startLoc)` call keeps the block pinned
-   * through the detach that `super.startDrag` performs.
+   * Select commits at the current preview position via
+   * `Mover.finishMove`. Back-switch (or an outside pointerdown)
+   * aborts the move — there's no Cancel chip to click, and the
+   * advance key always means "step the block one slot in the
+   * workspace", never "cycle the cursor".
    *
    * @param block
    * @param topLevelIndex
@@ -3337,8 +3209,8 @@ export class SwitchScanController {
     block: Blockly.BlockSvg,
     topLevelIndex: number,
   ): void {
-    // Tear down the action menu first so the cancel chip doesn't visually
-    // stack on top of it.
+    // Tear down the action menu first so no stale menu DOM remains
+    // once Blockly's native move preview takes over.
     this.actionMenuEl?.remove();
     this.actionMenuEl = null;
 
@@ -3348,162 +3220,52 @@ export class SwitchScanController {
     // block selection (where they chose this block from), not to the
     // transient menu. Popping here also sidesteps the stale-menu
     // positioning bug where the menu would re-render at the block's
-    // old coords after a workspace reflow.
+    // old coords after a workspace reflow / after the preview moved.
     const topFrame = this.frameStack[this.frameStack.length - 1];
     if (topFrame?.kind === 'action-menu') {
       this.frameStack.pop();
       this.teardownPoppedFrame(topFrame);
     }
 
-    // Enter native move mode so the connection highlighter paints green
-    // dots on every valid target. Mover.canMove requires WORKSPACE
-    // focus state, but at this point the action-menu DOM has focus —
-    // refocus the block first so canMove passes. The switch-scan key
-    // handler is capture-phase on document, so it reclaims routing on
-    // the next keydown regardless.
-    if (!this.mover) {
-      this.popToSameRegion(topLevelIndex);
-      return;
-    }
-    Blockly.getFocusManager().focusNode(block);
-    if (!this.mover.canMove(this.workspace, block)) {
-      this.popToSameRegion(topLevelIndex);
-      return;
-    }
-    const started = this.mover.startMove(
-      this.workspace,
-      block,
-      MoveType.Move,
-      null,
-      undefined,
-      false,
-      true,
-    );
-    if (!started) {
-      this.popToSameRegion(topLevelIndex);
-      return;
-    }
-    // Read the scan list back from the drawn highlights:
-    // ConnectionHighlighter sees the block *after* super.startDrag
-    // detached it, which is the only state in which already-connected
-    // slots the block just vacated appear as free candidates.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dragStrategy = (block as any).dragStrategy as
-      | {connectionHighlighter?: {getLastValidConnections?: () => Array<{local: Blockly.RenderedConnection; neighbour: Blockly.RenderedConnection}>}}
-      | undefined;
-    const highlighted =
-      dragStrategy?.connectionHighlighter?.getLastValidConnections?.() ?? [];
-    let candidates: Array<{local: Blockly.Connection; target: Blockly.Connection}> =
-      highlighted.map((vc) => ({local: vc.local, target: vc.neighbour}));
-    // Visit order mirrors keyboard-move's `Down` traversal: y/x
-    // ascending (same sort KeyboardDragStrategy uses to build its
-    // `allConnections` list), rotated so the first candidate the scan
-    // visits is the one just below the moving block's current y
-    // position. Wraps naturally when the user cycles past the last
-    // dot — matching "press Down repeatedly, loop round" semantics.
-    candidates.sort((a, b) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const dy = (a.target as any).y - (b.target as any).y;
-      if (dy !== 0) return dy;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (a.target as any).x - (b.target as any).x;
-    });
-    // Dedup coincident candidates. After unplug(healStack: true), the
-    // parent block's NEXT reconnects to the next-sibling's PREVIOUS,
-    // so those two connections literally occupy the same slot and
-    // both pair validly with the moving block's locals — committing
-    // either produces the same insertion. ConnectionHighlighter
-    // doesn't collapse this on its own, so without dedup the scan
-    // visits two indistinguishable stops.
-    //
-    // Primary dedup is semantic: if candidate A's target is currently
-    // the `targetConnection` of candidate B's target, drop whichever
-    // comes second in sort order. Falls back to a position-bucket
-    // dedup (10px) for any remaining visual coincidences the
-    // pairing check missed (e.g. shadow-block edge cases).
-    const targetSet = new Set(candidates.map((p) => p.target));
-    const semanticDropped = new Set<Blockly.Connection>();
-    const afterSemantic: typeof candidates = [];
-    for (const pair of candidates) {
-      if (semanticDropped.has(pair.target)) continue;
-      afterSemantic.push(pair);
-      const other = pair.target.targetConnection as Blockly.Connection | null;
-      if (other && targetSet.has(other)) semanticDropped.add(other);
-    }
-    const uniqByPosition: typeof candidates = [];
-    const seenPositions = new Set<string>();
-    for (const pair of afterSemantic) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bx = Math.round((pair.target as any).x / 10) * 10;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const by = Math.round((pair.target as any).y / 10) * 10;
-      const key = `${bx},${by}`;
-      if (seenPositions.has(key)) continue;
-      seenPositions.add(key);
-      uniqByPosition.push(pair);
-    }
-    candidates = uniqByPosition;
-    const blockY = block.getRelativeToSurfaceXY().y;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const startIdx = candidates.findIndex((p) => (p.target as any).y > blockY);
-    if (startIdx > 0) {
-      candidates = [...candidates.slice(startIdx), ...candidates.slice(0, startIdx)];
-    }
-
-    if (candidates.length === 0) {
-      // No highlights were drawn (e.g. the renderer's highlight layer
-      // isn't available). Abort the move we started and bail — leaving
-      // the user mid-move with a Cancel chip and nothing to scan is a
-      // trap.
-      if (this.mover.isMoving(this.workspace)) {
-        this.mover.abortMove(this.workspace);
-      }
+    // Blockly's canMove is the authoritative predicate (matches the
+    // M-key gating). If no valid targets surface after startMove, the
+    // move will auto-abort via the blur listener or user back-switch.
+    if (this.mover && !this.mover.canMove(this.workspace, block)) {
       this.popToSameRegion(topLevelIndex);
       return;
     }
 
-    // Floating Cancel chip — the sentinel slot of the cycle. Shares
-    // the `.switch-scan-sentinel` visual styling but overrides its
-    // default bottom-right anchor: we position it near the moving block
-    // so Cancel reads as the natural end of the scan's linear sequence
-    // (and not as a disconnected affordance pinned to the viewport
-    // corner). `renderHighlight` keeps the position in sync on reflow.
-    const cancelChipEl = document.createElement('div');
-    cancelChipEl.className = 'switch-scan-sentinel';
-    cancelChipEl.textContent = '✕ Cancel';
-    cancelChipEl.style.bottom = 'auto';
-    cancelChipEl.style.right = 'auto';
-    cancelChipEl.style.transform = 'none';
-    document.body.appendChild(cancelChipEl);
-
-    // Blockly's post-detach layout keeps settling for a few frames
-    // after startMove — block positions shift upward as the gap left
-    // by the detached block closes, and connection coords update
-    // alongside them. The initial render below captures the pre-settle
-    // positions; without a listener the amber stays painted at those
-    // stale coords while the green highlights slide to new positions.
-    // Subscribe to workspace change events for the duration of this
-    // frame so renderHighlight re-runs on each settle step.
-    // restartTimer=false: the settle fires repeatedly in the frames
-    // after push; letting each settle re-arm the auto-scan timer would
-    // chain the first-tick bonus forward with every event, effectively
-    // freezing the candidate scan on its first position.
-    let changeListener: ((e: unknown) => void) | undefined;
+    // Enter native move mode with FULL keyboard-mode behaviour
+    // (switchScanMode=false): Blockly draws the insertion-marker
+    // preview at an initial candidate, moves the block visually to
+    // that candidate, installs the auto-abort blur listener, and
+    // sets the keyboard cursor. ConnectionHighlighter paints green
+    // dots on every valid target.
     if (this.mover) {
-      changeListener = () => {
-        if (this.activeFrame()?.kind === 'move-candidates') {
-          this.renderHighlight({speak: false, restartTimer: false});
-        }
-      };
-      this.workspace.addChangeListener(changeListener);
+      Blockly.getFocusManager().focusNode(block);
+      if (!this.mover.canMove(this.workspace, block)) {
+        this.popToSameRegion(topLevelIndex);
+        return;
+      }
+      const started = this.mover.startMove(
+        this.workspace,
+        block,
+        MoveType.Move,
+        null,
+        undefined,
+        false,
+        false, // switchScanMode: variant B wants the keyboard-mode preview
+      );
+      if (!started) {
+        this.popToSameRegion(topLevelIndex);
+        return;
+      }
     }
 
     this.frameStack.push({
       kind: 'move-candidates',
       block,
-      candidates,
-      cancelChipEl,
-      changeListener,
+      candidates: [], // Variant B: no scan list — Space drives Blockly directly
       index: 0,
       topLevelIndex,
     });
