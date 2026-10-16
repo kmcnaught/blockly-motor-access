@@ -1837,7 +1837,8 @@ export class SwitchScanController {
     document.body.appendChild(this.pinnedEl);
 
     this.sentinelChip = document.createElement('div');
-    this.sentinelChip.className = 'switch-scan-sentinel';
+    this.sentinelChip.className =
+      'switch-scan-sentinel switch-scan-sentinel-active-only';
     this.sentinelChip.textContent = '↩ Back';
     this.sentinelChip.style.display = 'none';
     document.body.appendChild(this.sentinelChip);

@@ -2308,15 +2308,27 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   font-weight: 700;
   font-size: 14px;
   border-radius: 999px;
-  /* Neutral dark ring: the amber color is reserved for the active scan
-   * cursor (`.switch-scan-highlight`), so a persistent amber ring on
-   * the sentinel chip reads as "always highlighted" even when the scan
-   * cursor is elsewhere. Dark border + drop shadow keeps it readable
-   * on light and dark surfaces without competing with the scan cursor. */
+  /* Neutral dark ring: default for chips that stay visible even when
+   * the scan cursor is elsewhere (e.g. the Move Cancel chip). A
+   * persistent amber ring on those would read as "always highlighted".
+   * Chips that are only shown while they ARE the scan cursor opt into
+   * the amber ring via `.switch-scan-sentinel-active-only` below. */
   border: 2px solid #1a1a1a;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
+}
+/* Modifier for sentinel chips that are only displayed while the scan
+ * cursor is on them (e.g. the sub-scan "Back" chip). These should
+ * look like the scan cursor since visibility == being the target, so
+ * they wear the amber ring + outer-dark / inner-light contrast rings
+ * that match `.switch-scan-highlight`. */
+.switch-scan-sentinel-active-only {
+  border: 4px solid #ff8f00;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35);
 }
 /* Auto-scan idle affordance. Visible only while the scanner is in
  * auto mode AND hasn't started cycling yet — tells the user they
