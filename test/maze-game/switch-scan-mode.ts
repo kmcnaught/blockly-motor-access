@@ -2800,7 +2800,19 @@ export class SwitchScanController {
     if (this.findFirstEditableDropdown(block)) {
       items.push({key: 'edit', label: 'Edit'});
     }
-    if (this.enumerateValidConnectionTargets(block).length > 0) {
+    // Use the Mover's own `canMove` predicate rather than a parallel
+    // enumeration — the enumeration-based pre-check wrongly hid Move
+    // for anything already attached to a parent, because canConnect's
+    // same-root cycle check rejected every target in the current tree.
+    // `canMove` matches Blockly's own M-key gating: movable block in a
+    // workspace with no active move. If no valid destinations surface
+    // after entry, enterMoveCandidates auto-aborts and pops the user
+    // back to block selection — same user-visible result the old
+    // predicate's hide-the-menu-item achieved for the empty case.
+    const canMoveBlock = this.mover
+      ? this.mover.canMove(this.workspace, block)
+      : this.enumerateValidConnectionTargets(block).length > 0;
+    if (canMoveBlock) {
       items.push({key: 'move', label: 'Move'});
     }
     items.push({key: 'delete', label: 'Delete'});
@@ -3030,46 +3042,79 @@ export class SwitchScanController {
       | undefined;
     if (!localConnections || localConnections.length === 0) return pairs;
 
-    const movingDescendants = block.getDescendants(true) as Blockly.BlockSvg[];
-    const movingSet = new Set(movingDescendants);
-    const allWorkspaceConnections: Blockly.Connection[] = [];
-    for (const b of this.workspace.getAllBlocks(false)) {
-      if (movingSet.has(b as Blockly.BlockSvg)) continue;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const conns = (b as any).getConnections_?.(false) as Blockly.Connection[] | undefined;
-      if (conns) allWorkspaceConnections.push(...conns);
+    // Dry-run detach so Blockly's canConnect same-root cycle check
+    // doesn't reject every potential target that currently shares a
+    // tree with `block`. The actual Move flow will detach via unplug()
+    // before enumerating candidates; mirroring that detach here keeps
+    // the predicate honest. Events are suppressed via a short-lived
+    // group so the disconnect/reconnect doesn't leak to listeners.
+    const prev = block.previousConnection as Blockly.Connection | null;
+    const out = block.outputConnection as Blockly.Connection | null;
+    const upstream =
+      prev && prev.isConnected()
+        ? prev
+        : out && out.isConnected()
+          ? out
+          : null;
+    const parentConn = upstream?.targetConnection ?? null;
+    const eventsAlreadyEnabled = Blockly.Events.isEnabled();
+    if (upstream && parentConn && eventsAlreadyEnabled) {
+      Blockly.Events.disable();
     }
-    if (allWorkspaceConnections.length === 0) return pairs;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const connectionChecker = (this.workspace as any).connectionChecker as
-      | {
-          canConnect(
-            a: Blockly.Connection,
-            b: Blockly.Connection,
-            isDragging: boolean,
-            distance: number,
-          ): boolean;
-        }
-      | undefined;
-    if (!connectionChecker) return pairs;
-
-    for (const local of localConnections) {
-      for (const ws of allWorkspaceConnections) {
-        const sourceBlock = ws.getSourceBlock();
+    try {
+      if (upstream && parentConn) {
+        upstream.disconnect();
+      }
+      const movingDescendants = block.getDescendants(true) as Blockly.BlockSvg[];
+      const movingSet = new Set(movingDescendants);
+      const allWorkspaceConnections: Blockly.Connection[] = [];
+      for (const b of this.workspace.getAllBlocks(false)) {
+        if (movingSet.has(b as Blockly.BlockSvg)) continue;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (!sourceBlock || (sourceBlock as any).isInsertionMarker?.()) continue;
-        const isValidDirection =
-          (local.type === Blockly.ConnectionType.OUTPUT_VALUE &&
-            ws.type === Blockly.ConnectionType.INPUT_VALUE) ||
-          (local.type === Blockly.ConnectionType.PREVIOUS_STATEMENT &&
-            ws.type === Blockly.ConnectionType.NEXT_STATEMENT) ||
-          (local.type === Blockly.ConnectionType.NEXT_STATEMENT &&
-            ws.type === Blockly.ConnectionType.PREVIOUS_STATEMENT);
-        if (!isValidDirection) continue;
-        if (connectionChecker.canConnect(local, ws, true, Infinity)) {
-          pairs.push({local, target: ws});
+        const conns = (b as any).getConnections_?.(false) as
+          | Blockly.Connection[]
+          | undefined;
+        if (conns) allWorkspaceConnections.push(...conns);
+      }
+      if (allWorkspaceConnections.length === 0) return pairs;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const connectionChecker = (this.workspace as any).connectionChecker as
+        | {
+            canConnect(
+              a: Blockly.Connection,
+              b: Blockly.Connection,
+              isDragging: boolean,
+              distance: number,
+            ): boolean;
+          }
+        | undefined;
+      if (!connectionChecker) return pairs;
+
+      for (const local of localConnections) {
+        for (const ws of allWorkspaceConnections) {
+          const sourceBlock = ws.getSourceBlock();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (!sourceBlock || (sourceBlock as any).isInsertionMarker?.()) continue;
+          const isValidDirection =
+            (local.type === Blockly.ConnectionType.OUTPUT_VALUE &&
+              ws.type === Blockly.ConnectionType.INPUT_VALUE) ||
+            (local.type === Blockly.ConnectionType.PREVIOUS_STATEMENT &&
+              ws.type === Blockly.ConnectionType.NEXT_STATEMENT) ||
+            (local.type === Blockly.ConnectionType.NEXT_STATEMENT &&
+              ws.type === Blockly.ConnectionType.PREVIOUS_STATEMENT);
+          if (!isValidDirection) continue;
+          if (connectionChecker.canConnect(local, ws, true, Infinity)) {
+            pairs.push({local, target: ws});
+          }
         }
+      }
+    } finally {
+      if (upstream && parentConn && !upstream.isConnected()) {
+        upstream.connect(parentConn);
+      }
+      if (upstream && parentConn && eventsAlreadyEnabled) {
+        Blockly.Events.enable();
       }
     }
     return pairs;
@@ -3118,17 +3163,6 @@ export class SwitchScanController {
     if (topFrame?.kind === 'action-menu') {
       this.frameStack.pop();
       this.teardownPoppedFrame(topFrame);
-    }
-
-    // Gate: the action menu surfaces "Move" only when at least one
-    // candidate exists, but defend against a race (workspace mutation
-    // between menu open and action pick). This enumeration runs on the
-    // still-connected block and is only used to decide "should we
-    // enter move mode at all"; the authoritative scan list comes from
-    // the highlighter below.
-    if (this.enumerateValidConnectionTargets(block).length === 0) {
-      this.popToSameRegion(topLevelIndex);
-      return;
     }
 
     // Enter native move mode so the connection highlighter paints green
