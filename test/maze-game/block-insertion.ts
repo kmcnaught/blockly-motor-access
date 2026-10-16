@@ -24,8 +24,8 @@ const DEFAULT_STACK_ANCHOR_X = 25;
 const DEFAULT_STACK_ANCHOR_Y = 60;
 
 /**
- * Insert a new block of the given type into the workspace using a
- * shared heuristic shared by both grid-coding-mode and switch-scan-mode:
+ * Shared insertion heuristic used by both grid-coding-mode and
+ * switch-scan-mode:
  *
  *  - If the Blockly FocusManager cursor sits on a workspace block,
  *    connect the new block AFTER it. If that block has no
@@ -37,9 +37,25 @@ const DEFAULT_STACK_ANCHOR_Y = 60;
  *  - If the workspace is empty, drop the new block at the stack anchor
  *    coordinates (defaults match index.ts STACK_ANCHOR_X/Y).
  *
- * Returns the inserted block so the caller can set fields, push it onto
- * an undo history, etc. The helper itself does not track history — that
- * remains a caller concern.
+ * This file exposes two entry points on top of that heuristic:
+ *
+ *  - {@link insertBlockAfterCursor}: build a fresh block from a type
+ *    name plus optional field preset map. Used by grid-coding-mode's
+ *    action buttons, which already know the type and preset values.
+ *  - {@link insertBlockCloneAfterCursor}: clone an existing block
+ *    (typically a flyout block) via Blockly's serialization so the
+ *    inserted block preserves fields, mutators, child/shadow blocks,
+ *    and any extra state. Used by switch-scan's toolbox insert so
+ *    toolbox variants that differ only by preset (e.g. `turn [left]`
+ *    vs `turn [right]`) land as the selected variant — parity with
+ *    the mouse-click flyout flow, which also goes through
+ *    serialization under the hood.
+ *
+ * Neither entry point tracks undo history — that's a caller concern.
+ */
+
+/**
+ * Insert a new block of the given type into the workspace.
  *
  * @param workspace The main workspace to insert into.
  * @param blockType The Blockly block type name (e.g. `maze_moveForward`).
@@ -56,39 +72,110 @@ export function insertBlockAfterCursor(
   anchorX: number = DEFAULT_STACK_ANCHOR_X,
   anchorY: number = DEFAULT_STACK_ANCHOR_Y,
 ): Blockly.Block {
-  // Figure out where the new block should attach BEFORE creating it,
-  // so the new block's own previousConnection isn't accidentally
-  // considered by the search.
+  return insertWithEventGrouping(workspace, anchorX, anchorY, () => {
+    const block = workspace.newBlock(blockType);
+    if (fields) {
+      for (const [name, value] of Object.entries(fields)) {
+        block.setFieldValue(value, name);
+      }
+    }
+    return block;
+  });
+}
+
+/**
+ * Insert a clone of {@link sourceBlock} into the workspace. Uses
+ * Blockly's serialization so the clone carries over fields, mutations,
+ * extraState, and attached shadow/child blocks — i.e. matches what the
+ * flyout's own click handler produces.
+ *
+ * @param workspace    The main workspace to insert into.
+ * @param sourceBlock  The block to clone (typically a flyout block).
+ * @param anchorX      Workspace x for an empty-workspace drop.
+ * @param anchorY      Workspace y for an empty-workspace drop.
+ * @returns The inserted (cloned) block.
+ */
+export function insertBlockCloneAfterCursor(
+  workspace: Blockly.WorkspaceSvg,
+  sourceBlock: Blockly.Block,
+  anchorX: number = DEFAULT_STACK_ANCHOR_X,
+  anchorY: number = DEFAULT_STACK_ANCHOR_Y,
+): Blockly.Block {
+  // addCoordinates: the source is in the flyout workspace; its
+  // coordinates there are meaningless on the main workspace, and we
+  // position via `moveBy` or connection snap below.
+  // addNextBlocks: deliberately diverges from Blockly's own flyout
+  // flow (which uses the default `true`). Toolbox flyout blocks don't
+  // normally carry next-chains, so this is defensive — but if a future
+  // toolbox grows a stacked preset, we want only the HEAD block so the
+  // insertion heuristic lands it on the user's chosen attach point
+  // rather than appending the whole stack.
+  const saved = Blockly.serialization.blocks.save(sourceBlock, {
+    addCoordinates: false,
+    addNextBlocks: false,
+    doFullSerialization: true,
+  });
+  if (!saved) {
+    throw new Error(
+      `block-insertion: Blockly failed to serialize source block ` +
+        `(type=${sourceBlock.type}).`,
+    );
+  }
+  // Strip the source id so `append` assigns a fresh one — otherwise
+  // the clone collides with the flyout block in the workspace's id map.
+  delete (saved as {id?: string}).id;
+  return insertWithEventGrouping(workspace, anchorX, anchorY, () => {
+    return Blockly.serialization.blocks.append(saved, workspace, {
+      recordUndo: true,
+    });
+  });
+}
+
+/**
+ * Shared wrapper that bundles the pre/post work both entry points need:
+ * resolving the target connection BEFORE the new block is created
+ * (otherwise its own previousConnection could match the cursor search),
+ * grouping Blockly events for a single undo step, initSvg + render, and
+ * either snapping to the connection or dropping at the stack anchor.
+ *
+ * @param workspace Target workspace.
+ * @param anchorX   Empty-workspace x drop coordinate.
+ * @param anchorY   Empty-workspace y drop coordinate.
+ * @param createBlock Callback that produces the (not-yet-rendered)
+ *     block on `workspace`. May or may not have called `initSvg`
+ *     already — we call it defensively below only when needed.
+ * @returns The inserted block.
+ */
+function insertWithEventGrouping(
+  workspace: Blockly.WorkspaceSvg,
+  anchorX: number,
+  anchorY: number,
+  createBlock: () => Blockly.Block,
+): Blockly.Block {
   const connectionTarget = findInsertionConnection(workspace);
 
-  // Group Blockly events so undo treats the insertion as one unit.
   const existingGroup = Blockly.Events.getGroup();
   if (!existingGroup) {
     Blockly.Events.setGroup(true);
   }
 
   try {
-    const block = workspace.newBlock(blockType);
+    const block = createBlock();
 
-    if (fields) {
-      for (const [name, value] of Object.entries(fields)) {
-        block.setFieldValue(value, name);
-      }
-    }
-
-    block.initSvg();
-
-    // Position the block before connecting, so even if we don't end up
-    // connecting (empty workspace path) it lands somewhere sensible.
+    // `workspace.newBlock` returns a block that still needs initSvg +
+    // render; `serialization.blocks.append` already did both. Both
+    // calls are idempotent (initSvg self-guards on `initialized`,
+    // render on a rendered block is a no-op reflow), so we always run
+    // them — relying on `BlockSvg.rendered` as a guard doesn't work:
+    // it's `readonly rendered = true` from the BlockSvg constructor.
     const blockSvg = block as Blockly.BlockSvg;
-    if (!connectionTarget) {
-      blockSvg.moveBy(anchorX, anchorY);
-    }
-
-    block.render();
+    blockSvg.initSvg();
+    blockSvg.render();
 
     if (connectionTarget && block.previousConnection) {
       connectionTarget.connect(block.previousConnection);
+    } else if (!connectionTarget) {
+      blockSvg.moveBy(anchorX, anchorY);
     }
 
     return block;

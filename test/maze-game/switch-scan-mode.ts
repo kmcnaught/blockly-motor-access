@@ -80,7 +80,10 @@ import * as Blockly from 'blockly/core';
 import {scrollBoundsIntoView} from '../../src/workspace_utilities';
 import {Mover, MoveType} from '../../src/actions/mover';
 import {MazeGame} from './maze';
-import {insertBlockAfterCursor} from './block-insertion';
+import {
+  insertBlockAfterCursor,
+  insertBlockCloneAfterCursor,
+} from './block-insertion';
 import {
   renderActionMenu,
   renderDropdownMenu,
@@ -762,14 +765,20 @@ const STRATEGIES: Strategies = {
       }
       const block = frame.blocks[frame.index];
       if (frame.regionName === 'toolbox') {
-        // Insert a new block of the same type into the MAIN workspace
-        // (not the flyout workspace) via the shared heuristic. We do
-        // not clone or move the flyout block itself — `block.type` plus
-        // the insertion helper produces a fresh, properly-connected
-        // instance.
+        // Clone the flyout block into the MAIN workspace via the
+        // shared heuristic. We go through Blockly serialization (same
+        // mechanism the mouse-click flyout flow uses) so toolbox
+        // variants that differ only by preset — e.g. `turn [left]` vs
+        // `turn [right]`, both `maze_turn` — insert the selected
+        // variant with fields, mutations, and attached shadow blocks
+        // intact. The flyout block itself stays put; only its
+        // serialized state crosses workspaces.
         try {
           if (block) {
-            const inserted = insertBlockAfterCursor(ctx.workspace, block.type);
+            const inserted = insertBlockCloneAfterCursor(
+              ctx.workspace,
+              block,
+            );
             // Commit the FocusManager cursor to the new block before
             // returning scan focus to the toolbox. Two reasons:
             //  1. The next insert chains after this block — the
