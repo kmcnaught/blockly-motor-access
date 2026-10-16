@@ -2262,18 +2262,16 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
 .switch-scan-highlight {
   position: fixed;
   pointer-events: none;
+  /* `border-box` so the border stays inside the sizing rect and
+   * doesn't clip past the viewport at screen edges. */
+  box-sizing: border-box;
   /* Slightly darker amber than the original #ffb300 — reads better
    * against the Blockly workspace's pale grid background while still
    * being unmistakably "the focus marker." */
   border: 4px solid #ff8f00;
   border-radius: 6px;
-  /* Outer dark ring gives extra contrast on light surfaces; inner
-   * light ring provides breathing room on dark surfaces (Blockly
-   * blocks). Together they act like an `outline-offset` so the
-   * highlight doesn't press right up against button edges. */
-  box-shadow:
-    0 0 0 2px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  /* Inner light ring keeps the amber readable against dark blocks. */
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
   z-index: 10000;
   transition: top 80ms linear, left 80ms linear, width 80ms linear, height 80ms linear;
 }
@@ -2288,6 +2286,7 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
 .switch-scan-pinned {
   position: fixed;
   pointer-events: none;
+  box-sizing: border-box;
   border: 3px dashed #ff8f00;
   border-radius: 6px;
   z-index: 9999;

@@ -246,16 +246,11 @@ const SENTINEL_CHIP_WIDTH_ESTIMATE = 200;
 const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 
 /**
- * Border widths of the two amber ring overlays, in CSS pixels. Must
- * match the `border:` values on `.switch-scan-highlight` and
- * `.switch-scan-pinned` in `maze.css` — {@link positionHighlightAround}
- * shifts the overlays' top/left back by this amount so the border
- * (drawn outside the content box with the default `box-sizing: content-box`)
- * reads as a symmetric halo around the target instead of overshooting
- * bottom-right.
+ * Outward halo in CSS pixels around per-item highlights. Top-level
+ * region rings use pad 0 — regions handle their own breathing room
+ * via `discoverRegions`.
  */
-const HIGHLIGHT_BORDER_PX = 4;
-const PINNED_BORDER_PX = 3;
+const ITEM_RING_PAD_PX = 4;
 
 /**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
@@ -1352,14 +1347,8 @@ export class SwitchScanController {
     // focus ring — it clashes visually with the switch-scan highlight.
     document.body.classList.add('switch-scan-active');
 
-    // Discover regions and create overlay DOM.
     this.regions = discoverRegions(this.workspace);
-    // HACK (phone preview, no Space key): seed the top-level frame on
-    // the 'workspace' region so the amber ring is visible there without
-    // a switch press to advance past the earlier regions. Revert to
-    // `index: 0` for normal operation.
-    const workspaceIndex = this.regions.findIndex((r) => r.name === 'workspace');
-    this.frameStack = [{kind: 'top', index: workspaceIndex >= 0 ? workspaceIndex : 0}];
+    this.frameStack = [{kind: 'top', index: 0}];
     this.createOverlayElements();
 
     // Bind keyboard + viewport-change events.
@@ -2061,7 +2050,7 @@ export class SwitchScanController {
         this.positionHighlightAround(
           this.pinnedEl,
           pinnedRect,
-          PINNED_BORDER_PX,
+          ITEM_RING_PAD_PX,
         );
       } else {
         this.pinnedEl.style.display = 'none';
@@ -2096,7 +2085,7 @@ export class SwitchScanController {
           this.positionHighlightAround(
             this.highlightEl,
             chipRect,
-            HIGHLIGHT_BORDER_PX,
+            ITEM_RING_PAD_PX,
           );
         } else {
           this.highlightEl.style.display = 'none';
@@ -2130,38 +2119,22 @@ export class SwitchScanController {
     }
 
     this.highlightEl.style.display = 'block';
-    this.positionHighlightAround(this.highlightEl, rect, HIGHLIGHT_BORDER_PX);
+    const padPx = frame.kind === 'top' ? 0 : ITEM_RING_PAD_PX;
+    this.positionHighlightAround(this.highlightEl, rect, padPx);
 
     if (shouldSpeak) this.speakCurrentLabel();
   }
 
-  /**
-   * Place an amber ring overlay so it visually surrounds a target rect
-   * symmetrically. Both ring overlays use `box-sizing: content-box`, so
-   * setting their width/height to the target's puts the border
-   * *outside* the content box — anchoring top/left at the target would
-   * then overshoot bottom-right by `2 * borderPx` while leaving top/left
-   * flush with the target. Shifting top/left back by `borderPx` centers
-   * the ring; the amber frame then reads as a symmetric halo on every
-   * side.
-   *
-   * @param el      Ring overlay element — pass {@link highlightEl} for
-   *                the solid cursor, {@link pinnedEl} for the dashed
-   *                pinned-subject outline.
-   * @param rect    Target rect in viewport coordinates.
-   * @param borderPx Ring's CSS border width — pass
-   *                {@link HIGHLIGHT_BORDER_PX} or
-   *                {@link PINNED_BORDER_PX} depending on which ring.
-   */
+  /** Position `el` as a ring around `rect`, extended outward by `padPx`. */
   private positionHighlightAround(
     el: HTMLElement,
     rect: {top: number; left: number; width: number; height: number},
-    borderPx: number,
+    padPx: number,
   ): void {
-    el.style.top = `${rect.top - borderPx}px`;
-    el.style.left = `${rect.left - borderPx}px`;
-    el.style.width = `${rect.width}px`;
-    el.style.height = `${rect.height}px`;
+    el.style.top = `${rect.top - padPx}px`;
+    el.style.left = `${rect.left - padPx}px`;
+    el.style.width = `${rect.width + 2 * padPx}px`;
+    el.style.height = `${rect.height + 2 * padPx}px`;
   }
 
   /**

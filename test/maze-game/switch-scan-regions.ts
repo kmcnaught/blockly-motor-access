@@ -175,7 +175,9 @@ export function discoverRegions(
   if (blocklyVisible && workspaceActionsEl) {
     regions.push({
       name: 'workspace-actions',
-      getRect: () => workspaceActionsEl.getBoundingClientRect(),
+      // Compact two-button row — pad the ring so it reads as a halo
+      // rather than a bezel.
+      getRect: () => inflateRect(workspaceActionsEl.getBoundingClientRect(), 8),
     });
   } else if (blocklyVisible) {
     console.warn('[switch-scan] workspace-actions region not found');
@@ -195,6 +197,16 @@ export function discoverRegions(
   }
 
   return regions;
+}
+
+/** Grow a rect outward by `pad` CSS pixels on every side. */
+function inflateRect(rect: DOMRect, pad: number): DOMRect {
+  return new DOMRect(
+    rect.left - pad,
+    rect.top - pad,
+    rect.width + 2 * pad,
+    rect.height + 2 * pad,
+  );
 }
 
 /**
@@ -232,7 +244,12 @@ export function getWorkspaceViewportRect(
     divRect.left + m.absoluteLeft * z,
     divRect.top + m.absoluteTop * z,
     m.viewWidth * z,
-    m.viewHeight * z,
+    // `svgHeight` is the full workspace SVG height (horizontal scrollbar
+    // gutter included), so the ring extends to the actual bottom of the
+    // workspace container. `viewHeight` excludes the gutter and would
+    // crop the ring short. Matches `resizeFocusRingInternal` in
+    // src/index.ts.
+    m.svgHeight * z,
   );
 }
 
