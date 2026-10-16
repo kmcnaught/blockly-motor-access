@@ -2408,32 +2408,42 @@ function showConfirmationModal(title: string, message: string, onConfirm: () => 
   confirmationModalTitle.textContent = title;
   confirmationModalMessage.textContent = message;
 
-  // Set up one-time event listeners using { once: true }
+  // Scope button + key listeners to this show() so every close path
+  // (Confirm, Cancel, Esc, native close() from switch-scan's
+  // teardownPoppedFrame when the user Backs out of the sub-scan)
+  // tears them down uniformly. `{once:true}` is a trap here: if the
+  // user bails via a non-button path, the one-shot handler never
+  // fires, lingers, and will double-execute `onConfirm` on the next
+  // confirmation that completes normally — potentially re-triggering
+  // a destructive action.
+  const abort = new AbortController();
+  const {signal} = abort;
+  confirmationModal.addEventListener(
+    'close',
+    () => abort.abort(),
+    {once: true},
+  );
+
   const confirmHandler = () => {
     confirmationDialog.hide();
     onConfirm();
   };
-
   const cancelHandler = () => {
     confirmationDialog.hide();
   };
 
-  confirmationModalConfirm.addEventListener('click', confirmHandler, { once: true });
-  confirmationModalCancel.addEventListener('click', cancelHandler, { once: true });
+  confirmationModalConfirm.addEventListener('click', confirmHandler, {signal});
+  confirmationModalCancel.addEventListener('click', cancelHandler, {signal});
 
-  // Keyboard shortcuts
-  const keyHandler = (e: KeyboardEvent) => {
+  confirmationModal.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       confirmHandler();
-      confirmationModal.removeEventListener('keydown', keyHandler);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       cancelHandler();
-      confirmationModal.removeEventListener('keydown', keyHandler);
     }
-  };
-  confirmationModal.addEventListener('keydown', keyHandler);
+  }, {signal});
 
   // Show dialog
   confirmationDialog.show();

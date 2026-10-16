@@ -48,6 +48,14 @@ export class Dialog {
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
 
+    // Fallback cleanup when the dialog closes by a path that bypasses
+    // hide() — e.g. switch-scan's teardownPoppedFrame calls
+    // dialog.close() directly on the modal when the user Backs out of
+    // a sub-scan. Registered WITHOUT the signal so hide()'s abort()
+    // doesn't tear it down before close fires; the handler checks
+    // abortController first and no-ops when hide() already cleaned up.
+    this.dialogElement.addEventListener('close', () => this._handleCloseFallback(), { once: true });
+
     // Handle ESC key via native cancel event
     if (this.options.closeOnEscape) {
       this.dialogElement.addEventListener('cancel', (e) => {
@@ -74,6 +82,25 @@ export class Dialog {
         setTimeout(() => focusElement.focus(), 0);
       }
     }
+  }
+
+  /**
+   * Run the same cleanup hide() performs — abort listeners, restore
+   * focus, fire onClose — but only if hide() hasn't already done so.
+   * Called from the native `close` event so paths that bypass hide()
+   * (external dialog.close(), subclass auto-close paths) still clean
+   * up uniformly. No-op after hide() because abortController is null
+   * by then. Subclasses can override to layer their own cleanup.
+   */
+  _handleCloseFallback() {
+    if (!this.abortController) return;
+    this.abortController.abort();
+    this.abortController = null;
+    if (this.previousActiveElement instanceof HTMLElement) {
+      this.previousActiveElement.focus();
+      this.previousActiveElement = null;
+    }
+    this.options.onClose();
   }
 
   /**

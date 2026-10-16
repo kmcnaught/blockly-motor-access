@@ -1676,6 +1676,20 @@ dialog.result-modal::backdrop {
   }
 }
 
+/* Opacity-only variant used while switch-scan is active. The scan
+ * controller reparents its overlay chrome into open modals so the ring
+ * renders in the top layer with the dialog; a `transform` on the
+ * dialog would create a new containing block for those position:fixed
+ * children for the 200ms the slide-in runs, drawing the ring in the
+ * wrong place. Mouse / keyboard users keep the full slide-in. */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+body.switch-scan-active dialog.result-modal {
+  animation: modalFadeIn 0.2s ease-out;
+}
+
 /* Success variant - green accent */
 .result-modal.success {
   border-top: 4px solid #4caf50;

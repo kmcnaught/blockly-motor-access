@@ -69,21 +69,34 @@ export class AutoCloseDialog extends Dialog {
    * Closes the dialog and clears the auto-close timer
    */
   hide() {
-    // Clear timer if running
+    this._clearAutoCloseState();
+    // Call parent hide
+    super.hide();
+  }
+
+  /**
+   * Extend the base fallback cleanup to also tear down the auto-close
+   * timer and progress bar when the dialog closes via a non-hide()
+   * path. The base implementation handles abort/focus/onClose.
+   */
+  _handleCloseFallback() {
+    this._clearAutoCloseState();
+    super._handleCloseFallback();
+  }
+
+  /**
+   * Clear timer + progress animation. Idempotent; cheap to call twice.
+   */
+  _clearAutoCloseState() {
     if (this.autoCloseTimer) {
       clearTimeout(this.autoCloseTimer);
       this.autoCloseTimer = null;
     }
-
-    // Clear progress bar animation
     if (this.progressBarSelector) {
       const progressBar = this.dialogElement.querySelector(this.progressBarSelector);
       if (progressBar) {
         (progressBar.parentElement ?? progressBar).classList.remove('countdown');
       }
     }
-
-    // Call parent hide
-    super.hide();
   }
 }

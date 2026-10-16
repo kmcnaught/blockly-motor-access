@@ -243,6 +243,18 @@ const SENTINEL_CHIP_WIDTH_ESTIMATE = 200;
 const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 
 /**
+ * Border widths of the two amber ring overlays, in CSS pixels. Must
+ * match the `border:` values on `.switch-scan-highlight` and
+ * `.switch-scan-pinned` in `maze.css` — {@link positionHighlightAround}
+ * shifts the overlays' top/left back by this amount so the border
+ * (drawn outside the content box with the default `box-sizing: content-box`)
+ * reads as a symmetric halo around the target instead of overshooting
+ * bottom-right.
+ */
+const HIGHLIGHT_BORDER_PX = 4;
+const PINNED_BORDER_PX = 3;
+
+/**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
  * `cycleLen` is 0 so a caller doesn't have to pre-check.
  *
@@ -1748,9 +1760,61 @@ export class SwitchScanController {
   }
 
   /**
-   * Create the highlight outline + sentinel chip and attach them to
-   * the document body. Both elements stay in the DOM for the life of
-   * the enabled controller; we just toggle visibility / position.
+   * Ensure the overlay chrome (highlight ring, pinned ring, sentinel
+   * chip, idle chip) is parented under the right host for the current
+   * frame. For a dom-items frame whose region is an open `<dialog>`,
+   * host under the dialog so overlays render in the browser's top
+   * layer alongside it; otherwise, host under `document.body`.
+   *
+   * Called at the top of every `renderHighlight` so parent correctness
+   * is a pure function of the active frame, not of which code path
+   * entered or left a modal. Covers the gap where `popToSameRegion`
+   * (invoked by `dom-items.handleSelect`'s `finally`) fires BEFORE the
+   * dialog's `close` event — without this, overlays stay parented
+   * inside a now-closed dialog (`display: none`) and the next ring
+   * never shows.
+   */
+  private ensureOverlayParent(): void {
+    const frame = this.activeFrame();
+    let parent: HTMLElement = document.body;
+    if (frame?.kind === 'dom-items') {
+      const regionEl = document.querySelector<HTMLElement>(
+        `[data-scan-region="${frame.parentRegionName}"]`,
+      );
+      if (regionEl instanceof HTMLDialogElement && regionEl.open) {
+        parent = regionEl;
+      }
+    }
+    this.moveOverlaysTo(parent);
+  }
+
+  /**
+   * Reparent the long-lived overlay chrome under a new DOM host.
+   * Idempotent: skips elements already parented under `parent`, and
+   * silently skips nulls (overlays torn down during disable or before
+   * `createOverlayElements` ran).
+   */
+  private moveOverlaysTo(parent: HTMLElement): void {
+    const overlays: Array<HTMLElement | null> = [
+      this.highlightEl,
+      this.pinnedEl,
+      this.sentinelChip,
+      this.autoIdleChip,
+    ];
+    for (const el of overlays) {
+      if (el && el.parentElement !== parent) {
+        parent.appendChild(el);
+      }
+    }
+  }
+
+  /**
+   * Create the overlay chrome (highlight ring, pinned ring, sentinel
+   * chip, idle chip) and attach them to `document.body` as their
+   * initial host. All four elements stay in the DOM for the life of
+   * the enabled controller; {@link ensureOverlayParent} migrates them
+   * between `document.body` and an open `<dialog>` as the active frame
+   * changes, and we just toggle visibility / position otherwise.
    */
   private createOverlayElements(): void {
     this.highlightEl = document.createElement('div');
@@ -1915,6 +1979,12 @@ export class SwitchScanController {
    */
   private renderHighlight(options?: {speak?: boolean}): void {
     if (!this.highlightEl || !this.sentinelChip) return;
+    // Keep the overlay chrome parented under the right host for the
+    // current frame — dialog when inside a modal sub-scan, body
+    // otherwise. Runs every render so pops that bypass the explicit
+    // push/pop API (e.g. `popToSameRegion` after Select) still restore
+    // overlays to body before the next ring is drawn.
+    this.ensureOverlayParent();
     const frame = this.activeFrame();
     if (!frame) {
       this.highlightEl.style.display = 'none';
@@ -1954,10 +2024,11 @@ export class SwitchScanController {
         : null;
       if (pinnedRect && pinnedRect.width > 0 && pinnedRect.height > 0) {
         this.pinnedEl.style.display = 'block';
-        this.pinnedEl.style.top = `${pinnedRect.top}px`;
-        this.pinnedEl.style.left = `${pinnedRect.left}px`;
-        this.pinnedEl.style.width = `${pinnedRect.width}px`;
-        this.pinnedEl.style.height = `${pinnedRect.height}px`;
+        this.positionHighlightAround(
+          this.pinnedEl,
+          pinnedRect,
+          PINNED_BORDER_PX,
+        );
       } else {
         this.pinnedEl.style.display = 'none';
       }
@@ -1988,15 +2059,23 @@ export class SwitchScanController {
         const chipRect = frame.cancelChipEl.getBoundingClientRect();
         if (chipRect.width > 0 && chipRect.height > 0) {
           this.highlightEl.style.display = 'block';
-          this.highlightEl.style.top = `${chipRect.top}px`;
-          this.highlightEl.style.left = `${chipRect.left}px`;
-          this.highlightEl.style.width = `${chipRect.width}px`;
-          this.highlightEl.style.height = `${chipRect.height}px`;
+          this.positionHighlightAround(
+            this.highlightEl,
+            chipRect,
+            HIGHLIGHT_BORDER_PX,
+          );
         } else {
           this.highlightEl.style.display = 'none';
         }
       } else {
         this.highlightEl.style.display = 'none';
+        // Modal sub-scans show "Esc" (dismiss the dialog) instead of
+        // "Back" (navigate up). Matches the keyboard affordance a
+        // sighted user would reach for and the universal "exit this
+        // modal context" vocabulary across input methods.
+        const inModal =
+          this.sentinelChip.parentElement instanceof HTMLDialogElement;
+        this.sentinelChip.textContent = inModal ? '↩ Esc' : '↩ Back';
         this.applySentinelChip(frame);
       }
       if (shouldSpeak) this.speakCurrentLabel();
@@ -2017,12 +2096,38 @@ export class SwitchScanController {
     }
 
     this.highlightEl.style.display = 'block';
-    this.highlightEl.style.top = `${rect.top}px`;
-    this.highlightEl.style.left = `${rect.left}px`;
-    this.highlightEl.style.width = `${rect.width}px`;
-    this.highlightEl.style.height = `${rect.height}px`;
+    this.positionHighlightAround(this.highlightEl, rect, HIGHLIGHT_BORDER_PX);
 
     if (shouldSpeak) this.speakCurrentLabel();
+  }
+
+  /**
+   * Place an amber ring overlay so it visually surrounds a target rect
+   * symmetrically. Both ring overlays use `box-sizing: content-box`, so
+   * setting their width/height to the target's puts the border
+   * *outside* the content box — anchoring top/left at the target would
+   * then overshoot bottom-right by `2 * borderPx` while leaving top/left
+   * flush with the target. Shifting top/left back by `borderPx` centers
+   * the ring; the amber frame then reads as a symmetric halo on every
+   * side.
+   *
+   * @param el      Ring overlay element — pass {@link highlightEl} for
+   *                the solid cursor, {@link pinnedEl} for the dashed
+   *                pinned-subject outline.
+   * @param rect    Target rect in viewport coordinates.
+   * @param borderPx Ring's CSS border width — pass
+   *                {@link HIGHLIGHT_BORDER_PX} or
+   *                {@link PINNED_BORDER_PX} depending on which ring.
+   */
+  private positionHighlightAround(
+    el: HTMLElement,
+    rect: {top: number; left: number; width: number; height: number},
+    borderPx: number,
+  ): void {
+    el.style.top = `${rect.top - borderPx}px`;
+    el.style.left = `${rect.left - borderPx}px`;
+    el.style.width = `${rect.width}px`;
+    el.style.height = `${rect.height}px`;
   }
 
   /**
@@ -2563,7 +2668,23 @@ export class SwitchScanController {
    * @param popped The frame that was just removed from `frameStack`.
    */
   private teardownPoppedFrame(popped: ScanFrame): void {
-    if (popped.kind === 'action-menu') {
+    if (popped.kind === 'dom-items') {
+      // Modal sub-scans: the dom-items frame may wrap an open
+      // `<dialog>`. Any pop path (Back key, sentinel-Select, outside
+      // pointerdown, programmatic pop after Select on an item that
+      // already called `dialog.hide()`) should leave the dialog
+      // dismissed — otherwise the modal stays visible while the scan
+      // has moved on, orphaning the user. For non-modal regions this
+      // branch is a no-op (region wrapper isn't a dialog). The
+      // dialog's own `close` event fires `popModalSubScan`, which
+      // short-circuits because this teardown already unwound the frame.
+      const regionEl = document.querySelector(
+        `[data-scan-region="${popped.parentRegionName}"]`,
+      );
+      if (regionEl instanceof HTMLDialogElement && regionEl.open) {
+        regionEl.close();
+      }
+    } else if (popped.kind === 'action-menu') {
       this.actionMenuEl?.remove();
       this.actionMenuEl = null;
     } else if (popped.kind === 'dropdown-values') {
