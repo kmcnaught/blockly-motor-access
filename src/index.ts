@@ -666,6 +666,16 @@ export class KeyboardNavigation {
     visibility: visible !important;
     opacity: 1 !important;
   }
+
+  /* Brief glow where a block lands after a move, so the destination is obvious. */
+  @keyframes blocklyMoveLandingPulse {
+    0%   { filter: drop-shadow(0 0 0 rgba(255, 235, 59, 0)); }
+    25%  { filter: drop-shadow(0 0 10px rgba(255, 235, 59, 0.95)); }
+    100% { filter: drop-shadow(0 0 0 rgba(255, 235, 59, 0)); }
+  }
+  .blocklyMoveLandingPulse {
+    animation: blocklyMoveLandingPulse 500ms ease-out;
+  }
 `);
 
     // Register classes used by the shortcuts modal

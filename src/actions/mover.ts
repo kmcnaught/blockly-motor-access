@@ -30,7 +30,11 @@ import {KeyboardDragStrategy} from '../keyboard_drag_strategy';
 import {Navigation} from '../navigation';
 import {clearMoveHints} from '../hints';
 import {MoveIndicatorBubble} from '../move_indicator';
-import {isWorkspaceElement, isBlocklyUIElement} from '../dom_utils';
+import {
+  isWorkspaceElement,
+  isBlocklyUIElement,
+  pulseBlockLandingGlow,
+} from '../dom_utils';
 
 /**
  * The distance to move an item, in workspace coordinates, when
@@ -461,7 +465,7 @@ export class Mover {
       workspace.scroll(savedScrollX, savedScrollY);
     }
 
-    this.postDragEndCleanup(workspace, info);
+    this.postDragEndCleanup(workspace, info, true);
     return true;
   }
 
@@ -532,8 +536,14 @@ export class Mover {
    *
    * @param workspace The workspace on which we are moving.
    * @param info The info for the element.
+   * @param pulseOnLanding Flash a brief glow on the dragged block once it has
+   *     re-rendered at its destination. Set true for successful moves.
    */
-  private postDragEndCleanup(workspace: WorkspaceSvg, info: MoveInfo) {
+  private postDragEndCleanup(
+    workspace: WorkspaceSvg,
+    info: MoveInfo,
+    pulseOnLanding = false,
+  ) {
     this.moveIndicator?.dispose();
     this.moveIndicator = undefined;
     if (info.draggable instanceof BlockSvg) {
@@ -572,6 +582,10 @@ export class Mover {
       }
 
       getFocusManager().focusNode(info.draggable);
+
+      if (pulseOnLanding && info.draggable instanceof BlockSvg) {
+        pulseBlockLandingGlow(info.draggable);
+      }
     });
   }
 

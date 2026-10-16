@@ -77,3 +77,37 @@ export function isBlocklyUIElement(target: any): boolean {
 
   return false;
 }
+
+/**
+ * Minimal structural interface for a block-like object that exposes its SVG
+ * group. Kept here so this module stays independent of Blockly type imports.
+ */
+interface BlockWithSvgRoot {
+  getSvgRoot(): SVGElement | null | undefined;
+}
+
+/**
+ * Flashes a brief landing glow on the given block to make the destination of
+ * a just-committed move obvious. Safe to call back-to-back on the same block —
+ * the animation restarts each time. Deferred one frame so any synchronous
+ * re-render triggered by the committing code finishes before we tag the
+ * post-render SVG root.
+ */
+export function pulseBlockLandingGlow(
+  block: BlockWithSvgRoot | null | undefined,
+): void {
+  if (!block) return;
+  requestAnimationFrame(() => {
+    const el = block.getSvgRoot();
+    if (!el) return;
+    el.classList.remove('blocklyMoveLandingPulse');
+    // Force a reflow so re-adding the class restarts the animation.
+    void el.getBoundingClientRect();
+    el.classList.add('blocklyMoveLandingPulse');
+    const onEnd = () => {
+      el.classList.remove('blocklyMoveLandingPulse');
+      el.removeEventListener('animationend', onEnd);
+    };
+    el.addEventListener('animationend', onEnd);
+  });
+}
