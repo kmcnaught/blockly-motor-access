@@ -1684,6 +1684,48 @@ export class SwitchScanController {
   }
 
   /**
+   * External "advance" trigger — e.g. from the touch-input adapter.
+   *
+   * Mirrors the advance path in {@link handleKeyDown} without a keyboard
+   * event: respects the enabled / executing guards, and in auto mode
+   * does the same idle→scanning wake-up transition. Returns true when
+   * the input was consumed so the adapter can preventDefault on the
+   * originating gesture; false means the controller stood down (e.g.
+   * disabled, program running, or no active frame).
+   */
+  invokeAdvance(): boolean {
+    if (!this.enabled || this.executing) return false;
+    const frame = this.activeFrame();
+    if (!frame) return false;
+    if (this.scanMode === 'auto') {
+      if (this.autoState === 'idle') {
+        this.startAutoTimer();
+        this.speakCurrentItemLabel();
+        return true;
+      }
+    }
+    this.advance();
+    return true;
+  }
+
+  /**
+   * External "select" trigger — e.g. from the touch-input adapter.
+   *
+   * Mirrors the select path in {@link handleKeyDown}. Returns true if
+   * the input was consumed. In auto mode an idle select is a no-op
+   * (there's no highlighted item to act on yet) — the adapter should
+   * treat that as "nothing happened."
+   */
+  invokeSelect(): boolean {
+    if (!this.enabled || this.executing) return false;
+    const frame = this.activeFrame();
+    if (!frame) return false;
+    if (this.scanMode === 'auto' && this.autoState === 'idle') return false;
+    this.handleSelect(frame);
+    return true;
+  }
+
+  /**
    * Push a `dom-items` frame for the named region (Step D entry point).
    *
    * The modal scan flow needs the same sub-scan plumbing the header /

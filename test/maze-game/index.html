@@ -266,8 +266,39 @@
         </div>
 
         <div class="switch-access-panel hidden" id="switchAccessPanel" aria-label="Switch scan settings controls">
+          <!-- 0. Input method -->
+          <div class="switch-settings-group">
+            <h3 class="switch-settings-heading">Input method</h3>
+            <div class="switch-settings-row">
+              <label for="switchInputMode" class="switch-settings-current">Via</label>
+              <select id="switchInputMode" data-scan-item>
+                <option value="keyboard">Keyboard (physical switches)</option>
+                <option value="touch">Touch gestures</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 0b. Touch-mode sub-settings — shown only when input method
+               is Touch. Changes here persist to localStorage; touch mode
+               itself activates on page refresh via the countdown overlay. -->
+          <div class="switch-settings-group hidden" id="touchSettingsGroup">
+            <h3 class="switch-settings-heading">Touch gestures</h3>
+            <div class="switch-settings-row">
+              <label for="touchSwipeAdvance" class="switch-settings-current">Swipe for Advance</label>
+              <select id="touchSwipeAdvance" data-scan-item>
+                <option value="left">Swipe left</option>
+                <option value="right">Swipe right</option>
+              </select>
+            </div>
+            <div class="switch-settings-row">
+              <span class="switch-settings-current">Select</span>
+              <span>Tap</span>
+            </div>
+            <p class="switch-settings-info">Refresh the page to start touch mode. To exit, refresh and tap Cancel.</p>
+          </div>
+
           <!-- 1. Switch mode -->
-          <fieldset class="switch-settings-group">
+          <fieldset class="switch-settings-group" id="switchModeGroup">
             <legend class="switch-settings-heading">Switch mode</legend>
             <label class="switch-settings-row" data-scan-item>
               <input type="radio" name="switchScanMode" value="step" checked>
@@ -280,7 +311,7 @@
           </fieldset>
 
           <!-- 2. Switch A capture -->
-          <div class="switch-settings-group">
+          <div class="switch-settings-group" id="switchAGroup">
             <h3 class="switch-settings-heading">Switch A (Advance)</h3>
             <div class="switch-settings-row">
               <span id="switchACurrent" class="switch-settings-current">Space</span>

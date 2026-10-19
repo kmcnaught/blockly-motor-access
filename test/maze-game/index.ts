@@ -34,6 +34,13 @@ import {GridCodingModeController} from './grid-coding-mode';
 import {SwitchScanController, type HeaderDropdownSource} from './switch-scan-mode';
 import {SwitchScanSettings} from './switch-scan-settings';
 import {SwitchScanTts} from './switch-scan-tts';
+import {SwitchScanTouchAdapter} from './switch-scan-touch';
+import {
+  showTouchModeEntryOverlay,
+  showTouchModeIndicator,
+  showTouchModeRefreshPrompt,
+  type TouchIndicatorHandle,
+} from './switch-scan-touch-overlay';
 import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
 import {launchConfetti} from './confetti';
@@ -127,6 +134,12 @@ const SWITCH_SCAN_LS_KEYS = {
   // the audio flag. Migrated from the older URL-only ?inputMode=
   // switch-scan gate by the settings refactor (todo.md #1).
   enabled: 'mazeSwitchScan.enabled',
+  // Input method: 'keyboard' (default) or 'touch'. Touch mode activates
+  // at page load through the countdown overlay; mid-session changes
+  // persist here but never bind the touch adapter until reload.
+  inputMode: 'mazeSwitchScan.inputMode',
+  // Swipe direction that advances scan in touch mode: 'left' or 'right'.
+  touchSwipeAdvance: 'mazeSwitchScan.touchSwipeAdvance',
 } as const;
 
 // Auto-scan timing bounds. Match the slider's `min`/`max`/
@@ -262,6 +275,28 @@ const switchScanInitialScanSpeedMs: number = (() => {
     SCAN_SPEED_MAX_MS,
     Math.max(SCAN_SPEED_MIN_MS, parsed),
   );
+})();
+
+// Touch-mode settings: input method + swipe direction. Both persist
+// independently of the main switch-access enable flag — flipping the
+// input dropdown while enabled doesn't unbind keyboard; touch mode
+// only takes effect on reload.
+const switchScanInitialInputMode: 'keyboard' | 'touch' = (() => {
+  const v = resolveSwitchScanSetting(
+    'switchInputMode',
+    SWITCH_SCAN_LS_KEYS.inputMode,
+    'keyboard',
+  );
+  return v === 'touch' ? 'touch' : 'keyboard';
+})();
+
+const switchScanInitialTouchSwipeAdvance: 'left' | 'right' = (() => {
+  const v = resolveSwitchScanSetting(
+    'touchSwipeAdvance',
+    SWITCH_SCAN_LS_KEYS.touchSwipeAdvance,
+    'left',
+  );
+  return v === 'right' ? 'right' : 'left';
 })();
 
 // Settings refactor (todo.md #1): the "Switch access" checkbox in the
@@ -3098,6 +3133,20 @@ if (!isGridMode && !isGridCodingMode) {
   });
   switchScanController.setTts(switchScanTts);
 
+  // Hoisted so the settings `onChange` handler below can push live
+  // config updates to the touch adapter when the user flips the
+  // swipe-direction dropdown while already in touch mode. The actual
+  // instance is created later inside activateTouchMode.
+  let touchAdapter: SwitchScanTouchAdapter | null = null;
+
+  // Latest live settings — written by onChange, read by the
+  // activation / re-enable paths. Replaces reading
+  // `switchScanInitial*` constants (which are frozen at module
+  // load) so a mid-session Input-method flip from keyboard to
+  // touch is honoured by the next enable.
+  let currentInputMode = switchScanInitialInputMode;
+  let currentTouchSwipeAdvance = switchScanInitialTouchSwipeAdvance;
+
   switchScanSettings = new SwitchScanSettings({
     initialAdvanceKey: switchAdvanceKey,
     initialSelectKey: switchSelectKey,
@@ -3105,6 +3154,8 @@ if (!isGridMode && !isGridCodingMode) {
     initialMode: switchScanInitialMode,
     initialAudio: switchScanInitialAudio,
     initialScanSpeedMs: switchScanInitialScanSpeedMs,
+    initialInputMode: switchScanInitialInputMode,
+    initialTouchSwipeAdvance: switchScanInitialTouchSwipeAdvance,
     urlOverrideActive: switchScanUrlOverrideActive,
     onChange: (cfg) => {
       // Persist every accepted change (live-apply semantics: there
@@ -3135,6 +3186,14 @@ if (!isGridMode && !isGridCodingMode) {
           SWITCH_SCAN_LS_KEYS.scanSpeedMs,
           String(cfg.scanSpeedMs),
         );
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.inputMode,
+          cfg.inputMode,
+        );
+        window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.touchSwipeAdvance,
+          cfg.touchSwipeAdvance,
+        );
       } catch (e) {
         console.warn(
           '[switch-scan settings] localStorage write failed:',
@@ -3157,6 +3216,16 @@ if (!isGridMode && !isGridCodingMode) {
       if (cfg.audio && !wasEnabled) {
         switchScanController?.speakCurrentItemLabel();
       }
+
+      // Cache latest live settings for the activation / enable paths
+      // to consult instead of the frozen module-load values.
+      currentInputMode = cfg.inputMode;
+      currentTouchSwipeAdvance = cfg.touchSwipeAdvance;
+
+      // If we're already in touch mode, push the new swipe direction
+      // to the adapter so the user doesn't have to refresh. (Input
+      // mode changes still require a refresh — see refresh prompt.)
+      touchAdapter?.setSwipeAdvance(cfg.touchSwipeAdvance);
     },
   });
 
@@ -3166,16 +3235,106 @@ if (!isGridMode && !isGridCodingMode) {
 
   // Hook the "Switch access" checkbox to the controller. This is now
   // the live source of truth for whether switch scan is on.
+  //
+  // Touch mode: when inputMode === 'touch', enabling switch access
+  // at boot routes through an entry countdown overlay. Cancel →
+  // disable switch and open settings. Timeout → activate touch mode
+  // (controller.enable() + touch adapter + corner indicator). Exit
+  // is "refresh the page" — there's no in-mode gesture to leave.
+  // A mid-session enable with touch pre-selected shows a refresh
+  // prompt dialog instead of binding touch directly.
   if (switchAccessCheckbox) {
+    // `touchAdapter` is hoisted above (so onChange can update it live);
+    // we just read / assign to the outer reference here.
+    let touchIndicator: TouchIndicatorHandle | null = null;
+    // In-flight touch-mode entry countdown. Prevents double-trigger if
+    // the user manages to re-check the box while the overlay is up.
+    let touchEntryInFlight = false;
+
+    // Freeze Blockly's gesture handling during touch mode so swipes
+    // on blocks / dropdowns / field menus can't both advance the scan
+    // AND trigger Blockly's own close-menu / drag behaviour. Done via
+    // a body class so the CSS rule picks up Blockly's widget divs
+    // (`.blocklyWidgetDiv`, `.blocklyDropDownDiv`) that live at
+    // document.body level rather than inside #blocklyDiv. Document-
+    // level touch listeners in the adapter still fire regardless;
+    // pointer-events only affects hit testing, not listener dispatch.
+    const freezeBlocklyPointerEvents = () => {
+      document.body.classList.add('touch-switch-active');
+    };
+
+    const thawBlocklyPointerEvents = () => {
+      document.body.classList.remove('touch-switch-active');
+    };
+
+    const teardownTouchMode = () => {
+      touchAdapter?.unbind();
+      touchAdapter = null;
+      touchIndicator?.hide();
+      touchIndicator = null;
+      thawBlocklyPointerEvents();
+    };
+
+    const activateTouchMode = () => {
+      if (touchAdapter || !switchScanController) return;
+      // Touch mode is 2-switch only — step mode semantics regardless
+      // of the user's keyboard-mode preference. We don't restore the
+      // mode on exit since exit also disables switch access entirely;
+      // the next enable re-reads mode from localStorage.
+      switchScanController.setMode('step');
+      switchScanController.enable();
+      switchScanSettings?.setPanelVisible(true);
+      freezeBlocklyPointerEvents();
+      touchAdapter = new SwitchScanTouchAdapter({
+        controller: switchScanController,
+        swipeAdvance: currentTouchSwipeAdvance,
+        debug: getStringParamFromUrl('touchDebug', '') === '1',
+      });
+      touchAdapter.bind();
+      touchIndicator = showTouchModeIndicator();
+    };
+
+    const beginTouchModeEntry = () => {
+      if (touchEntryInFlight) return;
+      touchEntryInFlight = true;
+      // Panel stays hidden during the overlay; whichever outcome
+      // resolves it will drive panel visibility.
+      switchScanSettings?.setPanelVisible(false);
+      showTouchModeEntryOverlay().then((outcome) => {
+        touchEntryInFlight = false;
+        // Boot flow is only "done" once the overlay resolves —
+        // keeping isBootPass true until here means any checkbox
+        // toggle that happens DURING the countdown routes through
+        // the boot branch (guarded internally by touchEntryInFlight)
+        // rather than firing the mid-session refresh prompt on top
+        // of the countdown.
+        isBootPass = false;
+        if (outcome === 'cancelled') {
+          // Reflect cancel in UI + persistence, then surface settings
+          // so the user can reconfigure without hunting for the modal.
+          switchAccessCheckbox.checked = false;
+          applyEnabled(false);
+          shortcutsDialog.show();
+          return;
+        }
+        // If the user unticked the checkbox while the countdown was
+        // running (e.g. via another UI path or keyboard), honour that
+        // — don't flip them into touch mode they just disabled.
+        if (!switchAccessCheckbox.checked) return;
+        activateTouchMode();
+      });
+    };
+
+    // Boot latch — the first applyEnabled call runs as "boot" (fires
+    // the countdown overlay for touch mode). After boot resolves,
+    // further toggles are user-driven and route through the refresh
+    // prompt. For touch mode, this flips inside the countdown's .then
+    // callback above; for keyboard mode, right after applyEnabled.
+    let isBootPass = true;
+
     const applyEnabled = (enabled: boolean) => {
-      switchScanSettings?.setPanelVisible(enabled);
-      if (enabled) {
-        switchScanController?.enable();
-      } else {
-        switchScanController?.disable();
-      }
-      // Persist. Note that URL ?inputMode=switch-scan still wins
-      // over this on first load (see switchScanInitialEnabled).
+      // Persist first so a mid-flow bail (e.g. inside the overlay)
+      // leaves localStorage consistent with the checkbox state.
       try {
         window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.enabled,
@@ -3184,11 +3343,37 @@ if (!isGridMode && !isGridCodingMode) {
       } catch (e) {
         // Ignore storage errors — checkbox still works for the session.
       }
+      if (!enabled) {
+        teardownTouchMode();
+        switchScanController?.disable();
+        switchScanSettings?.setPanelVisible(false);
+        return;
+      }
+      if (currentInputMode === 'touch') {
+        if (isBootPass) {
+          beginTouchModeEntry();
+        } else {
+          // Mid-session enable with touch pre-selected — defer to
+          // refresh. The panel stays visible so the user can see the
+          // input-method dropdown and understand what's happening.
+          switchScanSettings?.setPanelVisible(true);
+          void showTouchModeRefreshPrompt();
+        }
+      } else {
+        switchScanController?.enable();
+        switchScanSettings?.setPanelVisible(true);
+      }
     };
 
-    // Seed initial state.
+    // Seed initial state. For the touch-mode boot path, isBootPass
+    // is flipped false inside the countdown's .then callback; for
+    // every other path (switch disabled, keyboard mode), flip it
+    // here immediately since boot settled synchronously.
     switchAccessCheckbox.checked = switchScanInitialEnabled;
     applyEnabled(switchScanInitialEnabled);
+    if (!(switchScanInitialEnabled && currentInputMode === 'touch')) {
+      isBootPass = false;
+    }
 
     switchAccessCheckbox.addEventListener('change', () => {
       applyEnabled(switchAccessCheckbox.checked);
@@ -3245,9 +3430,20 @@ updateInstructionBar();
 setTimeout(levelHelp, 3000);
 
 // Show Stage 1 intro on initial page load if no level specified in URL
-// This introduces users to the first stage concept when starting fresh
+// This introduces users to the first stage concept when starting fresh.
+// Suppressed when entering touch-switch mode — the countdown overlay
+// owns the viewport during that window, and stacking stage intro on
+// top would hide the countdown and confuse the user.
 const hasLevelInUrl = window.location.search.includes('level=');
-if (!hasLevelInUrl && currentExecutionMode === 'coding' && !isGridMode && !isGridCodingMode) {
+const enteringTouchMode =
+  switchScanInitialEnabled && switchScanInitialInputMode === 'touch';
+if (
+  !hasLevelInUrl &&
+  currentExecutionMode === 'coding' &&
+  !isGridMode &&
+  !isGridCodingMode &&
+  !enteringTouchMode
+) {
   // Show after a short delay to let UI fully initialize
   setTimeout(() => {
     showStageIntroModal(1);

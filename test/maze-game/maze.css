@@ -1271,6 +1271,171 @@ body.grid-coding-mode .switch-access-section {
   border-radius: 2px;
 }
 
+/* Info hint inside a settings group — e.g. "Refresh to apply touch
+   mode". Same visual language as the URL-override note but positioned
+   inside the group it describes rather than at the top of the modal. */
+.switch-settings-info {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: #555;
+  background: #f5f5f5;
+  border-left: 3px solid #4fc3f7;
+  border-radius: 2px;
+}
+
+/* Touch-switch entry countdown overlay — rendered as a native
+   <dialog> + showModal() so it joins the browser's top layer and
+   isn't covered by other dialogs that fire after boot (e.g. stage
+   intro). The default UA max-width / padding / border are reset so
+   the dim fills the viewport. */
+dialog.switch-touch-entry-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+dialog.switch-touch-entry-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.switch-touch-entry-cancel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(90vw, 480px);
+  height: min(70vh, 480px);
+  padding: 24px;
+  background: #ff8f00;
+  color: #fff;
+  border: 6px solid #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: none;
+}
+
+.switch-touch-entry-cancel:focus-visible {
+  outline: 4px solid #fff;
+  outline-offset: 4px;
+}
+
+.switch-touch-entry-label {
+  font-size: 24px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.switch-touch-entry-countdown {
+  font-size: 96px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.switch-touch-entry-hint {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Mid-session refresh prompt — shown when the user re-enables switch
+   access while input mode is already set to Touch. Modal <dialog>,
+   lives in the top layer alongside the entry countdown. */
+dialog.switch-touch-refresh-prompt {
+  max-width: min(90vw, 420px);
+  padding: 20px 24px;
+  border: 1px solid #bdbdbd;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  color: #212121;
+}
+
+dialog.switch-touch-refresh-prompt::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.switch-touch-refresh-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.switch-touch-refresh-body {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #424242;
+}
+
+.switch-touch-refresh-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.switch-touch-refresh-buttons button {
+  min-width: 96px;
+  white-space: nowrap;
+}
+
+.switch-touch-refresh-ok {
+  background: #e0e0e0;
+  color: #212121;
+}
+
+.switch-touch-refresh-reload {
+  background: #1976d2;
+  color: #fff;
+}
+
+/* Body class applied while touch-switch mode is active. Disables
+   Blockly's own gesture surfaces (workspace, toolbox, widget divs
+   for dropdowns/field menus) so swipes don't double-trigger scan +
+   Blockly action. Document-level touch listeners still fire — this
+   only blocks hit-testing to Blockly's internal pointer handlers. */
+body.touch-switch-active #blocklyDiv,
+body.touch-switch-active .blocklyWidgetDiv,
+body.touch-switch-active .blocklyDropDownDiv,
+body.touch-switch-active .blocklyToolboxDiv {
+  pointer-events: none;
+}
+
+/* Persistent corner chip shown while touch mode is active. Visual-
+   only — pointer-events: none so a touch on it falls through to the
+   adapter's document listener and counts as a tap/swipe
+   like any other screen position. */
+.switch-touch-indicator {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9999;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 999px;
+  pointer-events: none;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
 /* Sidebar toggle button */
 .sidebar-toggle {
   --element-color: #666;

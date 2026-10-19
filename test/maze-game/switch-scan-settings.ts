@@ -32,6 +32,12 @@
 /** Scan mode chosen by the user. */
 export type SwitchScanMode = 'step' | 'auto';
 
+/** How the user drives the switches. */
+export type SwitchInputMode = 'keyboard' | 'touch';
+
+/** Which swipe direction advances in touch mode. */
+export type TouchSwipeAdvance = 'left' | 'right';
+
 /** Shape of the settings object handed back to the caller. */
 export interface SwitchScanSettingsValues {
   switchAdvance: string;
@@ -55,6 +61,15 @@ export interface SwitchScanSettingsValues {
    * modes during the same change.
    */
   scanSpeedMs: number;
+  /**
+   * Input method — keyboard (physical switches emit keyboard events)
+   * or touch (swipe + tap gestures). Mid-session changes persist but
+   * only take effect on the next page load; touch mode activates
+   * through the countdown overlay at boot.
+   */
+  inputMode: SwitchInputMode;
+  /** Which swipe direction advances scan in touch mode. */
+  touchSwipeAdvance: TouchSwipeAdvance;
 }
 
 /** Constructor options for {@link SwitchScanSettings}. */
@@ -69,6 +84,10 @@ export interface SwitchScanSettingsOptions {
   initialAudio?: boolean;
   /** Initial auto-scan period in ms. Defaults to 1500. */
   initialScanSpeedMs?: number;
+  /** Initial input mode. Defaults to `'keyboard'`. */
+  initialInputMode?: SwitchInputMode;
+  /** Initial swipe-for-advance direction. Defaults to `'left'`. */
+  initialTouchSwipeAdvance?: TouchSwipeAdvance;
   /**
    * True when at least one switch-scan URL param is currently in
    * effect. When true the panel renders a small note explaining that
@@ -127,12 +146,18 @@ export class SwitchScanSettings {
   private readonly switchBCaptureBtn: HTMLButtonElement | null;
   private readonly switchCCaptureBtn: HTMLButtonElement | null;
   private readonly switchCClearBtn: HTMLButtonElement | null;
+  private readonly switchAGroup: HTMLElement | null;
   private readonly switchBGroup: HTMLElement | null;
+  private readonly switchCGroup: HTMLElement | null;
+  private readonly switchModeGroup: HTMLElement | null;
   private readonly modeRadios: NodeListOf<HTMLInputElement>;
   private readonly audioToggle: HTMLInputElement | null;
   private readonly scanSpeedSlider: HTMLInputElement | null;
   private readonly scanSpeedValueEl: HTMLElement | null;
   private readonly scanSpeedGroup: HTMLElement | null;
+  private readonly inputModeSelect: HTMLSelectElement | null;
+  private readonly touchSettingsGroup: HTMLElement | null;
+  private readonly touchSwipeAdvanceSelect: HTMLSelectElement | null;
   private readonly panelEl: HTMLElement | null;
 
   /** Live values. Auto-applied on every accepted change. */
@@ -142,6 +167,8 @@ export class SwitchScanSettings {
   private currentMode: SwitchScanMode;
   private currentAudio: boolean;
   private currentScanSpeedMs: number;
+  private currentInputMode: SwitchInputMode;
+  private currentTouchSwipeAdvance: TouchSwipeAdvance;
 
   /**
    * True iff URL params are overriding saved settings on this page
@@ -169,6 +196,8 @@ export class SwitchScanSettings {
     this.currentMode = options.initialMode ?? 'step';
     this.currentAudio = options.initialAudio ?? false;
     this.currentScanSpeedMs = options.initialScanSpeedMs ?? 1500;
+    this.currentInputMode = options.initialInputMode ?? 'keyboard';
+    this.currentTouchSwipeAdvance = options.initialTouchSwipeAdvance ?? 'left';
     this.urlOverrideActive = options.urlOverrideActive ?? false;
 
     this.panelEl = document.getElementById('switchAccessPanel');
@@ -187,7 +216,10 @@ export class SwitchScanSettings {
     this.switchCClearBtn = document.getElementById(
       'switchCClearBtn',
     ) as HTMLButtonElement | null;
+    this.switchAGroup = document.getElementById('switchAGroup');
     this.switchBGroup = document.getElementById('switchBGroup');
+    this.switchCGroup = document.getElementById('switchCGroup');
+    this.switchModeGroup = document.getElementById('switchModeGroup');
     this.modeRadios = document.querySelectorAll<HTMLInputElement>(
       'input[name="switchScanMode"]',
     );
@@ -199,6 +231,13 @@ export class SwitchScanSettings {
     ) as HTMLInputElement | null;
     this.scanSpeedValueEl = document.getElementById('scanSpeedValue');
     this.scanSpeedGroup = document.getElementById('scanSpeedGroup');
+    this.inputModeSelect = document.getElementById(
+      'switchInputMode',
+    ) as HTMLSelectElement | null;
+    this.touchSettingsGroup = document.getElementById('touchSettingsGroup');
+    this.touchSwipeAdvanceSelect = document.getElementById(
+      'touchSwipeAdvance',
+    ) as HTMLSelectElement | null;
 
     if (this.switchACaptureBtn) {
       this.switchACaptureBtn.disabled = false;
@@ -270,9 +309,29 @@ export class SwitchScanSettings {
       r.checked = r.value === this.currentMode;
     });
 
+    if (this.inputModeSelect) {
+      this.inputModeSelect.value = this.currentInputMode;
+      this.inputModeSelect.addEventListener('change', () => {
+        const v = this.inputModeSelect!.value;
+        this.currentInputMode = v === 'touch' ? 'touch' : 'keyboard';
+        this.refreshInputModeVisibility();
+        this.emitChange();
+      });
+    }
+
+    if (this.touchSwipeAdvanceSelect) {
+      this.touchSwipeAdvanceSelect.value = this.currentTouchSwipeAdvance;
+      this.touchSwipeAdvanceSelect.addEventListener('change', () => {
+        const v = this.touchSwipeAdvanceSelect!.value;
+        this.currentTouchSwipeAdvance = v === 'right' ? 'right' : 'left';
+        this.emitChange();
+      });
+    }
+
     this.refreshDisplay();
     this.refreshScanSpeedDisplay();
     this.refreshModeVisibility();
+    this.refreshInputModeVisibility();
     this.renderUrlOverrideNote();
   }
 
@@ -318,6 +377,8 @@ export class SwitchScanSettings {
       mode: this.currentMode,
       audio: this.currentAudio,
       scanSpeedMs: this.currentScanSpeedMs,
+      inputMode: this.currentInputMode,
+      touchSwipeAdvance: this.currentTouchSwipeAdvance,
     });
   }
 
@@ -395,7 +456,32 @@ export class SwitchScanSettings {
   }
 
   /**
-   * Begin a live key-capture for `which` (advance or select).
+   * Show / hide groups based on input method. Touch mode hides the
+   * keyboard-only controls (switch captures, scan mode, scan speed)
+   * since those don't apply, and reveals the touch-specific controls.
+   */
+  private refreshInputModeVisibility(): void {
+    const touch = this.currentInputMode === 'touch';
+    const toggle = (el: HTMLElement | null, hide: boolean) => {
+      if (!el) return;
+      if (hide) el.classList.add('hidden');
+      else el.classList.remove('hidden');
+    };
+    toggle(this.touchSettingsGroup, !touch);
+    toggle(this.switchAGroup, touch);
+    toggle(this.switchBGroup, touch);
+    toggle(this.switchCGroup, touch);
+    toggle(this.switchModeGroup, touch);
+    toggle(this.scanSpeedGroup, touch);
+    // Keyboard-mode switch-B / scan-speed visibility also depends on
+    // the step/auto mode. When returning to keyboard, let that logic
+    // re-apply so a user who was in Auto before switching to Touch and
+    // back doesn't see a stale Switch B row.
+    if (!touch) this.refreshModeVisibility();
+  }
+
+  /**
+   * Begin a live key-capture for `which` (advance, select, or back).
    *
    * We attach the keydown listener on `document` with `capture: true`
    * and call `stopImmediatePropagation()` inside the handler so the
