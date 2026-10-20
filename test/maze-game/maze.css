@@ -1581,6 +1581,27 @@ body.touch-switch-active .blocklyToolboxDiv {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+  display: inline-block;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
+
+.cmd-icon-steps {
+  mask-image: url('assets/steps.svg');
+  -webkit-mask-image: url('assets/steps.svg');
+}
+.cmd-icon-turn-left {
+  mask-image: url('assets/turn_left.svg');
+  -webkit-mask-image: url('assets/turn_left.svg');
+}
+.cmd-icon-turn-right {
+  mask-image: url('assets/turn_right.svg');
+  -webkit-mask-image: url('assets/turn_right.svg');
 }
 
 .command-btn .cmd-label {
