@@ -1488,7 +1488,7 @@ if (savedSkin === 4) {
 // Skins that are enabled in the character selector
 // To re-enable hidden characters, add their indices back:
 // 4=Rudolph, 5=Football Chase, 6=Football Dribble
-const ENABLED_SKIN_IDS = [0, 1, 2, 3]; // Astro, Wheelchair, Panda, Pegman
+const ENABLED_SKIN_IDS = [0, 1, 2, 3, 7]; // Astro, Wheelchair, Panda, Pegman, Wheelchair HC
 
 // Build the character menu (only show enabled skins)
 if (pegmanMenu) {
@@ -3059,6 +3059,7 @@ function buildHeaderDropdownSources(): Record<string, HeaderDropdownSource> {
     'Rudolph',
     'Footballer (chase)',
     'Footballer (dribble)',
+    'Wheelchair HC',
   ];
   return {
     character: {

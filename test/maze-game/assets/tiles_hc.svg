@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hi-contrast tile set for the "Wheelchair HC" skin.
+  5x4 grid of 50x50 tiles, matching TILE_SHAPES in maze.ts.
+
+  Binary code is C-N-E-S-W (centre/north/east/south/west) as computed in
+  maze.ts around line 1055.
+
+  Palette:
+    #FFFFFF white corridor (26 wide, centred - 12 px wall margin each side)
+    transparent elsewhere (canvas bg_hc.png shows through as black)
+
+  Rounded corners (R=8): wall-facing convex corners and interior-turn concave
+  corners both use a quadratic Bezier with the corner point as control.
+  Tile-boundary corners stay sharp so adjacent tiles join seamlessly.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="200" viewBox="0 0 250 200">
+
+  <!-- =============== Row 0 =============== -->
+
+  <!-- (0,0) 10110  SE elbow (E+S) -->
+  <path d="M 20 12 L 50 12 L 50 38 L 46 38 Q 38 38 38 46 L 38 50 L 12 50 L 12 20 Q 12 12 20 12 Z" fill="#FFFFFF"/>
+
+  <!-- (1,0) 10111  T no N (W+S+E) -->
+  <path transform="translate(50,0)" d="M 0 12 L 50 12 L 50 38 L 46 38 Q 38 38 38 46 L 38 50 L 12 50 L 12 46 Q 12 38 4 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (2,0) 10011  SW elbow (S+W) -->
+  <path transform="translate(100,0)" d="M 0 12 L 30 12 Q 38 12 38 20 L 38 50 L 12 50 L 12 46 Q 12 38 4 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (3,0) null1  (empty) -->
+
+  <!-- (4,0) 10010  S only -->
+  <path transform="translate(200,0)" d="M 20 12 Q 12 12 12 20 L 12 50 L 38 50 L 38 20 Q 38 12 30 12 Z" fill="#FFFFFF"/>
+
+  <!-- =============== Row 1 =============== -->
+
+  <!-- (0,1) 11000  N only -->
+  <path transform="translate(0,50)" d="M 12 0 L 38 0 L 38 30 Q 38 38 30 38 L 20 38 Q 12 38 12 30 L 12 0 Z" fill="#FFFFFF"/>
+
+  <!-- (1,1) 11110  T no W (N+E+S) -->
+  <path transform="translate(50,50)" d="M 12 0 L 38 0 L 38 4 Q 38 12 46 12 L 50 12 L 50 38 L 46 38 Q 38 38 38 46 L 38 50 L 12 50 L 12 0 Z" fill="#FFFFFF"/>
+
+  <!-- (2,1) 11011  T no E (N+W+S) -->
+  <path transform="translate(100,50)" d="M 12 0 L 38 0 L 38 50 L 12 50 L 12 46 Q 12 38 4 38 L 0 38 L 0 12 L 4 12 Q 12 12 12 4 L 12 0 Z" fill="#FFFFFF"/>
+
+  <!-- (3,1) null2  (empty) -->
+
+  <!-- (4,1) 11010  vertical straight -->
+  <path transform="translate(200,50)" d="M 12 0 L 38 0 L 38 50 L 12 50 Z" fill="#FFFFFF"/>
+
+  <!-- =============== Row 2 =============== -->
+
+  <!-- (0,2) 10100  E only -->
+  <path transform="translate(0,100)" d="M 20 12 L 50 12 L 50 38 L 20 38 Q 12 38 12 30 L 12 20 Q 12 12 20 12 Z" fill="#FFFFFF"/>
+
+  <!-- (1,2) 11101  T no S (N+W+E) -->
+  <path transform="translate(50,100)" d="M 0 12 L 4 12 Q 12 12 12 4 L 12 0 L 38 0 L 38 4 Q 38 12 46 12 L 50 12 L 50 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (2,2) 11111  cross -->
+  <path transform="translate(100,100)" d="M 0 12 L 4 12 Q 12 12 12 4 L 12 0 L 38 0 L 38 4 Q 38 12 46 12 L 50 12 L 50 38 L 46 38 Q 38 38 38 46 L 38 50 L 12 50 L 12 46 Q 12 38 4 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (3,2) 10101  horizontal straight -->
+  <path transform="translate(150,100)" d="M 0 12 L 50 12 L 50 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (4,2) 11001  NW elbow (N+W) -->
+  <path transform="translate(200,100)" d="M 12 0 L 38 0 L 38 30 Q 38 38 30 38 L 0 38 L 0 12 L 4 12 Q 12 12 12 4 L 12 0 Z" fill="#FFFFFF"/>
+
+  <!-- =============== Row 3 =============== -->
+
+  <!-- (0,3) null3, (1,3) null4  (empty) -->
+
+  <!-- (2,3) 11100  NE elbow (N+E) -->
+  <path transform="translate(100,150)" d="M 12 0 L 38 0 L 38 4 Q 38 12 46 12 L 50 12 L 50 38 L 20 38 Q 12 38 12 30 L 12 0 Z" fill="#FFFFFF"/>
+
+  <!-- (3,3) 10001  W only -->
+  <path transform="translate(150,150)" d="M 0 12 L 30 12 Q 38 12 38 20 L 38 30 Q 38 38 30 38 L 0 38 Z" fill="#FFFFFF"/>
+
+  <!-- (4,3) null0  (empty) -->
+
+</svg>

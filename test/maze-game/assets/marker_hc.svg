@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hi-contrast goal marker for the "Wheelchair HC" skin.
+  20x34 map-pin: yellow fill, thick black outline, white centre dot.
+  Matches dimensions of assets/marker.png so no renderer change is needed.
+
+  Path uses only cubic Beziers (no SVG arc command) so that ImageMagick 6's
+  SVG renderer can rasterise it correctly.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="34" viewBox="0 0 20 34">
+  <path
+    d="M 10 33
+       C 2 24, 1 15, 1 10
+       C 1 5, 5 1, 10 1
+       C 15 1, 19 5, 19 10
+       C 19 15, 18 24, 10 33 Z"
+    fill="#FFE500"
+    stroke="#000000"
+    stroke-width="2"
+    stroke-linejoin="round"/>
+  <circle cx="10" cy="10" r="3" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
+</svg>

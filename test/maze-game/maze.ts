@@ -164,10 +164,11 @@ interface Skin {
   tiles: string;        // Path to tile set image
   background: string | false;  // Path to background image or false
   marker?: string;      // Path to goal marker image (defaults to marker.png)
-  look: string;         // Color for sonar look icon
+  look: string;         // Color for sonar look icon (also used as HC accent)
   winSound: string[];   // Paths to win sound files
   crashSound: string[]; // Paths to crash sound files
   crashType: CrashType; // Type of crash animation
+  highContrast?: boolean; // Opt in to the hi-contrast render path (black bg, enlarged marker, character halo)
 }
 
 // Available character skins
@@ -240,11 +241,27 @@ const SKINS: Skin[] = [
     crashSound: ['assets/fail_pegman.mp3', 'assets/fail_pegman.ogg'],
     crashType: CrashType.FLAIL,  // Misses the goal comically
   },
+  // High-contrast wheelchair skin for low-vision users.
+  // Sprite is a copy of wheelchair.png with frame 20 (the picker-chip slot,
+  // which the game never renders — frames 0-18 cover direction + victory)
+  // repainted as a yellow-halo chip so the picker clearly distinguishes HC
+  // from the standard wheelchair skin.
+  {
+    sprite: 'assets/wheelchair_hc.png',
+    tiles: 'assets/tiles_hc.png',
+    background: 'assets/bg_hc.png',
+    marker: 'assets/marker_hc.png',
+    look: '#FFE500',
+    winSound: ['assets/win.mp3', 'assets/win.ogg'],
+    crashSound: ['assets/fail_pegman.mp3', 'assets/fail_pegman.ogg'],
+    crashType: CrashType.STOP,
+    highContrast: true,
+  },
 ];
 
 // Map each possible tile shape to a sprite position in the tiles image.
-// Input: Binary string representing Centre/North/West/South/East squares.
-// Output: [x, y] coordinates of each tile's sprite in tiles.png (5x4 grid of 50x50 tiles).
+// Input: binary CNESW string — Centre/North/East/South/West path connectivity.
+// Output: [x, y] coordinates of the tile's sprite in tiles.png (5x4 grid of 50x50 tiles).
 const TILE_SHAPES: Record<string, [number, number]> = {
   '10010': [4, 0],  // Dead ends
   '10001': [3, 3],
@@ -1173,10 +1190,10 @@ export class MazeGame {
   }
 
   /**
-   * Check if the current skin is the wheelchair character.
+   * Check if the current skin is a wheelchair character (standard or hi-contrast).
    */
   public isWheelchairSkin(): boolean {
-    return this.skinId === 1;
+    return this.skinId === 1 || this.skinId === 7;
   }
 
   /**
@@ -1370,8 +1387,15 @@ export class MazeGame {
     const offsetX = (canvasSize - mazeWidth * this.scale) / 2;
     const offsetY = (canvasSize - mazeHeight * this.scale) / 2;
 
+    // Hi-contrast skin needs a black canvas and matching black border so the
+    // low-vision white-path / black-wall contrast carries through to the maze
+    // edges with no cream frame around it.
+    const hiContrast = !!this.skin.highContrast;
+    const clearColor = hiContrast ? '#000000' : '#F1EEE7';
+    const borderColor = hiContrast ? '#000000' : '#CCB';
+
     // Clear canvas
-    this.ctx.fillStyle = '#F1EEE7';
+    this.ctx.fillStyle = clearColor;
     this.ctx.fillRect(0, 0, canvasSize, canvasSize);
 
     // Apply scaling and centering transform
@@ -1384,13 +1408,12 @@ export class MazeGame {
       // Scale background to fit maze area
       this.ctx.drawImage(this.backgroundImage, 0, 0, mazeWidth, mazeHeight);
     } else {
-      // Clear maze area with light background
-      this.ctx.fillStyle = '#F1EEE7';
+      this.ctx.fillStyle = clearColor;
       this.ctx.fillRect(0, 0, mazeWidth, mazeHeight);
     }
 
     // Draw outer border
-    this.ctx.strokeStyle = '#CCB';
+    this.ctx.strokeStyle = borderColor;
     this.ctx.lineWidth = 1 / this.scale; // Compensate for scale
     this.ctx.strokeRect(0, 0, mazeWidth, mazeHeight);
 
@@ -1475,8 +1498,11 @@ export class MazeGame {
 
           // Draw finish marker with image if loaded
           if (square === SquareType.FINISH && this.markerImage && this.imagesLoaded) {
-            const markerWidth = 16;
-            const markerHeight = 27;
+            // Hi-contrast skin uses a larger marker so the goal reads at a
+            // glance for low-vision users.
+            const markerScale = this.skin.highContrast ? 1.25 : 1;
+            const markerWidth = 16 * markerScale;
+            const markerHeight = 27 * markerScale;
             this.ctx.drawImage(
               this.markerImage,
               px + (this.squareSize - markerWidth) / 2,
@@ -1544,9 +1570,21 @@ export class MazeGame {
       const destX = px + (this.squareSize - this.PEGMAN_WIDTH) / 2;
       const destY = py + (this.squareSize - this.PEGMAN_HEIGHT) / 2 - 5;
 
-      // Apply scale for visibility
       const centerX = px + this.squareSize / 2;
       const centerY = py + this.squareSize / 2 - 5;
+
+      // Hi-contrast skin: coloured halo under the character so its position
+      // reads as a bright accent against both black walls and white paths.
+      if (this.skin.highContrast) {
+        this.ctx.save();
+        this.ctx.fillStyle = this.skin.look;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + 5, this.squareSize * 0.4, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+
+      // Apply scale for visibility
       this.ctx.save();
       this.ctx.translate(centerX, centerY);
       this.ctx.scale(this.PEGMAN_SCALE, this.PEGMAN_SCALE);
@@ -1620,6 +1658,15 @@ export class MazeGame {
       // Center of the sprite in the cell
       const centerX = px + this.squareSize / 2;
       const centerY = py + this.squareSize / 2 - 5;
+
+      if (this.skin.highContrast) {
+        this.ctx.save();
+        this.ctx.fillStyle = this.skin.look;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + 5, this.squareSize * 0.4, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
 
       // Save context, rotate around center, draw, restore
       this.ctx.save();

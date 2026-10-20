@@ -36,9 +36,9 @@ const LOOPS_STYLE = 'loop_blocks';
 const LOGIC_STYLE = 'logic_blocks';
 
 /**
- * Skin ID for wheelchair character.
+ * Skin IDs that use the wheelchair character (standard + hi-contrast variant).
  */
-const WHEELCHAIR_SKIN_ID = 1;
+const WHEELCHAIR_SKIN_IDS: ReadonlySet<number> = new Set([1, 7]);
 
 /**
  * Current skin ID (updated via setCurrentSkin).
@@ -53,7 +53,7 @@ export function setCurrentSkin(skinId: number, workspace?: Blockly.Workspace) {
   currentSkinId = skinId;
   if (workspace) {
     const newSrc =
-      skinId === WHEELCHAIR_SKIN_ID
+      WHEELCHAIR_SKIN_IDS.has(skinId)
         ? 'assets/wheel_forward.svg'
         : 'assets/steps.svg';
 
@@ -87,7 +87,7 @@ export function setCurrentSkin(skinId: number, workspace?: Blockly.Workspace) {
  * Get the appropriate forward icon based on current skin.
  */
 function getForwardIconSrc(): string {
-  return currentSkinId === WHEELCHAIR_SKIN_ID
+  return WHEELCHAIR_SKIN_IDS.has(currentSkinId)
     ? 'assets/wheel_forward.svg'
     : 'assets/steps.svg';
 }
