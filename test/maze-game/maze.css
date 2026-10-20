@@ -36,6 +36,7 @@ html {
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --chrome-bg: #121212;
   --chrome-fg: #e8e8e8;
   --surface: #1e1e1e;
@@ -47,6 +48,7 @@ html {
 }
 
 :root[data-theme="hc"] {
+  color-scheme: dark;
   --chrome-bg: #000000;
   --chrome-fg: #ffffff;
   --surface: #000000;
