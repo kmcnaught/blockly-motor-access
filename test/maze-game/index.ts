@@ -998,9 +998,30 @@ keyboardNavigation.setOnMoveFinishedCallback(() => {
   Blockly.Toast.hide(workspace, 'maze_move_mode_hint');
 });
 
-// Initialize maze game (URL param > localStorage > default)
-const urlSkin = getIntegerParamFromUrl('skin', -1, 3);
-const savedSkin = urlSkin >= 0 ? urlSkin : parseInt(localStorage.getItem('mazeGameSkin') || '0', 10);
+// Initialize maze game (URL param > localStorage > theme-aware default).
+// If no skin has ever been chosen AND the effective theme is HC, default
+// to the Wheelchair HC skin so the canvas matches the HC chrome. First
+// load only — once a skin is persisted (either via explicit choice or
+// via the auto-select below being saved), it sticks regardless of
+// subsequent theme changes.
+const WHEELCHAIR_HC_SKIN_ID = 7;
+const DEFAULT_SKIN_ID = 0;
+const urlSkin = getIntegerParamFromUrl('skin', -1, 7);
+let savedSkin: number;
+if (urlSkin >= 0) {
+  savedSkin = urlSkin;
+} else {
+  const stored = localStorage.getItem('mazeGameSkin');
+  const parsed = stored !== null ? parseInt(stored, 10) : NaN;
+  if (!isNaN(parsed)) {
+    savedSkin = parsed;
+  } else {
+    savedSkin =
+      resolveEffectiveTheme(currentThemeSetting) === 'hc'
+        ? WHEELCHAIR_HC_SKIN_ID
+        : DEFAULT_SKIN_ID;
+  }
+}
 setCurrentSkin(savedSkin, workspace); // Set initial skin for block icons
 
 // Set up practice mazes if starting in practice mode
