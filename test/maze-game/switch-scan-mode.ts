@@ -1197,9 +1197,14 @@ export class SwitchScanController {
   private scanMode: 'step' | 'auto' = 'step';
   private scanSpeedMs = 1500;
   private autoState: 'idle' | 'scanning' = 'idle';
-  // Window.setInterval returns `number` in browsers; node typings
-  // disagree (NodeJS.Timeout). We're DOM-only, so `number | null`.
-  private autoTimerHandle: number | null = null;
+  // Window.setTimeout / setInterval return `number` in browsers; node
+  // typings disagree (NodeJS.Timeout). We're DOM-only, so `number | null`.
+  // Two-phase timer: `autoFirstTickHandle` holds the pending setTimeout
+  // for the first tick after `startAutoTimer` is called; once that
+  // fires, `autoIntervalHandle` holds the steady setInterval for
+  // subsequent ticks. At most one is non-null at any given time.
+  private autoFirstTickHandle: number | null = null;
+  private autoIntervalHandle: number | null = null;
 
   // Settings panel reference (Step D). Optional: only wired up when
   // switch-scan mode is active AND the settings module is constructed.
@@ -2036,13 +2041,30 @@ export class SwitchScanController {
    * resize/scroll reflow path so the user doesn't hear the same label
    * re-spoken just because they resized the window.
    *
+   * The auto-scan timer is re-armed at the end of every render whose
+   * `restartTimer` option is not explicitly `false`. The default is
+   * "restart" because frame transitions (every `enter*SubScan` push and
+   * every `pop`) are the common case and the user expects the first tick
+   * on the new frame to be a fresh `scanSpeedMs` interval rather than
+   * whatever remainder was left on the previous cycle. Pure repaints
+   * (the `advance()` tick itself, resize/scroll
+   * reflows, the move-candidates settle listener) opt out — they haven't
+   * changed the frame stack and must not reset the scan schedule.
+   *
    * @param options Render flags.
    * @param options.speak Whether to announce the current item via the
    *     TTS helper. Pass `false` to suppress (used by the resize /
    *     scroll reflow path). Defaults to true — every interactive
    *     render speaks.
+   * @param options.restartTimer Whether this render should re-arm the
+   *     auto-scan first-tick timer (via
+   *     {@link restartAutoTimerIfScanning}). Defaults to true — pass
+   *     `false` at repaint-only callers (per-tick, reflow, move settle).
    */
-  private renderHighlight(options?: {speak?: boolean}): void {
+  private renderHighlight(options?: {
+    speak?: boolean;
+    restartTimer?: boolean;
+  }): void {
     if (!this.highlightEl || !this.sentinelChip) return;
     // Keep the overlay chrome parented under the right host for the
     // current frame — dialog when inside a modal sub-scan, body
@@ -2076,6 +2098,12 @@ export class SwitchScanController {
     // would be noisy. The helper handles cancel-and-replace and the
     // disabled-state no-op, so we don't branch on those here.
     const shouldSpeak = options?.speak !== false;
+    // Default policy: frame-stack-changing callers (every `enter*SubScan`
+    // push and every `pop`) rely on the render to re-arm the auto-scan
+    // timer so the user gets a full `scanSpeedMs` on the new frame.
+    // Repaint-only callers (per-tick, reflow, move settle) opt out via
+    // `restartTimer: false`.
+    const shouldRestart = options?.restartTimer !== false;
 
     // Dashed "pinned subject" outline: anchors the block the current
     // action will operate on while the solid scan cursor roams over
@@ -2144,6 +2172,7 @@ export class SwitchScanController {
         this.applySentinelChip(frame);
       }
       if (shouldSpeak) this.speakCurrentLabel();
+      if (shouldRestart) this.restartAutoTimerIfScanning();
       return;
     }
 
@@ -2157,6 +2186,7 @@ export class SwitchScanController {
       // hidden mid-cycle); hide rather than splat a 0x0 outline at
       // (0,0). The next reflow / advance recovers.
       this.highlightEl.style.display = 'none';
+      if (shouldRestart) this.restartAutoTimerIfScanning();
       return;
     }
 
@@ -2165,6 +2195,7 @@ export class SwitchScanController {
     this.positionHighlightAround(this.highlightEl, rect, padPx);
 
     if (shouldSpeak) this.speakCurrentLabel();
+    if (shouldRestart) this.restartAutoTimerIfScanning();
   }
 
   /** Position `el` as a ring around `rect`, extended outward by `padPx`. */
@@ -2405,7 +2436,10 @@ export class SwitchScanController {
       if (this.executing) return;
       // Reflow renders shouldn't re-speak the current item —
       // the scan position hasn't changed, only the geometry has.
-      this.renderHighlight({speak: false});
+      // Also must not re-arm the auto-scan timer: a resize or scroll
+      // isn't a frame transition, and resetting the schedule every
+      // viewport change would stall the scan under even gentle motion.
+      this.renderHighlight({speak: false, restartTimer: false});
     });
   }
 
@@ -2548,12 +2582,21 @@ export class SwitchScanController {
   /**
    * Advance the current frame's highlight by one slot and re-render.
    *
-   * Shared between step mode (driven by the user's advance keypress) and
-   * auto mode (driven by the internal interval timer). Extracted from
-   * the original inline body in {@link handleKeyDown} so both paths
-   * cycle identically — including the modulo over `cycleLen` (real
-   * slots + 1 sentinel) and the TTS speak triggered by
+   * Shared between step mode (driven by the user's advance keypress)
+   * and auto mode (driven by {@link startAutoTimer}'s two-phase
+   * schedule — a setTimeout for the first tick firing `firstTickMs`
+   * after startAutoTimer returns, then a steady setInterval at
+   * `scanSpeedMs` for subsequent ticks). Extracted from the original
+   * inline body in {@link handleKeyDown} so both paths cycle
+   * identically — including the modulo over `cycleLen` (real slots +
+   * 1 sentinel) and the TTS speak triggered by
    * {@link renderHighlight}.
+   *
+   * Passes `restartTimer: false` to {@link renderHighlight}: a tick
+   * is a repaint on the same frame, not a frame transition. Without
+   * this opt-out the render's default re-arm would clear the setInterval
+   * mid-tick and schedule a fresh first-tick setTimeout, so no steady
+   * cadence would ever actually fire.
    */
   private advance(): void {
     const frame = this.activeFrame();
@@ -2561,53 +2604,108 @@ export class SwitchScanController {
     const len = this.cycleLen(frame);
     if (len <= 0) return;
     frame.index = wrapIndex(frame.index + 1, len);
-    this.renderHighlight();
+    this.renderHighlight({restartTimer: false});
   }
 
   /**
-   * Start the auto-advance interval timer.
+   * Start the auto-advance timer.
    *
-   * Idempotent: if a timer is already running, the existing one is
-   * cleared first so we never end up with two intervals racing. The
-   * caller is expected to have just transitioned `autoState` from
-   * `'idle'` to `'scanning'` (or to be re-entering scanning after a
-   * settings-driven scanSpeedMs change).
+   * Two-phase shape: a `setTimeout` schedules the first tick after
+   * `firstTickMs` (defaulting to `scanSpeedMs` when omitted); when that
+   * timeout fires it calls {@link advance} and arms a steady
+   * `setInterval(advance, scanSpeedMs)` for subsequent ticks. Allowing
+   * the first tick to differ from the steady cadence is what lets
+   * callers inject a per-transition first-tick delay without disrupting
+   * the base cadence.
    *
-   * Note we do NOT call `advance()` immediately — the user's
-   * first press is intentionally a "wake up" gesture that just starts
-   * the timer; the highlight stays parked on the initial frame until
-   * the first tick fires `scanSpeedMs` later. This matches the design
-   * doc: "First switch press: scanner starts at top level, highlights
+   * Idempotent: calls {@link clearAutoTimer} first so a pending
+   * setTimeout or active setInterval from a prior call is torn down
+   * before scheduling fresh. The caller is expected to have just
+   * transitioned `autoState` from `'idle'` to `'scanning'` (or to be
+   * re-entering scanning after a settings-driven scanSpeedMs change).
+   *
+   * Frame transitions re-arm the timer via
+   * {@link restartAutoTimerIfScanning} — called from `renderHighlight`'s
+   * default path — so the first tick on the new frame starts fresh at
+   * `scanSpeedMs` instead of landing partway through the previous cycle.
+   *
+   * Does NOT call `advance()` immediately — the user's first press is
+   * a "wake up" gesture that just starts the timer; the highlight
+   * stays parked on the initial frame until the first tick fires
+   * `firstTickMs` after this method returns. Matches the design doc:
+   * "First switch press: scanner starts at top level, highlights
    * cycle on `scanSpeedMs` interval, looping."
+   *
+   * @param firstTickMs Delay before the first tick fires. Defaults to
+   *     `scanSpeedMs`, giving a uniform cadence when no caller injects
+   *     a per-transition first-tick delay.
    */
-  private startAutoTimer(): void {
+  private startAutoTimer(firstTickMs?: number): void {
     this.clearAutoTimer();
     this.autoState = 'scanning';
-    this.autoTimerHandle = window.setInterval(
-      () => this.advance(),
-      this.scanSpeedMs,
-    );
+    const first = firstTickMs ?? this.scanSpeedMs;
+    this.autoFirstTickHandle = window.setTimeout(() => {
+      this.autoFirstTickHandle = null;
+      this.advance();
+      this.autoIntervalHandle = window.setInterval(
+        () => this.advance(),
+        this.scanSpeedMs,
+      );
+    }, first);
     // Hide the "press to start" idle chip immediately on transition —
     // waiting for the first timer tick would leave the chip visible
-    // for up to `scanSpeedMs` after the user's press. speak=false
+    // for up to `first` ms after the user's press. speak=false
     // because the idle→scanning caller in handleKeyDown already
-    // speaks the current label explicitly.
-    this.renderHighlight({speak: false});
+    // speaks the current label explicitly. restartTimer=false because
+    // we just armed the timer directly above — the render's default
+    // re-arm would schedule a second (shorter) first tick and clobber
+    // this call's `firstTickMs` contract.
+    this.renderHighlight({speak: false, restartTimer: false});
   }
 
   /**
-   * Stop the auto-advance interval timer if one is running.
+   * Stop the auto-advance timer if one is running.
+   *
+   * Tears down both phases of the two-phase schedule: the pending
+   * first-tick `setTimeout` (if it hasn't fired yet) and the steady
+   * `setInterval` (if the first tick has already fired and handed off).
+   * At most one is active at a time, but checking both unconditionally
+   * keeps the teardown resilient to either phase.
    *
    * Does NOT flip `autoState` — the caller owns that decision. Used by
    * `handleRunStart` (run pauses scanning), `handleRunEnd` (back to
-   * idle), `disable()` (teardown), and {@link setMode} (mode/speed
-   * change). Safe to call when no timer is running.
+   * idle), `disable()` (teardown), {@link setMode} (mode/speed
+   * change), {@link startAutoTimer} (fresh arm), and
+   * {@link restartAutoTimerIfScanning} (frame-transition re-arm). Safe
+   * to call when no timer is running.
    */
   private clearAutoTimer(): void {
-    if (this.autoTimerHandle !== null) {
-      window.clearInterval(this.autoTimerHandle);
-      this.autoTimerHandle = null;
+    if (this.autoFirstTickHandle !== null) {
+      window.clearTimeout(this.autoFirstTickHandle);
+      this.autoFirstTickHandle = null;
     }
+    if (this.autoIntervalHandle !== null) {
+      window.clearInterval(this.autoIntervalHandle);
+      this.autoIntervalHandle = null;
+    }
+  }
+
+  /**
+   * Re-arm the auto-scan timer from the current moment, if (and only
+   * if) the scanner is actively scanning.
+   *
+   * Called from `renderHighlight`'s default path so every frame
+   * transition — push into a sub-scan, pop back out, modal close,
+   * action commit — resets the scan schedule to a fresh `scanSpeedMs`
+   * on the new frame rather than landing partway through whatever
+   * remained of the previous frame's cycle.
+   *
+   * No-op outside `scanning` state: step mode never arms the timer,
+   * and auto mode's `idle` state is pre-wake with nothing to restart.
+   */
+  private restartAutoTimerIfScanning(): void {
+    if (this.autoState !== 'scanning') return;
+    this.startAutoTimer();
   }
 
   /**
@@ -3334,11 +3432,15 @@ export class SwitchScanController {
     // stale coords while the green highlights slide to new positions.
     // Subscribe to workspace change events for the duration of this
     // frame so renderHighlight re-runs on each settle step.
+    // restartTimer=false: the settle fires repeatedly in the frames
+    // after push; letting each settle re-arm the auto-scan timer would
+    // keep pushing the next tick further out with every event,
+    // effectively freezing the candidate scan on its first position.
     let changeListener: ((e: unknown) => void) | undefined;
     if (this.mover) {
       changeListener = () => {
         if (this.activeFrame()?.kind === 'move-candidates') {
-          this.renderHighlight({speak: false});
+          this.renderHighlight({speak: false, restartTimer: false});
         }
       };
       this.workspace.addChangeListener(changeListener);
