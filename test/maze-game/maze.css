@@ -1005,7 +1005,8 @@ header.christmas h1::after {
 .settings-heading {
   font-size: 1em;
   font-weight: 600;
-  color: #555;
+  color: var(--on-surface);
+  opacity: 0.75;
   margin: 0 0 10px 0;
   text-align: left;
   text-transform: uppercase;
@@ -1017,13 +1018,27 @@ header.christmas h1::after {
   align-items: center;
   gap: 10px;
   font-size: 1em;
-  color: #333;
+  color: var(--on-surface);
 }
 
 .settings-group {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* Theme-picker fieldset. Shares the .settings-group layout but zeroes
+ * out the browser's default fieldset chrome so the group reads as a
+ * plain stack of rows (consistent with the other top-level settings).
+ */
+.appearance-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.appearance-group > legend {
+  padding: 0;
+  margin: 0 0 10px 0;
 }
 
 .setting-item {
@@ -1074,7 +1089,7 @@ header.christmas h1::after {
   align-items: center;
   gap: 8px;
   font-size: 1em;
-  color: #333;
+  color: var(--on-surface);
 }
 
 .shortcuts-modal .shortcut-item kbd {
@@ -1105,7 +1120,8 @@ header.christmas h1::after {
   display: block;
   margin-top: 12px;
   font-size: 0.85em;
-  color: #666;
+  color: var(--on-surface);
+  opacity: 0.7;
   text-align: center;
   text-decoration: none;
 }
@@ -1205,7 +1221,8 @@ body.grid-coding-mode .switch-access-section {
 .switch-settings-heading {
   font-size: 0.95em;
   font-weight: 600;
-  color: #555;
+  color: var(--on-surface);
+  opacity: 0.75;
   margin: 0;
   text-align: left;
   text-transform: uppercase;
@@ -1217,7 +1234,7 @@ body.grid-coding-mode .switch-access-section {
   align-items: center;
   gap: 10px;
   font-size: 1em;
-  color: #333;
+  color: var(--on-surface);
 }
 
 /* Read-only display of the currently bound key — Step B will swap

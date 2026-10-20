@@ -50,12 +50,17 @@ import {
   resolveThemeSetting,
   resolveEffectiveTheme,
   applyTheme,
+  persistThemeSetting,
+  installThemeListeners,
+  type ThemeSetting,
 } from './theme';
 
 // Apply the resolved page theme as early as possible so chrome surfaces
-// paint under the right palette on first frame. Full wiring (settings
-// modal picker, OS-change listener, Blockly theme swap) comes later.
-applyTheme(resolveEffectiveTheme(resolveThemeSetting()));
+// paint under the right palette on first frame. The settings-modal
+// radios and OS-change listener are wired further down (search for
+// APPEARANCE / THEME).
+let currentThemeSetting: ThemeSetting = resolveThemeSetting();
+applyTheme(resolveEffectiveTheme(currentThemeSetting));
 
 // ========== URL PARAMETER UTILITIES ==========
 
@@ -2427,6 +2432,32 @@ settingsBtn.addEventListener('click', () => shortcutsDialog.show());
 
 // Close button handler.
 shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
+
+// ========== APPEARANCE / THEME ==========
+// Four-way radio picker (system / light / dark / hc). The resolved
+// effective palette is applied by setting [data-theme=…] on <html>;
+// CSS cascades do the rest. In 'system' mode the OS media queries
+// drive the effective palette; the matchMedia change listener fires
+// only while the user is on 'system' (explicit choices override OS).
+
+const themeRadios = document.querySelectorAll<HTMLInputElement>(
+  'input[name="theme"]',
+);
+for (const radio of Array.from(themeRadios)) {
+  radio.checked = radio.value === currentThemeSetting;
+}
+for (const radio of Array.from(themeRadios)) {
+  radio.addEventListener('change', () => {
+    if (!radio.checked) return;
+    currentThemeSetting = radio.value as ThemeSetting;
+    persistThemeSetting(currentThemeSetting);
+    applyTheme(resolveEffectiveTheme(currentThemeSetting));
+  });
+}
+installThemeListeners(
+  () => currentThemeSetting,
+  (effective) => applyTheme(effective),
+);
 
 // ========== BLOCK MOVEMENT MODE DROPDOWN ==========
 

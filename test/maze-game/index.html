@@ -233,6 +233,28 @@
       <h2 id="shortcutsModalTitle" class="result-modal-title">Settings</h2>
 
       <div class="settings-section">
+        <fieldset class="settings-group appearance-group" id="appearanceGroup">
+          <legend class="settings-heading">Appearance</legend>
+          <label class="setting-row" data-scan-item>
+            <input type="radio" name="theme" value="system" checked>
+            <span>System (follow OS)</span>
+          </label>
+          <label class="setting-row" data-scan-item>
+            <input type="radio" name="theme" value="light">
+            <span>Light</span>
+          </label>
+          <label class="setting-row" data-scan-item>
+            <input type="radio" name="theme" value="dark">
+            <span>Dark</span>
+          </label>
+          <label class="setting-row" data-scan-item>
+            <input type="radio" name="theme" value="hc">
+            <span>High contrast</span>
+          </label>
+        </fieldset>
+      </div>
+
+      <div class="settings-section">
         <div class="settings-group">
           <div class="setting-row">
             <label for="blockMovementSelect">Rearrange blocks using</label>
