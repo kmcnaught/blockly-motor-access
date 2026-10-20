@@ -1008,7 +1008,6 @@ header.christmas h1::after {
   font-size: 1em;
   font-weight: 600;
   color: var(--on-surface);
-  opacity: 0.75;
   margin: 0 0 10px 0;
   text-align: left;
   text-transform: uppercase;
@@ -1123,7 +1122,6 @@ header.christmas h1::after {
   margin-top: 12px;
   font-size: 0.85em;
   color: var(--on-surface);
-  opacity: 0.7;
   text-align: center;
   text-decoration: none;
 }
@@ -1224,7 +1222,6 @@ body.grid-coding-mode .switch-access-section {
   font-size: 0.95em;
   font-weight: 600;
   color: var(--on-surface);
-  opacity: 0.75;
   margin: 0;
   text-align: left;
   text-transform: uppercase;
