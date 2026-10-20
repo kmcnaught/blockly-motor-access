@@ -253,6 +253,14 @@ const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 const ITEM_RING_PAD_PX = 4;
 
 /**
+ * Multiplier applied to the first auto-scan tick after a frame
+ * transition (push or pop) and on initial wake. Gives the user a
+ * brief re-orientation window before the scan starts moving at the
+ * configured steady cadence.
+ */
+const FIRST_TICK_BONUS_FACTOR = 1.2;
+
+/**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
  * `cycleLen` is 0 so a caller doesn't have to pre-check.
  *
@@ -1625,6 +1633,9 @@ export class SwitchScanController {
       // Live scanSpeedMs change (or no change) while already scanning —
       // re-arm at the new period so the user sees their setting take
       // effect immediately. autoState stays 'scanning'.
+      // No first-tick bonus: the user is mid-scan, not re-orienting at
+      // a new frame, so the next tick should land on the configured
+      // cadence rather than an extra-long interval.
       this.startAutoTimer();
     } else {
       // Mode transition (step↔auto) or starting fresh in auto mode —
@@ -2100,9 +2111,9 @@ export class SwitchScanController {
     const shouldSpeak = options?.speak !== false;
     // Default policy: frame-stack-changing callers (every `enter*SubScan`
     // push and every `pop`) rely on the render to re-arm the auto-scan
-    // timer so the user gets a full `scanSpeedMs` on the new frame.
-    // Repaint-only callers (per-tick, reflow, move settle) opt out via
-    // `restartTimer: false`.
+    // first-tick timer so the user gets a full bonus-length tick on the
+    // new frame. Repaint-only callers (per-tick, reflow, move settle)
+    // opt out via `restartTimer: false`.
     const shouldRestart = options?.restartTimer !== false;
 
     // Dashed "pinned subject" outline: anchors the block the current
@@ -2552,7 +2563,10 @@ export class SwitchScanController {
       // the settings panel when scanMode === 'auto' and has no role.
       if (!isAdvance) return;
       if (this.autoState === 'idle') {
-        this.startAutoTimer();
+        // Wake gets the first-tick bonus too: the user is orienting at
+        // a brand-new frame just as they are after a push / pop, so
+        // the same breathing-room multiplier applies.
+        this.startAutoTimer(this.scanSpeedMs * FIRST_TICK_BONUS_FACTOR);
         // Polish: speak the current item immediately on the idle →
         // scanning transition so the user gets audible confirmation
         // the timer is running (and knows what they're starting
@@ -2626,8 +2640,9 @@ export class SwitchScanController {
    *
    * Frame transitions re-arm the timer via
    * {@link restartAutoTimerIfScanning} — called from `renderHighlight`'s
-   * default path — so the first tick on the new frame starts fresh at
-   * `scanSpeedMs` instead of landing partway through the previous cycle.
+   * default path — passing `FIRST_TICK_BONUS_FACTOR * scanSpeedMs` as
+   * the first-tick delay so the user gets a brief re-orientation window
+   * on each push / pop before the steady cadence resumes.
    *
    * Does NOT call `advance()` immediately — the user's first press is
    * a "wake up" gesture that just starts the timer; the highlight
@@ -2696,16 +2711,19 @@ export class SwitchScanController {
    *
    * Called from `renderHighlight`'s default path so every frame
    * transition — push into a sub-scan, pop back out, modal close,
-   * action commit — resets the scan schedule to a fresh `scanSpeedMs`
-   * on the new frame rather than landing partway through whatever
-   * remained of the previous frame's cycle.
+   * action commit — resets the scan schedule to a fresh
+   * `FIRST_TICK_BONUS_FACTOR * scanSpeedMs` interval on the new frame
+   * rather than landing partway through whatever remained of the
+   * previous frame's cycle. The bonus gives the user a brief
+   * re-orientation window at each new frame before the steady cadence
+   * resumes.
    *
    * No-op outside `scanning` state: step mode never arms the timer,
    * and auto mode's `idle` state is pre-wake with nothing to restart.
    */
   private restartAutoTimerIfScanning(): void {
     if (this.autoState !== 'scanning') return;
-    this.startAutoTimer();
+    this.startAutoTimer(this.scanSpeedMs * FIRST_TICK_BONUS_FACTOR);
   }
 
   /**
@@ -3434,8 +3452,8 @@ export class SwitchScanController {
     // frame so renderHighlight re-runs on each settle step.
     // restartTimer=false: the settle fires repeatedly in the frames
     // after push; letting each settle re-arm the auto-scan timer would
-    // keep pushing the next tick further out with every event,
-    // effectively freezing the candidate scan on its first position.
+    // chain the first-tick bonus forward with every event, effectively
+    // freezing the candidate scan on its first position.
     let changeListener: ((e: unknown) => void) | undefined;
     if (this.mover) {
       changeListener = () => {
