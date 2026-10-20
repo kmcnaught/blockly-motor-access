@@ -4,6 +4,64 @@ html {
   overscroll-behavior: none;
 }
 
+/* ============================================
+   Theme palettes — see test/maze-game/theme.ts.
+
+   Baseline (light) values live on `:root`; `[data-theme="dark"]` and
+   `[data-theme="hc"]` override the handful of chrome surfaces listed
+   here. Semantic colours (header brand, button accents, state badges)
+   are intentionally NOT variabilised — they carry meaning and should
+   look the same across themes.
+
+   Variable glossary:
+     --chrome-bg / --chrome-fg  Page background and default text.
+     --surface   / --on-surface Floating panels (dialogs, menus, chips).
+     --surface-alt / --on-surface-alt
+                                Inverted panels used for the switch-scan
+                                dropdown menu (where white Blockly field
+                                icons need a dark backdrop). Also drives
+                                the sentinel-chip inversion in HC mode.
+     --border                   Chip outlines, canvas border, dividers.
+     --focus-ring               Switch-scan amber highlight / pin ring.
+   ============================================ */
+:root {
+  --chrome-bg: #f5f5f5;
+  --chrome-fg: #1a1a1a;
+  --surface: #ffffff;
+  --on-surface: #1a1a1a;
+  --surface-alt: #1a1a1a;
+  --on-surface-alt: #ffffff;
+  --border: #ccc;
+  --focus-ring: #ff8f00;
+}
+
+:root[data-theme="dark"] {
+  --chrome-bg: #121212;
+  --chrome-fg: #e8e8e8;
+  --surface: #1e1e1e;
+  --on-surface: #e8e8e8;
+  --surface-alt: #2e2e2e;
+  --on-surface-alt: #ffffff;
+  --border: #444;
+  /* --focus-ring stays amber — same semantic (focus marker) in both modes */
+}
+
+:root[data-theme="hc"] {
+  --chrome-bg: #000000;
+  --chrome-fg: #ffffff;
+  --surface: #000000;
+  --on-surface: #ffffff;
+  --surface-alt: #000000;
+  --on-surface-alt: #ffffff;
+  --border: #ffff00;
+  --focus-ring: #ffff00;
+}
+
+:root[data-theme="hc"] *:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 #build-sha {
   position: fixed;
   top: 4px;
@@ -20,7 +78,8 @@ body {
   font-family: 'Roboto', Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background: #f5f5f5;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
   overflow: hidden;
   overscroll-behavior: none;
   height: 100vh; /* clipping container for the scaled wrapper */
@@ -408,7 +467,7 @@ button:active {
 #mazeCanvas {
   display: block;
   margin: 0;
-  box-shadow: 0 0 0 1px #ccc;
+  box-shadow: 0 0 0 1px var(--border);
 }
 
 /* Centered mode toggle in header */
@@ -1830,7 +1889,8 @@ body.touch-switch-active .blocklyToolboxDiv {
 /* Native dialog element */
 dialog.result-modal {
   border: none;
-  background: white;
+  background: var(--surface);
+  color: var(--on-surface);
   border-radius: 12px;
   padding: 24px 32px;
   min-width: 280px;
@@ -2451,10 +2511,10 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   /* `border-box` so the border stays inside the sizing rect and
    * doesn't clip past the viewport at screen edges. */
   box-sizing: border-box;
-  /* Slightly darker amber than the original #ffb300 — reads better
-   * against the Blockly workspace's pale grid background while still
-   * being unmistakably "the focus marker." */
-  border: 4px solid #ff8f00;
+  /* Amber reads well against the Blockly workspace's pale grid
+   * background while still being unmistakably "the focus marker."
+   * In HC mode the var resolves to #ffff00 (classic VI yellow). */
+  border: 4px solid var(--focus-ring);
   border-radius: 6px;
   /* Inner light ring keeps the amber readable against dark blocks. */
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
@@ -2473,7 +2533,7 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   position: fixed;
   pointer-events: none;
   box-sizing: border-box;
-  border: 3px dashed #ff8f00;
+  border: 3px dashed var(--focus-ring);
   border-radius: 6px;
   z-index: 9999;
 }
@@ -2488,17 +2548,18 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   position: fixed;
   transform: none;
   padding: 10px 16px;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--surface);
+  color: var(--on-surface);
   font-weight: 700;
   font-size: 14px;
   border-radius: 999px;
-  /* Neutral dark ring: default for chips that stay visible even when
-   * the scan cursor is elsewhere (e.g. the Move Cancel chip). A
-   * persistent amber ring on those would read as "always highlighted".
-   * Chips that are only shown while they ARE the scan cursor opt into
-   * the amber ring via `.switch-scan-sentinel-active-only` below. */
-  border: 2px solid #1a1a1a;
+  /* Neutral ring in the chip's own text colour: default for chips
+   * that stay visible even when the scan cursor is elsewhere (e.g.
+   * the Move Cancel chip). A persistent amber ring on those would
+   * read as "always highlighted". Chips that are only shown while
+   * they ARE the scan cursor opt into the amber ring via
+   * `.switch-scan-sentinel-active-only` below. */
+  border: 2px solid var(--on-surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   z-index: 10000;
   pointer-events: none;
@@ -2509,7 +2570,7 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
  * they wear the amber ring + outer-dark / inner-light contrast rings
  * that match `.switch-scan-highlight`. */
 .switch-scan-sentinel-active-only {
-  border: 4px solid #ff8f00;
+  border: 4px solid var(--focus-ring);
   box-shadow:
     0 0 0 2px rgba(0, 0, 0, 0.55),
     inset 0 0 0 2px rgba(255, 255, 255, 0.5),
@@ -2540,8 +2601,8 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
 .switch-scan-action-menu,
 .switch-scan-dropdown-menu {
   position: fixed;
-  background: #fff;
-  border: 2px solid #444;
+  background: var(--surface);
+  border: 2px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   padding: 4px;
@@ -2557,8 +2618,8 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
 .switch-scan-menu-item {
   padding: 8px 12px;
   border-radius: 4px;
-  background: #f5f5f5;
-  color: #222;
+  background: var(--chrome-bg);
+  color: var(--on-surface);
   /* Left-align action labels so they read as a tidy vertical list
    * rather than centered chips — easier to scan visually as the
    * highlight steps through them. Slightly bolder weight gives the
@@ -2581,8 +2642,8 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
  * is untouched.
  */
 .switch-scan-dropdown-menu {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
+  background: var(--surface-alt);
+  border-color: var(--surface-alt);
   /* Nudge the dropdown-values overlay up a touch so it sits closer to
    * the block being edited. The shared `anchorMenuToBlock` positions
    * both the action menu AND this menu the same `+ 8px` below the
@@ -2591,8 +2652,8 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   transform: translateY(-7px);
 }
 .switch-scan-dropdown-menu .switch-scan-menu-item {
-  background: #2e2e2e;
-  color: #fff;
+  background: var(--surface-alt);
+  color: var(--on-surface-alt);
 }
 /* Maze direction-arrow SVGs (`turn_left.svg`, `turn_right.svg`) are
  * authored as white fills for use on coloured Blockly blocks. Against
