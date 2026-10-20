@@ -615,6 +615,31 @@ button:active {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
+:root[data-theme="dark"] .mode-toggle,
+:root[data-theme="hc"] .mode-toggle {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .mode-toggle:hover,
+:root[data-theme="hc"] .mode-toggle:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
+:root[data-theme="dark"] #pegmanButton,
+:root[data-theme="hc"] #pegmanButton {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] #pegmanButton:hover,
+:root[data-theme="hc"] #pegmanButton:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
 .mode-toggle .mode-icon {
   display: none;
   font-size: 16px;
@@ -802,6 +827,12 @@ button:active {
   background: var(--surface);
   color: var(--on-surface);
   border-color: var(--border);
+}
+
+:root[data-theme="dark"] .icon-button:hover,
+:root[data-theme="hc"] .icon-button:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
 }
 
 .icon-button:hover {
