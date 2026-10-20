@@ -2056,7 +2056,7 @@ body.touch-switch-active .blocklyToolboxDiv {
 
 /* Native dialog element */
 dialog.result-modal {
-  border: none;
+  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--on-surface);
   border-radius: 12px;
