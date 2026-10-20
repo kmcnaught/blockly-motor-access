@@ -46,6 +46,16 @@ import {PaddingControlsManager} from './padding-controls';
 import {Dialog, AutoCloseDialog} from './dialogs';
 import {launchConfetti} from './confetti';
 import {MODE_SPECS, getCurrentLayoutMode, initLayout, scheduleLayout} from './layout';
+import {
+  resolveThemeSetting,
+  resolveEffectiveTheme,
+  applyTheme,
+} from './theme';
+
+// Apply the resolved page theme as early as possible so chrome surfaces
+// paint under the right palette on first frame. Full wiring (settings
+// modal picker, OS-change listener, Blockly theme swap) comes later.
+applyTheme(resolveEffectiveTheme(resolveThemeSetting()));
 
 // ========== URL PARAMETER UTILITIES ==========
 
