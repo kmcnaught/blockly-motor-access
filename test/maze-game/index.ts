@@ -635,7 +635,9 @@ const initialLevel = getInitialLevel();
 const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecutionMode === 'practice');
 
 function pickBlocklyTheme(effective: EffectiveTheme): Blockly.Theme {
-  return effective === 'hc' ? themeFor('high-contrast') : themeFor('default');
+  if (effective === 'hc') return themeFor('high-contrast');
+  if (effective === 'dark') return themeFor('dark');
+  return themeFor('default');
 }
 
 // Initialize Blockly workspace with level-specific configuration
