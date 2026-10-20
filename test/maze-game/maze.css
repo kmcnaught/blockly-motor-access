@@ -1644,13 +1644,21 @@ body.touch-switch-active .blocklyToolboxDiv {
   background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
 }
 
+:root[data-theme="dark"] .immediate-mode-panel {
+  background: linear-gradient(180deg, #1a1a1a 0%, #121212 100%);
+}
+
+:root[data-theme="hc"] .immediate-mode-panel {
+  background: var(--chrome-bg);
+}
+
 .immediate-mode-panel.hidden {
   display: none;
 }
 
 .immediate-hint {
   font-size: 16px;
-  color: #495057;
+  color: var(--on-surface);
   text-align: center;
   max-width: 320px;
   line-height: 1.5;
@@ -1749,7 +1757,7 @@ body.touch-switch-active .blocklyToolboxDiv {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #6c757d;
+  color: var(--on-surface);
   flex-wrap: wrap;
   justify-content: center;
 }
