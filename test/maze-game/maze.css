@@ -1727,6 +1727,17 @@ body.touch-switch-active .blocklyToolboxDiv {
   -webkit-mask-image: url('assets/turn_right.svg');
 }
 
+/* Under forced-colors mode the browser forces non-form-control
+ * background-color to Canvas, so `background-color: currentColor` on
+ * our mask spans would paint the icon in Canvas rather than the
+ * ButtonText we want. Pin to ButtonText explicitly — system keyword
+ * author values are preserved by forced-colors, not re-forced. */
+@media (forced-colors: active) {
+  .command-btn .cmd-icon {
+    background-color: ButtonText;
+  }
+}
+
 .command-btn .cmd-label {
   font-size: 14px;
   flex: 1;
@@ -2707,7 +2718,6 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
  */
 .switch-scan-dropdown-menu {
   background: var(--surface-alt);
-  border-color: var(--surface-alt);
   /* Nudge the dropdown-values overlay up a touch so it sits closer to
    * the block being edited. The shared `anchorMenuToBlock` positions
    * both the action menu AND this menu the same `+ 8px` below the
