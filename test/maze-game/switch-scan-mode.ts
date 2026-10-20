@@ -3546,4 +3546,6 @@ export class SwitchScanController {
 export const __testOnly = {
   STRATEGIES,
   applySentinelChip,
+  FIRST_TICK_BONUS_FACTOR,
+  SwitchScanController,
 };
