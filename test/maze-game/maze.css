@@ -55,7 +55,10 @@ html {
   --on-surface: #ffffff;
   --surface-alt: #000000;
   --on-surface-alt: #ffffff;
-  --border: #ffff00;
+  /* --border matches text in HC so structural outlines (chip rings,
+   * canvas edge, dividers) stay neutral. Yellow is reserved for
+   * --focus-ring, which should only mark interactive focus. */
+  --border: #ffffff;
   --focus-ring: #ffff00;
 }
 
