@@ -2468,23 +2468,30 @@ const themeRadios = document.querySelectorAll<HTMLInputElement>(
 for (const radio of Array.from(themeRadios)) {
   radio.checked = radio.value === currentThemeSetting;
 }
+
+// Track the effective theme that's currently painted so OS-preference
+// changes that don't actually move the needle (e.g. a dark-mode flip
+// while forced-colors is already pinning us to hc) can be ignored. A
+// Blockly `setTheme` triggers a full workspace redraw, which can glitch
+// an in-flight drag or flyout animation.
+let currentEffectiveTheme = resolveEffectiveTheme(currentThemeSetting);
+
+function updateEffectiveTheme(next: EffectiveTheme): void {
+  if (next === currentEffectiveTheme) return;
+  currentEffectiveTheme = next;
+  applyTheme(next);
+  workspace.setTheme(pickBlocklyTheme(next));
+}
+
 for (const radio of Array.from(themeRadios)) {
   radio.addEventListener('change', () => {
     if (!radio.checked) return;
     currentThemeSetting = radio.value as ThemeSetting;
     persistThemeSetting(currentThemeSetting);
-    const effective = resolveEffectiveTheme(currentThemeSetting);
-    applyTheme(effective);
-    workspace.setTheme(pickBlocklyTheme(effective));
+    updateEffectiveTheme(resolveEffectiveTheme(currentThemeSetting));
   });
 }
-installThemeListeners(
-  () => currentThemeSetting,
-  (effective) => {
-    applyTheme(effective);
-    workspace.setTheme(pickBlocklyTheme(effective));
-  },
-);
+installThemeListeners(() => currentThemeSetting, updateEffectiveTheme);
 
 // ========== BLOCK MOVEMENT MODE DROPDOWN ==========
 
