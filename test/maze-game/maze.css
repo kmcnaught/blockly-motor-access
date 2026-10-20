@@ -568,6 +568,24 @@ button:active {
   font-weight: 500;
 }
 
+:root[data-theme="dark"] .selector-group select,
+:root[data-theme="hc"] .selector-group select {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .selector-group select:hover,
+:root[data-theme="hc"] .selector-group select:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
+:root[data-theme="dark"] .selector-group select option,
+:root[data-theme="hc"] .selector-group select option {
+  color: var(--on-surface);
+}
+
 .selector-group select option:checked {
   background: #1976d2;
   color: white;
@@ -987,6 +1005,31 @@ header.christmas h1::after {
 
 #instructionBar #contextualHint:empty {
   display: none;
+}
+
+/* Instruction bar in dark/HC: the pale-blue brand text (#1565c0)
+ * disappears against the dark instruction bar bg, and the brand-blue
+ * stage dropdown looks out of place. Route both through chrome vars. */
+:root[data-theme="dark"] #instructionBar #levelInstruction,
+:root[data-theme="dark"] #instructionBar #contextualHint,
+:root[data-theme="dark"] #instructionBar .stage-selector label,
+:root[data-theme="hc"] #instructionBar #levelInstruction,
+:root[data-theme="hc"] #instructionBar #contextualHint,
+:root[data-theme="hc"] #instructionBar .stage-selector label {
+  color: inherit;
+}
+
+:root[data-theme="dark"] #instructionBar .stage-selector select,
+:root[data-theme="hc"] #instructionBar .stage-selector select {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] #instructionBar .stage-selector select:hover,
+:root[data-theme="hc"] #instructionBar .stage-selector select:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
 }
 
 /* Settings button (cog) in instruction bar — replaces the older "?"
