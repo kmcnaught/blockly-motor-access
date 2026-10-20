@@ -204,6 +204,31 @@ Per global CLAUDE.md: describe code as it *is*, not the history of the change �
   - Whether cadence feels even across transitions.
   - Whether the bonus feels right at 20%, too subtle, or too long. If it feels wrong, note the suggested factor to try next (0.15, 0.25, 0.3). This may motivate a follow-up to make `FIRST_TICK_BONUS_FACTOR` a user setting.
 
+## Step 7: Promote first-tick bonus to a user setting
+
+**Goal**: Expose the first-tick bonus as a slider in the switch-scan settings panel. Default stays 20%, range 0–100% in 10% increments, 0% effectively disables the bonus. Lives directly below the existing "Scan speed" group and is visibility-gated the same way (hidden in step mode).
+
+**Why follow-up now**: user feedback was "feels good, make it a setting" — they want end users to be able to tune the pause length to their re-orientation needs without needing a dev to change the constant.
+
+**Shape**:
+- UI heading: "Settle time" (matches the plain, two-word idiom of "Scan speed"). No sublabel — match existing minimal pattern.
+- Slider: `min="0" max="100" step="10"`, label displays `${value}%`.
+- Stored as integer percent in localStorage under `mazeSwitchScan.scanBonusPercent`; URL param `scanBonusPercent`. Parse → clamp → divide by 100 → multiplier at consumption time.
+- Controller side: replace the module-level `FIRST_TICK_BONUS_FACTOR` with an instance field `firstTickBonusFactor: number = 1.2` initialized from a new `SwitchScanOptions.firstTickBonusFactor?`. Add a live setter so the settings `onChange` can push updates without reconstructing the controller.
+- Live update path: when the user drags the slider mid-scan, apply the new factor to the next transition (not retroactively to a currently-pending first-tick setTimeout — that would feel glitchy).
+
+**Files**:
+- `test/maze-game/index.html` — new `#scanBonusGroup` with slider directly after `#scanSpeedGroup`.
+- `test/maze-game/switch-scan-settings.ts` — field reference, listener wire-up, visibility gating alongside `scanSpeedGroup`, extend `SwitchScanSettingsValues` + `SwitchScanSettingsOptions` with `scanBonusPercent`.
+- `test/maze-game/index.ts` — `SWITCH_SCAN_LS_KEYS.scanBonusPercent`, URL override detection, initial resolver (`switchScanInitialBonusPercent`), onChange persist + live push to controller via `setFirstTickBonusFactor`, pass initial multiplier to controller via options.
+- `test/maze-game/switch-scan-mode.ts` — delete `FIRST_TICK_BONUS_FACTOR` module const; add `firstTickBonusFactor` field with default `1.2`; add `firstTickBonusFactor?: number` to `SwitchScanOptions`; replace both reference sites (`handleKeyDown` wake path, `restartAutoTimerIfScanning`) with `this.firstTickBonusFactor`; add public `setFirstTickBonusFactor(factor: number): void` setter; update docstrings; keep the default exposed via `__testOnly` as `DEFAULT_FIRST_TICK_BONUS_FACTOR = 1.2` so tests have a stable default to assert against.
+- `test/switch_scan_autoscan_timer_test.mocha.js` — update references from `FIRST_TICK_BONUS_FACTOR` to the new default export; add one new test: `setFirstTickBonusFactor(1.5)` → next transition fires at `scanSpeedMs * 1.5`.
+
+**Verify**:
+- `npm run build:maze` passes with no new errors in the touched files.
+- `npm run test:mocha` passes.
+- Manual: slider in the panel, drag to 0 → next transition fires at raw `scanSpeedMs`. Drag to 100 → next transition fires at `2 × scanSpeedMs`. Persistence survives reload.
+
 ## Risk notes
 
 - **Step 2+3 coupling**: Step 2 alone would prevent any auto tick from firing. Keep the two steps bundled in review; if landing them separately for commit hygiene, do it as a single PR / contiguous commit sequence that is never merged partway.
