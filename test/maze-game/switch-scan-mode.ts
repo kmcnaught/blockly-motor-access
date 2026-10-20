@@ -198,6 +198,15 @@ export interface SwitchScanOptions {
   switchBack?: string;
   scanMode?: 'step' | 'auto';
   scanSpeedMs?: number;
+  /**
+   * Multiplier applied to the first auto-scan tick after each wake /
+   * push / pop. A value of `1.2` means the first tick waits 20%
+   * longer than `scanSpeedMs` before the steady cadence resumes;
+   * `1.0` disables the bonus. Defaults to
+   * {@link DEFAULT_FIRST_TICK_BONUS_FACTOR}. Live-tunable via
+   * {@link SwitchScanController.setFirstTickBonusFactor}.
+   */
+  firstTickBonusFactor?: number;
   headerDropdowns?: Record<string, HeaderDropdownSource>;
   /**
    * Mover borrowed from the keyboard-navigation plugin, used to drive
@@ -253,12 +262,13 @@ const SENTINEL_CHIP_HEIGHT_ESTIMATE = 50;
 const ITEM_RING_PAD_PX = 4;
 
 /**
- * Multiplier applied to the first auto-scan tick after a frame
- * transition (push or pop) and on initial wake. Gives the user a
- * brief re-orientation window before the scan starts moving at the
- * configured steady cadence.
+ * Fallback multiplier for the first auto-scan tick after a frame
+ * transition (push or pop) and on initial wake, used when no caller
+ * passes `firstTickBonusFactor` via {@link SwitchScanOptions}. Gives
+ * the user a brief re-orientation window before the scan settles into
+ * the configured steady cadence.
  */
-const FIRST_TICK_BONUS_FACTOR = 1.2;
+const DEFAULT_FIRST_TICK_BONUS_FACTOR = 1.2;
 
 /**
  * Negative-safe modulo for frame-index wrapping. Returns 0 when
@@ -1213,6 +1223,11 @@ export class SwitchScanController {
   // subsequent ticks. At most one is non-null at any given time.
   private autoFirstTickHandle: number | null = null;
   private autoIntervalHandle: number | null = null;
+  // Multiplier applied to the first auto-scan tick after each wake /
+  // push / pop. Settable via options at construction time and live
+  // via {@link setFirstTickBonusFactor}; defaults to
+  // {@link DEFAULT_FIRST_TICK_BONUS_FACTOR}.
+  private firstTickBonusFactor: number = DEFAULT_FIRST_TICK_BONUS_FACTOR;
 
   // Settings panel reference (Step D). Optional: only wired up when
   // switch-scan mode is active AND the settings module is constructed.
@@ -1314,6 +1329,9 @@ export class SwitchScanController {
     }
     if (options.scanSpeedMs !== undefined) {
       this.scanSpeedMs = options.scanSpeedMs;
+    }
+    if (options.firstTickBonusFactor !== undefined) {
+      this.firstTickBonusFactor = options.firstTickBonusFactor;
     }
     if (options.headerDropdowns) {
       this.headerDropdowns = options.headerDropdowns;
@@ -2056,9 +2074,9 @@ export class SwitchScanController {
    * `restartTimer` option is not explicitly `false`. The default is
    * "restart" because frame transitions (every `enter*SubScan` push and
    * every `pop`) are the common case and the user expects the first tick
-   * on the new frame to be a fresh `scanSpeedMs` interval rather than
-   * whatever remainder was left on the previous cycle. Pure repaints
-   * (the `advance()` tick itself, resize/scroll
+   * on the new frame to be a fresh `firstTickBonusFactor * scanSpeedMs`
+   * interval rather than whatever remainder was left on the previous
+   * cycle. Pure repaints (the `advance()` tick itself, resize/scroll
    * reflows, the move-candidates settle listener) opt out — they haven't
    * changed the frame stack and must not reset the scan schedule.
    *
@@ -2566,7 +2584,7 @@ export class SwitchScanController {
         // Wake gets the first-tick bonus too: the user is orienting at
         // a brand-new frame just as they are after a push / pop, so
         // the same breathing-room multiplier applies.
-        this.startAutoTimer(this.scanSpeedMs * FIRST_TICK_BONUS_FACTOR);
+        this.startAutoTimer(this.scanSpeedMs * this.firstTickBonusFactor);
         // Polish: speak the current item immediately on the idle →
         // scanning transition so the user gets audible confirmation
         // the timer is running (and knows what they're starting
@@ -2640,9 +2658,9 @@ export class SwitchScanController {
    *
    * Frame transitions re-arm the timer via
    * {@link restartAutoTimerIfScanning} — called from `renderHighlight`'s
-   * default path — passing `FIRST_TICK_BONUS_FACTOR * scanSpeedMs` as
-   * the first-tick delay so the user gets a brief re-orientation window
-   * on each push / pop before the steady cadence resumes.
+   * default path — passing `firstTickBonusFactor * scanSpeedMs` as the
+   * first-tick delay so the user gets a brief re-orientation window on
+   * each push / pop before the steady cadence resumes.
    *
    * Does NOT call `advance()` immediately — the user's first press is
    * a "wake up" gesture that just starts the timer; the highlight
@@ -2710,20 +2728,36 @@ export class SwitchScanController {
    * if) the scanner is actively scanning.
    *
    * Called from `renderHighlight`'s default path so every frame
-   * transition — push into a sub-scan, pop back out, modal close,
-   * action commit — resets the scan schedule to a fresh
-   * `FIRST_TICK_BONUS_FACTOR * scanSpeedMs` interval on the new frame
-   * rather than landing partway through whatever remained of the
-   * previous frame's cycle. The bonus gives the user a brief
+   * transition — push into a sub-scan, pop back out, modal
+   * close, action commit — resets the scan schedule to a fresh
+   * `this.firstTickBonusFactor * scanSpeedMs` interval on the new
+   * frame rather than landing partway through whatever remained of
+   * the previous frame's cycle. The bonus gives the user a brief
    * re-orientation window at each new frame before the steady cadence
-   * resumes.
+   * resumes. The multiplier is held as an instance field so the host
+   * can live-tune it via {@link setFirstTickBonusFactor} without
+   * reconstructing the controller.
    *
    * No-op outside `scanning` state: step mode never arms the timer,
    * and auto mode's `idle` state is pre-wake with nothing to restart.
    */
   private restartAutoTimerIfScanning(): void {
     if (this.autoState !== 'scanning') return;
-    this.startAutoTimer(this.scanSpeedMs * FIRST_TICK_BONUS_FACTOR);
+    this.startAutoTimer(this.scanSpeedMs * this.firstTickBonusFactor);
+  }
+
+  /**
+   * Live-update the first-tick bonus multiplier. Takes effect on the
+   * NEXT transition (push / pop / wake); any first-tick setTimeout
+   * already pending fires at whatever delay it was armed with so the
+   * user doesn't see a mid-wait timer stretch or compress.
+   *
+   * @param factor Multiplier for the first tick after a transition.
+   *     `1.0` disables the bonus (first tick fires at raw
+   *     `scanSpeedMs`); `1.2` gives a 20% breathing-room window.
+   */
+  setFirstTickBonusFactor(factor: number): void {
+    this.firstTickBonusFactor = factor;
   }
 
   /**
@@ -3546,6 +3580,6 @@ export class SwitchScanController {
 export const __testOnly = {
   STRATEGIES,
   applySentinelChip,
-  FIRST_TICK_BONUS_FACTOR,
+  DEFAULT_FIRST_TICK_BONUS_FACTOR,
   SwitchScanController,
 };

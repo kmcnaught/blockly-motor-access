@@ -129,6 +129,11 @@ const SWITCH_SCAN_LS_KEYS = {
   // resolveSwitchScanSetting helper can reuse its string-typed plumbing;
   // parsing / clamping happens at the call site.
   scanSpeedMs: 'mazeSwitchScan.scanSpeedMs',
+  // First-tick bonus as an integer percent (0 - 100). The host
+  // converts to a multiplier at consumption (`1 + percent / 100`).
+  // Stored as a string ("20") for the same resolver symmetry as
+  // scanSpeedMs.
+  scanBonusPercent: 'mazeSwitchScan.scanBonusPercent',
   // Whether the user has switch access enabled (the unified settings
   // modal's "Switch access" checkbox). 'on' / 'off' for symmetry with
   // the audio flag. Migrated from the older URL-only ?inputMode=
@@ -148,6 +153,13 @@ const SWITCH_SCAN_LS_KEYS = {
 const SCAN_SPEED_MIN_MS = 500;
 const SCAN_SPEED_MAX_MS = 4000;
 const SCAN_SPEED_DEFAULT_MS = 1500;
+
+// First-tick bonus bounds (integer percent). 0% = no bonus (first
+// tick fires at raw scanSpeedMs); 100% = 2× scanSpeedMs on the first
+// tick after each transition. Match the slider in `index.html`.
+const SCAN_BONUS_MIN_PERCENT = 0;
+const SCAN_BONUS_MAX_PERCENT = 100;
+const SCAN_BONUS_DEFAULT_PERCENT = 20;
 
 type SwitchScanModeValue = 'step' | 'auto';
 
@@ -202,7 +214,10 @@ const switchScanUrlOverrideActive =
   // scanSpeedMs joins the family for the same reason — a
   // ?scanSpeedMs=… URL override should surface the "URL settings active"
   // note so the user understands why their saved value isn't winning.
-  getStringParamFromUrl('scanSpeedMs', '') !== '';
+  getStringParamFromUrl('scanSpeedMs', '') !== '' ||
+  // scanBonusPercent joins the family too so a URL override of the
+  // first-tick bonus surfaces the note.
+  getStringParamFromUrl('scanBonusPercent', '') !== '';
 
 const switchAdvanceKey = resolveSwitchScanSetting(
   'switchAdvance',
@@ -274,6 +289,25 @@ const switchScanInitialScanSpeedMs: number = (() => {
   return Math.min(
     SCAN_SPEED_MAX_MS,
     Math.max(SCAN_SPEED_MIN_MS, parsed),
+  );
+})();
+
+// Resolve `?scanBonusPercent=…` > localStorage > 20.
+// Stored as a string for resolver consistency; parseInt + NaN
+// fallback + clamp to [SCAN_BONUS_MIN_PERCENT, SCAN_BONUS_MAX_PERCENT]
+// keeps a hand-edited URL (e.g. `?scanBonusPercent=99999`) or a
+// corrupted LS entry from producing a runaway factor.
+const switchScanInitialBonusPercent: number = (() => {
+  const v = resolveSwitchScanSetting(
+    'scanBonusPercent',
+    SWITCH_SCAN_LS_KEYS.scanBonusPercent,
+    String(SCAN_BONUS_DEFAULT_PERCENT),
+  );
+  const parsed = parseInt(v, 10);
+  if (!Number.isFinite(parsed)) return SCAN_BONUS_DEFAULT_PERCENT;
+  return Math.min(
+    SCAN_BONUS_MAX_PERCENT,
+    Math.max(SCAN_BONUS_MIN_PERCENT, parsed),
   );
 })();
 
@@ -3128,6 +3162,7 @@ if (!isGridMode && !isGridCodingMode) {
     switchBack: switchBackKey,
     scanMode: switchScanInitialMode,
     scanSpeedMs: switchScanInitialScanSpeedMs,
+    firstTickBonusFactor: switchScanInitialBonusPercent / 100 + 1,
     headerDropdowns: buildHeaderDropdownSources(),
     mover: keyboardNavigation.getMover(),
   });
@@ -3154,6 +3189,7 @@ if (!isGridMode && !isGridCodingMode) {
     initialMode: switchScanInitialMode,
     initialAudio: switchScanInitialAudio,
     initialScanSpeedMs: switchScanInitialScanSpeedMs,
+    initialScanBonusPercent: switchScanInitialBonusPercent,
     initialInputMode: switchScanInitialInputMode,
     initialTouchSwipeAdvance: switchScanInitialTouchSwipeAdvance,
     urlOverrideActive: switchScanUrlOverrideActive,
@@ -3187,6 +3223,10 @@ if (!isGridMode && !isGridCodingMode) {
           String(cfg.scanSpeedMs),
         );
         window.localStorage.setItem(
+          SWITCH_SCAN_LS_KEYS.scanBonusPercent,
+          String(cfg.scanBonusPercent),
+        );
+        window.localStorage.setItem(
           SWITCH_SCAN_LS_KEYS.inputMode,
           cfg.inputMode,
         );
@@ -3210,6 +3250,13 @@ if (!isGridMode && !isGridCodingMode) {
         cfg.switchBack,
       );
       switchScanController?.setMode(cfg.mode, cfg.scanSpeedMs);
+      // First-tick bonus takes effect on the NEXT transition — the
+      // setter never reaches into any currently-pending first-tick
+      // setTimeout (adjusting a scheduled delay mid-wait would feel
+      // glitchy to the user who's actively watching the scanner).
+      switchScanController?.setFirstTickBonusFactor(
+        cfg.scanBonusPercent / 100 + 1,
+      );
 
       const wasEnabled = switchScanTts?.isEnabled() ?? false;
       switchScanTts?.setEnabled(cfg.audio);

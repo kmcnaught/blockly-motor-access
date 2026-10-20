@@ -30,7 +30,7 @@ global.DOMRect = window.DOMRect;
 
 import {__testOnly} from './maze-game/switch-scan-mode';
 
-const {SwitchScanController, FIRST_TICK_BONUS_FACTOR} = __testOnly;
+const {SwitchScanController, DEFAULT_FIRST_TICK_BONUS_FACTOR} = __testOnly;
 const {expect} = chai;
 
 // Earlier mocha files (e.g. `controller_test.mocha.js`) tear down their
@@ -200,7 +200,7 @@ suite('switch-scan: auto-scan timer — wake path', function () {
     clock.restore();
   });
 
-  test('wake via handleKeyDown fires first tick at scanSpeedMs * FIRST_TICK_BONUS_FACTOR', function () {
+  test('wake via handleKeyDown fires first tick at scanSpeedMs * DEFAULT_FIRST_TICK_BONUS_FACTOR', function () {
     // Pre-wake sanity: scanner is idle, no timers scheduled.
     expect(ctrl.autoState).to.equal('idle');
     expect(clock.pendingCount()).to.equal(0);
@@ -219,7 +219,7 @@ suite('switch-scan: auto-scan timer — wake path', function () {
     expect(ctrl.autoIntervalHandle).to.equal(null);
 
     // Just-before the bonus boundary: no tick yet.
-    const bonusMs = 1000 * FIRST_TICK_BONUS_FACTOR;
+    const bonusMs = 1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR;
     clock.tick(bonusMs - 1);
     expect(ctrl.frameStack[0].index).to.equal(0);
 
@@ -236,7 +236,7 @@ suite('switch-scan: auto-scan timer — wake path', function () {
     // what `handleKeyDown` does on idle → scanning. Keeps the assertion
     // narrowly on the "did the bonus actually extend the first tick"
     // question without routing through the whole key dispatch.
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     // At raw scanSpeedMs we should NOT have ticked (the bonus is 200 ms
     // further out than that boundary).
     clock.tick(1000);
@@ -262,7 +262,7 @@ suite('switch-scan: auto-scan timer — steady cadence', function () {
   });
 
   test('subsequent ticks fire every scanSpeedMs after the first', function () {
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
 
     // Advance past the bonus — first tick fires.
     clock.tick(1200);
@@ -278,7 +278,7 @@ suite('switch-scan: auto-scan timer — steady cadence', function () {
   });
 
   test('999 ms after first tick is NOT enough to fire a second (no bonus on steady ticks)', function () {
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     clock.tick(1200); // Fire first tick.
     expect(ctrl.frameStack[0].index).to.equal(1);
     clock.tick(999);
@@ -324,7 +324,7 @@ suite('switch-scan: auto-scan timer — push transition applies bonus', function
   });
 
   test('entering a sub-scan while scanning restarts timer with bonus-length first tick', function () {
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     // Advance partway into the cycle — 700 ms into the 1200 ms bonus.
     clock.tick(700);
     expect(ctrl.frameStack[0].index).to.equal(0);
@@ -344,6 +344,58 @@ suite('switch-scan: auto-scan timer — push transition applies bonus', function
     // Crossing the bonus boundary (1200 ms from push) fires the first
     // tick within the dom-items frame.
     clock.tick(150);
+    expect(ctrl.frameStack[1].index).to.equal(1);
+  });
+});
+
+suite('switch-scan: auto-scan timer — setFirstTickBonusFactor live update', function () {
+  let clock;
+  let ctrl;
+
+  setup(function () {
+    ensureDom();
+    clock = installFakeClock();
+    ctrl = makeController(1000);
+    // Mirror the push-transition fixture: a scan-region wrapper with one
+    // visible item so `enterDomRegionSubScan('header', 0)` pushes a
+    // `dom-items` frame rather than falling through to `popToNextRegion`.
+    const regionEl = document.createElement('div');
+    regionEl.setAttribute('data-scan-region', 'header');
+    const itemEl = document.createElement('button');
+    itemEl.setAttribute('data-scan-item', '');
+    Object.defineProperty(itemEl, 'offsetParent', {
+      get: () => regionEl,
+    });
+    itemEl.getBoundingClientRect = () => new DOMRect(0, 0, 100, 40);
+    regionEl.appendChild(itemEl);
+    document.body.appendChild(regionEl);
+  });
+
+  teardown(function () {
+    clock.restore();
+    document.querySelectorAll('[data-scan-region]').forEach((el) => el.remove());
+  });
+
+  test('next transition uses the updated factor instead of the default', function () {
+    // Drive into scanning state at the default 1.2× factor.
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
+
+    // Live-tune to 1.5×. The push below should re-arm the first tick
+    // at `scanSpeedMs * 1.5` (= 1500 ms), not at `scanSpeedMs * 1.2`
+    // (= 1200 ms).
+    ctrl.setFirstTickBonusFactor(1.5);
+
+    ctrl.enterDomRegionSubScan('header', 0);
+    expect(ctrl.frameStack).to.have.lengthOf(2);
+    expect(ctrl.frameStack[1].kind).to.equal('dom-items');
+
+    // Just past the OLD bonus boundary — if the setter hadn't taken
+    // effect the first tick would have already fired.
+    clock.tick(1250);
+    expect(ctrl.frameStack[1].index).to.equal(0);
+    // Crossing the NEW bonus boundary (1500 ms from push) fires the
+    // first tick within the dom-items frame.
+    clock.tick(250);
     expect(ctrl.frameStack[1].index).to.equal(1);
   });
 });
@@ -374,7 +426,7 @@ suite('switch-scan: auto-scan timer — pop transition applies bonus', function 
       topLevelIndex: 0,
     });
 
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     // 800 ms into the bonus — close to the original first tick.
     clock.tick(800);
 
@@ -414,7 +466,7 @@ suite('switch-scan: auto-scan timer — advance() does NOT reset', function () {
     // every tick would clear the interval and schedule a fresh bonus
     // first-tick, deadlocking the scan at a one-step-then-wait pattern
     // that would be subtle to spot in a live app.
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     clock.tick(1200); // First tick.
     expect(ctrl.frameStack[0].index).to.equal(1);
     expect(ctrl.autoIntervalHandle).to.not.equal(null);
@@ -434,7 +486,7 @@ suite('switch-scan: auto-scan timer — advance() does NOT reset', function () {
   });
 
   test('direct advance() call does not disturb the pending interval', function () {
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     clock.tick(1200); // First tick → index 1, interval armed.
     const intervalHandle = ctrl.autoIntervalHandle;
     expect(intervalHandle).to.not.equal(null);
@@ -463,7 +515,7 @@ suite('switch-scan: auto-scan timer — setMode live speed change', function () 
   });
 
   test('setMode(auto, newSpeed) while scanning restarts WITHOUT bonus', function () {
-    ctrl.startAutoTimer(1000 * FIRST_TICK_BONUS_FACTOR);
+    ctrl.startAutoTimer(1000 * DEFAULT_FIRST_TICK_BONUS_FACTOR);
     clock.tick(1200); // First tick — now at steady cadence.
     expect(ctrl.frameStack[0].index).to.equal(1);
 

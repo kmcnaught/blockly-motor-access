@@ -62,6 +62,14 @@ export interface SwitchScanSettingsValues {
    */
   scanSpeedMs: number;
   /**
+   * First-tick bonus as an integer percentage (0 - 100). The host
+   * converts to a multiplier (`1 + percent / 100`) and passes it to
+   * the controller's `setFirstTickBonusFactor`. Only meaningful in
+   * auto mode — step mode never arms the timer — but always emitted
+   * so the host can persist unconditionally.
+   */
+  scanBonusPercent: number;
+  /**
    * Input method — keyboard (physical switches emit keyboard events)
    * or touch (swipe + tap gestures). Mid-session changes persist but
    * only take effect on the next page load; touch mode activates
@@ -84,6 +92,11 @@ export interface SwitchScanSettingsOptions {
   initialAudio?: boolean;
   /** Initial auto-scan period in ms. Defaults to 1500. */
   initialScanSpeedMs?: number;
+  /**
+   * Initial first-tick bonus percent (0 - 100). Defaults to 20 — a
+   * 1.2× multiplier on the first tick after a wake or transition.
+   */
+  initialScanBonusPercent?: number;
   /** Initial input mode. Defaults to `'keyboard'`. */
   initialInputMode?: SwitchInputMode;
   /** Initial swipe-for-advance direction. Defaults to `'left'`. */
@@ -155,6 +168,9 @@ export class SwitchScanSettings {
   private readonly scanSpeedSlider: HTMLInputElement | null;
   private readonly scanSpeedValueEl: HTMLElement | null;
   private readonly scanSpeedGroup: HTMLElement | null;
+  private readonly scanBonusSlider: HTMLInputElement | null;
+  private readonly scanBonusValueEl: HTMLElement | null;
+  private readonly scanBonusGroup: HTMLElement | null;
   private readonly inputModeSelect: HTMLSelectElement | null;
   private readonly touchSettingsGroup: HTMLElement | null;
   private readonly touchSwipeAdvanceSelect: HTMLSelectElement | null;
@@ -167,6 +183,7 @@ export class SwitchScanSettings {
   private currentMode: SwitchScanMode;
   private currentAudio: boolean;
   private currentScanSpeedMs: number;
+  private currentScanBonusPercent: number;
   private currentInputMode: SwitchInputMode;
   private currentTouchSwipeAdvance: TouchSwipeAdvance;
 
@@ -196,6 +213,7 @@ export class SwitchScanSettings {
     this.currentMode = options.initialMode ?? 'step';
     this.currentAudio = options.initialAudio ?? false;
     this.currentScanSpeedMs = options.initialScanSpeedMs ?? 1500;
+    this.currentScanBonusPercent = options.initialScanBonusPercent ?? 20;
     this.currentInputMode = options.initialInputMode ?? 'keyboard';
     this.currentTouchSwipeAdvance = options.initialTouchSwipeAdvance ?? 'left';
     this.urlOverrideActive = options.urlOverrideActive ?? false;
@@ -231,6 +249,11 @@ export class SwitchScanSettings {
     ) as HTMLInputElement | null;
     this.scanSpeedValueEl = document.getElementById('scanSpeedValue');
     this.scanSpeedGroup = document.getElementById('scanSpeedGroup');
+    this.scanBonusSlider = document.getElementById(
+      'scanBonusSlider',
+    ) as HTMLInputElement | null;
+    this.scanBonusValueEl = document.getElementById('scanBonusValue');
+    this.scanBonusGroup = document.getElementById('scanBonusGroup');
     this.inputModeSelect = document.getElementById(
       'switchInputMode',
     ) as HTMLSelectElement | null;
@@ -304,6 +327,23 @@ export class SwitchScanSettings {
       });
     }
 
+    if (this.scanBonusSlider) {
+      this.scanBonusSlider.value = String(this.currentScanBonusPercent);
+      // Same input/change split as the scan-speed slider: live drag
+      // updates the on-screen percentage, release fires onChange so
+      // the controller receives one event per adjustment.
+      this.scanBonusSlider.addEventListener('input', () => {
+        const raw = Number(this.scanBonusSlider!.value);
+        if (Number.isFinite(raw)) {
+          this.currentScanBonusPercent = raw;
+          this.refreshScanBonusDisplay();
+        }
+      });
+      this.scanBonusSlider.addEventListener('change', () => {
+        this.emitChange();
+      });
+    }
+
     // Seed the radio buttons to match initial state.
     this.modeRadios.forEach((r) => {
       r.checked = r.value === this.currentMode;
@@ -330,6 +370,7 @@ export class SwitchScanSettings {
 
     this.refreshDisplay();
     this.refreshScanSpeedDisplay();
+    this.refreshScanBonusDisplay();
     this.refreshModeVisibility();
     this.refreshInputModeVisibility();
     this.renderUrlOverrideNote();
@@ -377,6 +418,7 @@ export class SwitchScanSettings {
       mode: this.currentMode,
       audio: this.currentAudio,
       scanSpeedMs: this.currentScanSpeedMs,
+      scanBonusPercent: this.currentScanBonusPercent,
       inputMode: this.currentInputMode,
       touchSwipeAdvance: this.currentTouchSwipeAdvance,
     });
@@ -426,10 +468,11 @@ export class SwitchScanSettings {
   }
 
   /**
-   * Show / hide the Switch B and Scan-speed sections based on mode.
+   * Show / hide the Switch B, Scan-speed, and Settle-time sections
+   * based on mode.
    *
-   *  - Auto mode: hide Switch B, show Scan-speed.
-   *  - Step mode: show Switch B, hide Scan-speed.
+   *  - Auto mode: hide Switch B, show Scan-speed and Settle time.
+   *  - Step mode: show Switch B, hide Scan-speed and Settle time.
    */
   private refreshModeVisibility(): void {
     if (this.switchBGroup) {
@@ -439,11 +482,13 @@ export class SwitchScanSettings {
         this.switchBGroup.classList.remove('hidden');
       }
     }
-    if (this.scanSpeedGroup) {
+    const autoOnlyGroups = [this.scanSpeedGroup, this.scanBonusGroup];
+    for (const group of autoOnlyGroups) {
+      if (!group) continue;
       if (this.currentMode === 'auto') {
-        this.scanSpeedGroup.classList.remove('hidden');
+        group.classList.remove('hidden');
       } else {
-        this.scanSpeedGroup.classList.add('hidden');
+        group.classList.add('hidden');
       }
     }
   }
@@ -452,6 +497,13 @@ export class SwitchScanSettings {
   private refreshScanSpeedDisplay(): void {
     if (this.scanSpeedValueEl) {
       this.scanSpeedValueEl.textContent = `${this.currentScanSpeedMs} ms`;
+    }
+  }
+
+  /** Sync `#scanBonusValue` to the current first-tick bonus percent. */
+  private refreshScanBonusDisplay(): void {
+    if (this.scanBonusValueEl) {
+      this.scanBonusValueEl.textContent = `${this.currentScanBonusPercent}%`;
     }
   }
 
@@ -473,10 +525,11 @@ export class SwitchScanSettings {
     toggle(this.switchCGroup, touch);
     toggle(this.switchModeGroup, touch);
     toggle(this.scanSpeedGroup, touch);
-    // Keyboard-mode switch-B / scan-speed visibility also depends on
-    // the step/auto mode. When returning to keyboard, let that logic
-    // re-apply so a user who was in Auto before switching to Touch and
-    // back doesn't see a stale Switch B row.
+    toggle(this.scanBonusGroup, touch);
+    // Keyboard-mode switch-B / scan-speed / settle-time visibility
+    // also depends on the step/auto mode. When returning to keyboard,
+    // let that logic re-apply so a user who was in Auto before
+    // switching to Touch and back doesn't see a stale Switch B row.
     if (!touch) this.refreshModeVisibility();
   }
 
