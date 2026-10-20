@@ -127,12 +127,3 @@ export function installThemeListeners(
     window.matchMedia(query).addEventListener('change', handler);
   }
 }
-
-/**
- * Was the active theme setting supplied via `?theme=` URL parameter?
- * Used by the settings modal to show the "URL settings active" indicator.
- */
-export function isThemeFromUrl(): boolean {
-  const urlVal = new URLSearchParams(window.location.search).get(URL_PARAM);
-  return isValidSetting(urlVal);
-}
