@@ -3178,6 +3178,14 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   stroke: #000 !important;
 }
 
+/* Hover pill retains the HC dark fill. Without this the global
+   .blocklyField:hover rule above washes the pill to a translucent-black
+   overlay on the white HC block body, dimming the white pill text. */
+:root[data-theme="hc"] .blocklyField:hover > .blocklyFieldRect {
+  fill: #2a2a2a !important;
+  stroke: #000 !important;
+}
+
 /* Thicker outlines for the block bodies themselves. Zelos's default
    stroke-width is 1px; doubling it makes block edges much easier to
    track visually, which is the whole point of HC mode. */
