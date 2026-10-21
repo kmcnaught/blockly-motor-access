@@ -480,7 +480,8 @@ button:active {
 :root[data-theme="dark"] #resetButton:hover,
 :root[data-theme="hc"] #resetButton:hover {
   background: var(--surface);
-  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .game-container {
@@ -1353,8 +1354,8 @@ header.christmas h1::after {
 :root[data-theme="dark"] .shortcuts-modal .delete-data-btn:hover,
 :root[data-theme="hc"] .shortcuts-modal .delete-data-btn:hover {
   background: var(--surface);
-  border-color: var(--focus-ring);
-  border-left-color: #c62828;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .shortcuts-modal .about-link {
@@ -1776,8 +1777,8 @@ dialog.switch-touch-refresh-prompt::backdrop {
 :root[data-theme="dark"] .switch-touch-refresh-reload:hover,
 :root[data-theme="hc"] .switch-touch-refresh-reload:hover {
   background: var(--surface);
-  border-color: var(--focus-ring);
-  border-left-color: #1976d2;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 /* Body class applied while touch-switch mode is active. Disables
@@ -2397,8 +2398,8 @@ body.switch-scan-active dialog.result-modal {
 :root[data-theme="dark"] .result-modal-ok:hover,
 :root[data-theme="hc"] .result-modal-ok:hover {
   background: var(--surface);
-  border-color: var(--focus-ring);
-  border-left-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .result-modal-ok .ok-text {
@@ -2526,8 +2527,8 @@ body.switch-scan-active dialog.result-modal {
 :root[data-theme="dark"] .graduation-primary:active,
 :root[data-theme="hc"] .graduation-primary:active {
   background: var(--surface);
-  border-color: var(--focus-ring);
-  border-left-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 :root[data-theme="dark"] .graduation-secondary,
