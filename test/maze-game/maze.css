@@ -616,7 +616,12 @@ button:active {
 #mazeCanvas {
   display: block;
   margin: 0;
-  box-shadow: 0 0 0 1px var(--border);
+  /* Outline rather than box-shadow so the border isn't clipped by the
+   * canvas-wrapper's `overflow: hidden` on top/bottom edges. Negative
+   * offset keeps the stroke inside the canvas rect so it doesn't need
+   * extra layout room. */
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
 }
 
 /* Centered mode toggle in header */
