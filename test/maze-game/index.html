@@ -223,201 +223,210 @@
     </dialog>
 
     <!-- Unified Settings Modal.
-         Always-visible from the instruction-bar settings cog (#settingsBtn).
-         Contains: general settings, the Switch access checkbox which expands
-         the embedded switch-scan controls inline, the delete-data action,
-         and a collapsible keyboard-shortcuts disclosure at the bottom.
+         Opened from the instruction-bar settings cog (#settingsBtn).
+         Left column holds a 3-chip segmented mode selector (Pointer /
+         Switches / Grid 3) and the panel for the active mode; right
+         column holds Appearance (theme) + a keyboard-nav reference
+         disclosure. Delete-data + Close sit in the footer.
 
-         data-scan-region="settings-modal" so the SwitchScanController can
-         push a sub-scan frame over the modal while it's open. The region
-         carries every scannable control in the modal — discovery skips
-         items with `offsetParent === null` so the switch-access sub-panel
-         contributes nothing while it's collapsed. -->
+         data-scan-region="settings-modal" so the SwitchScanController
+         can push a sub-scan frame over the modal while it's open.
+         Scan discovery skips items with `offsetParent === null`, so
+         hidden mode-panels (display:none via .mode-panel.hidden)
+         contribute nothing to the scan. -->
     <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle" data-scan-region="settings-modal">
       <h2 id="shortcutsModalTitle" class="result-modal-title">Settings</h2>
 
-      <div class="settings-section">
-        <fieldset class="settings-group appearance-group" id="appearanceGroup">
-          <legend class="settings-heading">Appearance</legend>
-          <label class="setting-row" data-scan-item>
-            <input type="radio" name="theme" value="system" checked>
-            <span>System (follow OS)</span>
-          </label>
-          <label class="setting-row" data-scan-item>
-            <input type="radio" name="theme" value="light">
-            <span>Light</span>
-          </label>
-          <label class="setting-row" data-scan-item>
-            <input type="radio" name="theme" value="dark">
-            <span>Dark</span>
-          </label>
-          <label class="setting-row" data-scan-item>
-            <input type="radio" name="theme" value="hc">
-            <span>High contrast</span>
-          </label>
-        </fieldset>
-      </div>
+      <div class="settings-columns">
+        <section class="settings-col settings-col-main" id="switchAccessSection">
+          <h3 class="settings-heading">How you'll use this app</h3>
 
-      <div class="settings-section">
-        <div class="settings-group">
-          <div class="setting-row">
-            <label for="blockMovementSelect">Rearrange blocks using</label>
-            <select id="blockMovementSelect" data-scan-item>
-              <option value="both">Drag or click</option>
-              <option value="click-to-move">Click-to-move</option>
-              <option value="drag">Drag</option>
-            </select>
+          <!-- Mode selector. Pointer/Switches are real modes (toggle
+               switch-scan on/off); Grid 3 is informational — selecting it
+               just reveals install guidance without changing switch state.
+               role="group" + aria-pressed on each <button> models these
+               as a labelled set of toggle buttons. We deliberately don't
+               use role="radiogroup" (which would require arrow-key nav
+               and aria-checked) — Tab-through is the expected keyboard
+               path, and switch-scan reaches each chip via data-scan-item. -->
+          <div class="mode-selector" role="group" aria-label="Access method">
+            <button type="button" class="mode-chip" id="modePointer" data-mode="pointer" aria-pressed="true" data-scan-item>
+              Pointer / Touch
+            </button>
+            <button type="button" class="mode-chip" id="modeSwitches" data-mode="switches" aria-pressed="false" data-scan-item>
+              Switches
+            </button>
+            <button type="button" class="mode-chip" id="modeGrid3" data-mode="grid3" aria-pressed="false" data-scan-item>
+              Grid 3 <span class="mode-chip-arrow" aria-hidden="true">↗</span>
+            </button>
           </div>
-          <div class="setting-row" id="highlightSizeRow">
-            <label for="highlightSizeSelect">Connection highlight size</label>
-            <select id="highlightSizeSelect" data-scan-item>
-              <option value="minimal">Minimal</option>
-              <option value="medium">Medium</option>
-              <option value="large">Large</option>
-            </select>
-          </div>
-        </div>
-      </div>
 
-      <!-- Switch access section. The checkbox is the live source of truth
-           for whether the SwitchScanController is enabled. When checked,
-           #switchAccessPanel reveals the embedded sub-settings (key
-           bindings, scan mode, scan speed, audio). The whole section is
-           hidden in grid mode (mutually exclusive) by CSS. -->
-      <div class="settings-section switch-access-section" id="switchAccessSection">
-        <div class="setting-row switch-access-row">
-          <label class="switch-access-toggle" data-scan-item>
-            <input id="switchAccessCheckbox" type="checkbox">
-            <span>Switch access</span>
-          </label>
-        </div>
+          <!-- Hidden checkbox — retained so the existing applyEnabled /
+               touch-mode flow in index.ts keeps a canonical boolean to read
+               and write. Driven programmatically from the mode chips. -->
+          <input id="switchAccessCheckbox" type="checkbox" class="visually-hidden" aria-hidden="true" tabindex="-1">
 
-        <div class="switch-access-panel hidden" id="switchAccessPanel" aria-label="Switch scan settings controls">
-          <!-- 0. Input method -->
-          <div class="switch-settings-group">
-            <h3 class="switch-settings-heading">Input method</h3>
-            <div class="switch-settings-row">
-              <label for="switchInputMode" class="switch-settings-current">Via</label>
-              <select id="switchInputMode" data-scan-item>
-                <option value="keyboard">Keyboard (physical switches)</option>
-                <option value="touch">Touch gestures</option>
+          <!-- Pointer / Touch panel. -->
+          <div class="mode-panel" id="pointerPanel">
+            <p class="mode-info">Any pointer + left-click works, or touch control on a tablet.</p>
+            <p class="mode-info">Use a mouse, joystick cursor, head mouse, eye gaze or any other assistive tech to control a cursor. Everything can be done with single left clicks only.</p>
+            <p class="mode-info">Some users prefer to drag blocks; if that’s difficult you can click twice to move.</p>
+            <div class="setting-row">
+              <label for="blockMovementSelect">Rearrange blocks using</label>
+              <select id="blockMovementSelect" data-scan-item>
+                <option value="both">Drag or click</option>
+                <option value="click-to-move">Click-to-move</option>
+                <option value="drag">Drag</option>
               </select>
             </div>
           </div>
 
-          <!-- 0b. Touch-mode sub-settings — shown only when input method
-               is Touch. Changes here persist to localStorage; touch mode
-               itself activates on page refresh via the countdown overlay. -->
-          <div class="switch-settings-group hidden" id="touchSettingsGroup">
-            <h3 class="switch-settings-heading">Touch gestures</h3>
-            <div class="switch-settings-row">
-              <label for="touchSwipeAdvance" class="switch-settings-current">Swipe for Advance</label>
-              <select id="touchSwipeAdvance" data-scan-item>
-                <option value="left">Swipe left</option>
-                <option value="right">Swipe right</option>
-              </select>
-            </div>
-            <div class="switch-settings-row">
-              <span class="switch-settings-current">Select</span>
-              <span>Tap</span>
-            </div>
-            <p class="switch-settings-info">Refresh the page to start touch mode. To exit, refresh and tap Cancel.</p>
-          </div>
+          <!-- Switches panel. Reuses the pre-existing #switchAccessPanel
+               ID so SwitchScanSettings.setPanelVisible() keeps working
+               unchanged. Audio feedback + input-method are hoisted into
+               top-matter so they stay visible in every switch config. -->
+          <div class="mode-panel switch-access-panel hidden" id="switchAccessPanel" aria-label="Switch scan settings controls">
+            <p class="mode-info">Switches mapped to keys on your keyboard.</p>
 
-          <!-- 1. Switch mode -->
-          <fieldset class="switch-settings-group" id="switchModeGroup">
-            <legend class="switch-settings-heading">Switch mode</legend>
-            <label class="switch-settings-row" data-scan-item>
-              <input type="radio" name="switchScanMode" value="step" checked>
-              <span>Two-switch (step scan)</span>
-            </label>
-            <label class="switch-settings-row" data-scan-item>
-              <input type="radio" name="switchScanMode" value="auto">
-              <span>One-switch (auto scan)</span>
-            </label>
-          </fieldset>
-
-          <!-- 2. Switch A capture -->
-          <div class="switch-settings-group" id="switchAGroup">
-            <h3 class="switch-settings-heading">Switch A (Advance)</h3>
-            <div class="switch-settings-row">
-              <span id="switchACurrent" class="switch-settings-current">Space</span>
-              <button id="switchACaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
-                Click to capture
-              </button>
-            </div>
-          </div>
-
-          <!-- 3. Switch B capture (step mode only). -->
-          <div class="switch-settings-group" id="switchBGroup">
-            <h3 class="switch-settings-heading">Switch B (Select)</h3>
-            <div class="switch-settings-row">
-              <span id="switchBCurrent" class="switch-settings-current">Enter</span>
-              <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
-                Click to capture
-              </button>
-            </div>
-          </div>
-
-          <!-- 3b. Switch C (Back) — optional third switch that pops one
-               sub-scan frame. Default Esc; clear-button disables. -->
-          <div class="switch-settings-group" id="switchCGroup">
-            <h3 class="switch-settings-heading">Switch C (Back, optional)</h3>
-            <div class="switch-settings-row">
-              <span id="switchCCurrent" class="switch-settings-current">Esc</span>
-              <button id="switchCCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
-                Click to capture
-              </button>
-              <button id="switchCClearBtn" type="button" class="switch-settings-clear" data-scan-item disabled>
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <!-- 4. Scan speed (auto-scan mode). -->
-          <div class="switch-settings-group" id="scanSpeedGroup">
-            <h3 class="switch-settings-heading">Scan speed</h3>
-            <div class="switch-settings-row">
-              <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500">
-              <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
-            </div>
-          </div>
-
-          <!-- 4a. Settle time (auto-scan mode). -->
-          <div class="switch-settings-group" id="scanBonusGroup">
-            <h3 class="switch-settings-heading">Settle time</h3>
-            <div class="switch-settings-row">
-              <input id="scanBonusSlider" type="range" min="0" max="100" step="10" value="20">
-              <span id="scanBonusValue" class="switch-settings-current">20%</span>
-            </div>
-          </div>
-
-          <!-- 5. Audio feedback (TTS). -->
-          <div class="switch-settings-group">
-            <h3 class="switch-settings-heading">Audio feedback</h3>
             <div class="switch-settings-row">
               <label class="switch-settings-toggle" data-scan-item>
                 <input id="audioFeedbackToggle" type="checkbox">
                 <span>Speak highlighted item</span>
               </label>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Keyboard shortcuts — demoted to a collapsible disclosure. -->
-      <details class="settings-section shortcuts-disclosure">
-        <summary class="shortcuts-disclosure-summary" data-scan-item>Keyboard shortcuts</summary>
-        <div class="shortcuts-list">
-          <div class="shortcut-item"><kbd>R</kbd> Run program</div>
-          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
-          <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
-          <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
-          <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
-          <div class="shortcut-item"><kbd>L</kbd> Change language</div>
-          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
-        </div>
-      </details>
+            <fieldset class="switch-settings-group" id="switchModeGroup">
+              <legend class="switch-settings-subheading">Scan mode</legend>
+              <label class="switch-settings-row" data-scan-item>
+                <input type="radio" name="switchScanMode" value="step" checked>
+                <span>2+ switch (step scan)</span>
+              </label>
+              <label class="switch-settings-row" data-scan-item>
+                <input type="radio" name="switchScanMode" value="auto">
+                <span>1 switch (auto scan)</span>
+              </label>
+            </fieldset>
+
+            <div class="switch-settings-group" id="switchAGroup">
+              <div class="switch-settings-row">
+                <label class="switch-settings-label" id="switchALabel">Switch A (Advance)</label>
+                <span id="switchACurrent" class="switch-settings-current">Space</span>
+                <button id="switchACaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                  Click to capture
+                </button>
+              </div>
+            </div>
+
+            <div class="switch-settings-group" id="switchBGroup">
+              <div class="switch-settings-row">
+                <label class="switch-settings-label">Switch B (Select)</label>
+                <span id="switchBCurrent" class="switch-settings-current">Enter</span>
+                <button id="switchBCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                  Click to capture
+                </button>
+              </div>
+            </div>
+
+            <div class="switch-settings-group" id="switchCGroup">
+              <div class="switch-settings-row">
+                <label class="switch-settings-label">Switch C (Back, optional)</label>
+                <span id="switchCCurrent" class="switch-settings-current">Esc</span>
+                <button id="switchCCaptureBtn" type="button" class="switch-settings-capture" data-scan-item disabled>
+                  Click to capture
+                </button>
+                <button id="switchCClearBtn" type="button" class="switch-settings-clear" data-scan-item disabled>
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <div class="switch-settings-group" id="scanSpeedGroup">
+              <div class="switch-settings-row">
+                <label class="switch-settings-label" for="scanSpeedSlider">Scan speed</label>
+                <input id="scanSpeedSlider" type="range" min="500" max="4000" step="100" value="1500" data-scan-item>
+                <span id="scanSpeedValue" class="switch-settings-current">1500 ms</span>
+              </div>
+            </div>
+
+            <div class="switch-settings-group" id="scanBonusGroup">
+              <div class="switch-settings-row">
+                <label class="switch-settings-label" for="scanBonusSlider">Settle time</label>
+                <input id="scanBonusSlider" type="range" min="0" max="100" step="10" value="20" data-scan-item>
+                <span id="scanBonusValue" class="switch-settings-current">20%</span>
+              </div>
+              <p class="switch-settings-info">Extra time on the first slot after a Select, so you can catch it without re-scanning. 0% = no extra; higher = longer first pause.</p>
+            </div>
+
+            <details class="experimental-section">
+              <summary class="experimental-summary" data-scan-item>Experimental: Touch gestures (beta)</summary>
+              <p class="switch-settings-info">Drive scan from swipe + tap gestures on a tablet instead of switch keys. Takes effect after a page refresh. Some edges are still rough.</p>
+              <div class="switch-settings-row">
+                <label class="switch-settings-toggle" data-scan-item>
+                  <input id="switchInputModeToggle" type="checkbox">
+                  <span>Use touch gestures instead</span>
+                </label>
+              </div>
+              <div class="switch-settings-group hidden" id="touchSettingsGroup">
+                <div class="switch-settings-row">
+                  <label for="touchSwipeAdvance" class="switch-settings-label">Swipe for Advance</label>
+                  <select id="touchSwipeAdvance" data-scan-item>
+                    <option value="left">Swipe left</option>
+                    <option value="right">Swipe right</option>
+                  </select>
+                </div>
+                <div class="switch-settings-row">
+                  <span class="switch-settings-label">Select</span>
+                  <span>Tap</span>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <!-- Grid 3 panel. Informational — selecting this chip reveals
+               install guidance and an external link to the grid-set index.
+               Does not change switch-scan state. -->
+          <div class="mode-panel hidden" id="grid3Panel">
+            <p class="mode-info">Grid 3 is a communication app from Smartbox for Windows and iPad. We publish ready-to-use grid sets that drive this app through its keyboard commands.</p>
+            <!-- TODO(settings-rework): point href to the real hosted grid-set index when published. -->
+            <p><a href="#" target="_blank" rel="noopener" class="grid3-link" data-scan-item>See available grid sets &rarr;</a></p>
+          </div>
+        </section>
+
+        <section class="settings-col settings-col-side">
+          <fieldset class="settings-group appearance-group" id="appearanceGroup">
+            <legend class="settings-heading">Appearance</legend>
+            <label class="setting-row" data-scan-item>
+              <input type="radio" name="theme" value="system" checked>
+              <span>System (follow OS)</span>
+            </label>
+            <label class="setting-row" data-scan-item>
+              <input type="radio" name="theme" value="light">
+              <span>Light</span>
+            </label>
+            <label class="setting-row" data-scan-item>
+              <input type="radio" name="theme" value="dark">
+              <span>Dark</span>
+            </label>
+            <label class="setting-row" data-scan-item>
+              <input type="radio" name="theme" value="hc">
+              <span>High contrast</span>
+            </label>
+          </fieldset>
+
+          <details class="shortcuts-disclosure">
+            <summary class="shortcuts-disclosure-summary" data-scan-item>Keyboard navigation reference</summary>
+            <div class="shortcuts-list">
+              <div class="shortcut-item"><kbd>R</kbd> Run program</div>
+              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
+              <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
+              <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
+              <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
+              <div class="shortcut-item"><kbd>L</kbd> Change language</div>
+              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
+            </div>
+          </details>
+        </section>
+      </div>
 
       <div class="result-modal-buttons">
         <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn" data-scan-item>Delete all saved data</button>

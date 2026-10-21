@@ -162,6 +162,7 @@ export class SwitchScanSettings {
   private readonly switchAGroup: HTMLElement | null;
   private readonly switchBGroup: HTMLElement | null;
   private readonly switchCGroup: HTMLElement | null;
+  private readonly switchALabelEl: HTMLElement | null;
   private readonly switchModeGroup: HTMLElement | null;
   private readonly modeRadios: NodeListOf<HTMLInputElement>;
   private readonly audioToggle: HTMLInputElement | null;
@@ -171,7 +172,7 @@ export class SwitchScanSettings {
   private readonly scanBonusSlider: HTMLInputElement | null;
   private readonly scanBonusValueEl: HTMLElement | null;
   private readonly scanBonusGroup: HTMLElement | null;
-  private readonly inputModeSelect: HTMLSelectElement | null;
+  private readonly inputModeToggle: HTMLInputElement | null;
   private readonly touchSettingsGroup: HTMLElement | null;
   private readonly touchSwipeAdvanceSelect: HTMLSelectElement | null;
   private readonly panelEl: HTMLElement | null;
@@ -237,6 +238,7 @@ export class SwitchScanSettings {
     this.switchAGroup = document.getElementById('switchAGroup');
     this.switchBGroup = document.getElementById('switchBGroup');
     this.switchCGroup = document.getElementById('switchCGroup');
+    this.switchALabelEl = document.getElementById('switchALabel');
     this.switchModeGroup = document.getElementById('switchModeGroup');
     this.modeRadios = document.querySelectorAll<HTMLInputElement>(
       'input[name="switchScanMode"]',
@@ -254,9 +256,9 @@ export class SwitchScanSettings {
     ) as HTMLInputElement | null;
     this.scanBonusValueEl = document.getElementById('scanBonusValue');
     this.scanBonusGroup = document.getElementById('scanBonusGroup');
-    this.inputModeSelect = document.getElementById(
-      'switchInputMode',
-    ) as HTMLSelectElement | null;
+    this.inputModeToggle = document.getElementById(
+      'switchInputModeToggle',
+    ) as HTMLInputElement | null;
     this.touchSettingsGroup = document.getElementById('touchSettingsGroup');
     this.touchSwipeAdvanceSelect = document.getElementById(
       'touchSwipeAdvance',
@@ -349,11 +351,12 @@ export class SwitchScanSettings {
       r.checked = r.value === this.currentMode;
     });
 
-    if (this.inputModeSelect) {
-      this.inputModeSelect.value = this.currentInputMode;
-      this.inputModeSelect.addEventListener('change', () => {
-        const v = this.inputModeSelect!.value;
-        this.currentInputMode = v === 'touch' ? 'touch' : 'keyboard';
+    if (this.inputModeToggle) {
+      this.inputModeToggle.checked = this.currentInputMode === 'touch';
+      this.inputModeToggle.addEventListener('change', () => {
+        this.currentInputMode = this.inputModeToggle!.checked
+          ? 'touch'
+          : 'keyboard';
         this.refreshInputModeVisibility();
         this.emitChange();
       });
@@ -468,20 +471,38 @@ export class SwitchScanSettings {
   }
 
   /**
-   * Show / hide the Switch B, Scan-speed, and Settle-time sections
-   * based on mode.
+   * Reconcile the switch panel's content with the current scan mode.
    *
-   *  - Auto mode: hide Switch B, show Scan-speed and Settle time.
-   *  - Step mode: show Switch B, hide Scan-speed and Settle time.
+   *  - Step: Switch A labelled "Advance"; Switch B + Switch C visible;
+   *          Scan speed + Settle time hidden.
+   *  - Auto: Switch A labelled "Select"; Switch B + Switch C hidden;
+   *          Scan speed + Settle time visible.
    */
   private refreshModeVisibility(): void {
-    if (this.switchBGroup) {
+    // Switch A's role flips between modes: step = Advance (move scan),
+    // auto = Select (activate highlighted item). Keep the capture ID
+    // + binding stable (switchAdvance), just rename the user-facing
+    // label so the teacher sees what the switch actually does.
+    if (this.switchALabelEl) {
+      this.switchALabelEl.textContent =
+        this.currentMode === 'auto'
+          ? 'Switch A (Select)'
+          : 'Switch A (Advance)';
+    }
+    // Switch B (Select) and Switch C (Back) are only meaningful in
+    // step mode. In auto mode the timer owns advance and there's only
+    // one user switch (Advance / Select).
+    const stepOnlyGroups = [this.switchBGroup, this.switchCGroup];
+    for (const group of stepOnlyGroups) {
+      if (!group) continue;
       if (this.currentMode === 'auto') {
-        this.switchBGroup.classList.add('hidden');
+        group.classList.add('hidden');
       } else {
-        this.switchBGroup.classList.remove('hidden');
+        group.classList.remove('hidden');
       }
     }
+    // Scan speed + settle time are only meaningful in auto mode (they
+    // configure the scan timer, which step mode doesn't arm).
     const autoOnlyGroups = [this.scanSpeedGroup, this.scanBonusGroup];
     for (const group of autoOnlyGroups) {
       if (!group) continue;

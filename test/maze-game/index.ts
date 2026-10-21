@@ -866,18 +866,13 @@ const blockMovementMode: BlockMovementMode = savedMovementMode ?? 'both';
 const clickToMoveEnabled = blockMovementMode !== 'drag';
 const mouseDragEnabled = blockMovementMode !== 'click-to-move';
 
-// Load saved highlight size preference from localStorage
-type HighlightSize = 'minimal' | 'medium' | 'large';
-const savedHighlightSize = localStorage.getItem('mazeHighlightSize') as HighlightSize | null;
-const highlightSize: HighlightSize = savedHighlightSize ?? 'large';
-
 // Apply saved block movement preferences
 keyboardNavigation.setKeepBlockOnMouse(false);
 keyboardNavigation.setAllowDropOnEmptyWorkspace(false);
 keyboardNavigation.setClickToMoveEnabled(clickToMoveEnabled);
 keyboardNavigation.setMouseDragEnabled(mouseDragEnabled);
 keyboardNavigation.setSingleBlockDragMode(true);
-keyboardNavigation.setConnectionSize(highlightSize);
+keyboardNavigation.setConnectionSize('large');
 
 // Monkey-patch Blockly's BlockDragStrategy to respect single-block drag setting
 // This makes the setting work for both mouse drags and keyboard drags
@@ -2517,16 +2512,6 @@ installThemeListeners(() => currentThemeSetting, updateEffectiveTheme);
 const blockMovementSelect = document.querySelector<HTMLSelectElement>('#blockMovementSelect')!;
 blockMovementSelect.value = blockMovementMode;
 
-const highlightSizeRow = document.getElementById('highlightSizeRow')!;
-const highlightSizeSelect = document.querySelector<HTMLSelectElement>('#highlightSizeSelect')!;
-highlightSizeSelect.value = highlightSize;
-
-function updateHighlightSizeRowVisibility(mode: BlockMovementMode) {
-  highlightSizeRow.style.display = mode === 'drag' ? 'none' : '';
-}
-
-updateHighlightSizeRowVisibility(blockMovementMode);
-
 blockMovementSelect.addEventListener('change', () => {
   const mode = blockMovementSelect.value as BlockMovementMode;
   localStorage.setItem('mazeBlockMovementMode', mode);
@@ -2535,13 +2520,6 @@ blockMovementSelect.addEventListener('change', () => {
   keyboardNavigation.setClickToMoveEnabled(ctm);
   keyboardNavigation.setMouseDragEnabled(drag);
   keyboardNavigation.setKeepBlockOnMouse(false);
-  updateHighlightSizeRowVisibility(mode);
-});
-
-highlightSizeSelect.addEventListener('change', () => {
-  const size = highlightSizeSelect.value as HighlightSize;
-  localStorage.setItem('mazeHighlightSize', size);
-  keyboardNavigation.setConnectionSize(size);
 });
 
 // ========== CONFIRMATION MODAL ==========
@@ -3488,8 +3466,10 @@ if (!isGridMode && !isGridCodingMode) {
         if (outcome === 'cancelled') {
           // Reflect cancel in UI + persistence, then surface settings
           // so the user can reconfigure without hunting for the modal.
+          // Dispatch change (not direct applyEnabled call) so the mode-
+          // selector chips re-sync to Pointer via the shared listener.
           switchAccessCheckbox.checked = false;
-          applyEnabled(false);
+          switchAccessCheckbox.dispatchEvent(new Event('change'));
           shortcutsDialog.show();
           return;
         }
@@ -3554,6 +3534,85 @@ if (!isGridMode && !isGridCodingMode) {
     switchAccessCheckbox.addEventListener('change', () => {
       applyEnabled(switchAccessCheckbox.checked);
     });
+
+    // ========== MODE SELECTOR (Pointer / Switches / Grid 3) ==========
+    // The three mode chips drive the switchAccessCheckbox for Pointer /
+    // Switches; Grid 3 is informational (no state change). A change
+    // listener below keeps the chip visuals in sync when applyEnabled
+    // flips the checkbox back from paths like touch-mode cancel.
+    const modePointerBtn = document.getElementById(
+      'modePointer',
+    ) as HTMLButtonElement | null;
+    const modeSwitchesBtn = document.getElementById(
+      'modeSwitches',
+    ) as HTMLButtonElement | null;
+    const modeGrid3Btn = document.getElementById(
+      'modeGrid3',
+    ) as HTMLButtonElement | null;
+    const pointerPanel = document.getElementById('pointerPanel');
+    const grid3Panel = document.getElementById('grid3Panel');
+    const switchesPanel = document.getElementById('switchAccessPanel');
+
+    type AccessMode = 'pointer' | 'switches' | 'grid3';
+
+    const syncModeUI = (mode: AccessMode) => {
+      const chips: Array<[HTMLButtonElement | null, AccessMode]> = [
+        [modePointerBtn, 'pointer'],
+        [modeSwitchesBtn, 'switches'],
+        [modeGrid3Btn, 'grid3'],
+      ];
+      for (const [btn, m] of chips) {
+        if (btn) btn.setAttribute('aria-pressed', m === mode ? 'true' : 'false');
+      }
+      pointerPanel?.classList.toggle('hidden', mode !== 'pointer');
+      grid3Panel?.classList.toggle('hidden', mode !== 'grid3');
+      // SwitchScanSettings.setPanelVisible also toggles .hidden on
+      // switchesPanel from applyEnabled; keep it in sync with the chip
+      // too so Grid 3 selection hides the switches panel without
+      // disabling switch access.
+      if (switchesPanel) {
+        switchesPanel.classList.toggle('hidden', mode !== 'switches');
+      }
+    };
+
+    if (modePointerBtn && modeSwitchesBtn && modeGrid3Btn) {
+      modePointerBtn.addEventListener('click', () => {
+        syncModeUI('pointer');
+        if (switchAccessCheckbox.checked) {
+          switchAccessCheckbox.checked = false;
+          switchAccessCheckbox.dispatchEvent(new Event('change'));
+        }
+      });
+      modeSwitchesBtn.addEventListener('click', () => {
+        syncModeUI('switches');
+        if (!switchAccessCheckbox.checked) {
+          switchAccessCheckbox.checked = true;
+          switchAccessCheckbox.dispatchEvent(new Event('change'));
+        }
+      });
+      modeGrid3Btn.addEventListener('click', () => {
+        // Grid 3 is informational — selecting it reveals install
+        // guidance but does NOT touch switch-scan state. No checkbox
+        // dispatch here, unlike the Pointer / Switches handlers above.
+        syncModeUI('grid3');
+      });
+
+      // Re-sync chips when the checkbox state changes from paths that
+      // don't go through a chip click (notably the touch-mode cancel
+      // dispatch). Skip when Grid 3 is the current chip — selecting it
+      // doesn't change the checkbox, and we don't want a stray change
+      // elsewhere to drag the user out of Grid 3's info view.
+      switchAccessCheckbox.addEventListener('change', () => {
+        const grid3Active =
+          modeGrid3Btn.getAttribute('aria-pressed') === 'true';
+        if (grid3Active) return;
+        syncModeUI(switchAccessCheckbox.checked ? 'switches' : 'pointer');
+      });
+
+      // Seed from the initial switch-access state. switchAccessCheckbox
+      // was .checked = switchScanInitialEnabled a few lines up.
+      syncModeUI(switchAccessCheckbox.checked ? 'switches' : 'pointer');
+    }
   }
 
   // Push / pop the modal sub-scan frame around the unified settings

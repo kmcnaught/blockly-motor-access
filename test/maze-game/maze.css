@@ -1253,14 +1253,6 @@ header.christmas h1::after {
   outline-offset: 2px;
 }
 
-/* Settings section in shortcuts modal */
-.settings-section {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #e0e0e0;
-  margin-bottom: 20px;
-}
-
 .settings-heading {
   font-size: 1em;
   font-weight: 600;
@@ -1299,12 +1291,191 @@ header.christmas h1::after {
   margin: 0 0 10px 0;
 }
 
-/* Unified settings modal — give it room for the expanded switch-access
-   panel without overflowing on smaller viewports. */
-.shortcuts-modal {
-  min-width: 360px;
-  max-width: 520px;
+/* Unified settings modal — widened for the 2-column layout. */
+/* Compound selector raises specificity above `dialog.result-modal`
+   (which sets max-width: 90%) so the modal's 95vw cap sticks on
+   narrow viewports. */
+.result-modal.shortcuts-modal {
+  width: 800px;
+  max-width: 95vw;
   text-align: left;
+}
+
+/* 2-column grid for the settings body. The main column holds the
+   mode selector (Pointer / Switches / Grid 3) and the panel for the
+   selected mode; the side column holds Appearance + the keyboard-nav
+   disclosure. Collapses to a single column on narrow viewports. */
+.settings-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 28px;
+  margin: 16px 0 20px;
+}
+
+@media (max-width: 760px) {
+  .settings-columns {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-col > .settings-heading {
+  margin: 0;
+}
+
+/* Mode selector — three segmented buttons picking between access
+   modes. Pointer / Switches toggle switch-scan on / off; Grid 3 is
+   informational and leaves state alone. */
+.mode-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mode-chip {
+  padding: 10px 12px;
+  font-size: 0.95em;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 0;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  text-align: center;
+}
+
+.mode-chip:first-child {
+  border-left: 0;
+}
+
+.mode-chip:hover:not([aria-pressed="true"]) {
+  filter: brightness(0.95);
+}
+
+.mode-chip[aria-pressed="true"] {
+  background: #1976d2;
+  color: #fff;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+}
+
+:root[data-theme="dark"] .mode-chip[aria-pressed="true"],
+:root[data-theme="hc"] .mode-chip[aria-pressed="true"] {
+  background: var(--on-surface);
+  color: var(--surface);
+}
+
+.mode-chip-arrow {
+  margin-left: 2px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Mode panels — one visible at a time, matched to the chip the user
+   picked. Share chrome; the switches panel also carries
+   .switch-access-panel for the controller's visibility toggle.
+   min-height reserves vertical space so switching between panels
+   with different content heights (Pointer / Switches / Grid 3)
+   doesn't make the modal jump. Sized to roughly match the switches
+   panel in its tallest config. */
+.mode-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--chrome-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 420px;
+}
+
+.mode-panel.hidden {
+  display: none;
+}
+
+/* Experimental section inside the switches panel — holds the touch-
+   gestures toggle + its sub-settings. Collapsed by default; dashed
+   border signals the beta nature. */
+.experimental-section {
+  margin-top: auto;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+
+.experimental-summary {
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--on-surface);
+  opacity: 0.85;
+  list-style: revert;
+  padding: 2px 0;
+}
+
+.experimental-summary:hover {
+  text-decoration: underline;
+}
+
+.experimental-section[open] > .experimental-summary {
+  margin-bottom: 8px;
+}
+
+.experimental-section > .switch-settings-info {
+  margin: 6px 0;
+}
+
+.mode-info {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--on-surface);
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+/* Pointer panel's single setting (block-movement) is centred so it
+   doesn't float lonely on the left under the info paragraphs. */
+#pointerPanel .setting-row {
+  justify-content: center;
+}
+
+.grid3-link {
+  display: inline-block;
+  padding: 4px 0;
+  color: #1976d2;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.grid3-link:hover {
+  text-decoration: underline;
+}
+
+:root[data-theme="dark"] .grid3-link,
+:root[data-theme="hc"] .grid3-link {
+  color: var(--on-surface);
+}
+
+/* Hidden checkbox retained so index.ts's applyEnabled / touch-mode
+   wiring still has a canonical boolean to read + write. The mode
+   chips drive it programmatically. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .shortcuts-modal .shortcuts-list {
@@ -1376,62 +1547,18 @@ header.christmas h1::after {
   text-decoration: underline;
 }
 
-/* ========== UNIFIED SETTINGS MODAL: SWITCH ACCESS SECTION ==========
-   Switch-scan controls now live inline inside #shortcutsModal under
-   the "Switch access" checkbox row. When the checkbox is checked,
-   #switchAccessPanel un-hides itself and the SwitchScanController
-   enable() is called. */
-.switch-access-section {
-  /* No extra spacing rules here — inherits .settings-section. */
-}
-
-.switch-access-row {
-  /* Slightly heavier than a normal setting row so the toggle reads
-     as a section header for the panel below. */
-  font-weight: 600;
-}
-
-.switch-access-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.switch-access-toggle input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.switch-access-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
-  padding: 12px 14px;
-  background: var(--chrome-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
+/* Switches panel ID preserved for SwitchScanSettings.setPanelVisible —
+   layout now inherits from .mode-panel. */
 .switch-access-panel.hidden {
   display: none;
 }
 
 /* In grid mode, switch scan is mutually exclusive — hide the whole
-   switch-access section. */
-body.grid-mode .switch-access-section,
-body.grid-coding-mode .switch-access-section {
+   mode-selector area (left column). Theme + keyboard reference in the
+   right column stay accessible. */
+body.grid-mode #switchAccessSection,
+body.grid-coding-mode #switchAccessSection {
   display: none !important;
-}
-
-/* Keyboard shortcuts demoted to a collapsible disclosure inside the
-   unified settings modal. The summary acts as the "Keyboard shortcuts"
-   link the user asked for. */
-.shortcuts-disclosure {
-  /* Inherits .settings-section spacing. */
 }
 
 .shortcuts-disclosure-summary {
@@ -1456,35 +1583,55 @@ body.grid-coding-mode .switch-access-section {
   margin-bottom: 8px;
 }
 
-/* Switch-scan settings (carried over from the previous standalone
-   #switchSettingsModal). The classes are unchanged so the existing
-   capture / row / heading styles all keep applying. */
+/* Switch-scan settings — one row per control (inline label on the
+   left, control(s) on the right). Groups only wrap multiple rows
+   (e.g. the Scan-mode fieldset with its two radios). */
 
 .switch-settings-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border: none;
   padding: 0;
   margin: 0;
 }
 
-.switch-settings-heading {
-  font-size: 0.95em;
+.switch-settings-group.hidden {
+  display: none;
+}
+
+.switch-settings-subheading {
+  font-size: 0.8em;
   font-weight: 600;
   color: var(--on-surface);
-  margin: 0;
+  margin: 0 0 2px;
   text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  opacity: 0.75;
 }
 
 .switch-settings-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 32px;
   font-size: 1em;
   color: var(--on-surface);
+}
+
+/* Left-aligned inline label — fixed gutter so controls line up down
+   the panel. */
+.switch-settings-label {
+  flex: 0 0 auto;
+  min-width: 150px;
+  font-weight: 500;
+}
+
+/* Sliders stretch to fill the row between label and value. */
+.switch-settings-row > input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Read-only display of the currently bound key — Step B will swap
@@ -1550,13 +1697,6 @@ body.grid-coding-mode .switch-access-section {
 .switch-settings-disabled input,
 .switch-settings-disabled label {
   cursor: not-allowed;
-}
-
-/* Switch B group is hidden when the user picks auto-scan mode.
-   Scoped to the group id so we don't fight the generic .hidden
-   rules elsewhere. */
-#switchBGroup.hidden {
-  display: none;
 }
 
 /* Switch C (Back) clear button — same chrome as the capture button so
