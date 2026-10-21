@@ -1548,6 +1548,44 @@ export class MazeGame {
     this.ctx.restore();
   }
 
+  private drawHcHalo(cx: number, cy: number, r: number): void {
+    this.ctx.save();
+    this.ctx.fillStyle = this.skin.look;
+    this.ctx.beginPath();
+    this.ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  /**
+   * Direction-pointer triangle drawn on top of the sprite so it stays visible.
+   * Frame 0-15 encodes smooth rotation: 0 = N, 4 = E, 8 = S, 12 = W.
+   * Skipped for frames >= 16 (victory dance / crash).
+   */
+  private drawHcDirectionPointer(cx: number, cy: number, r: number, frame: number): void {
+    if (frame >= 16) return;
+    const angle = (frame / 16) * 2 * Math.PI;
+    const tipLen = r * 0.65;
+    const baseHalfAngle = Math.PI / 6;
+
+    const tipX = cx + Math.sin(angle) * (r + tipLen);
+    const tipY = cy - Math.cos(angle) * (r + tipLen);
+    const leftX = cx + Math.sin(angle - baseHalfAngle) * r;
+    const leftY = cy - Math.cos(angle - baseHalfAngle) * r;
+    const rightX = cx + Math.sin(angle + baseHalfAngle) * r;
+    const rightY = cy - Math.cos(angle + baseHalfAngle) * r;
+
+    this.ctx.save();
+    this.ctx.fillStyle = this.skin.look;
+    this.ctx.beginPath();
+    this.ctx.moveTo(tipX, tipY);
+    this.ctx.lineTo(leftX, leftY);
+    this.ctx.lineTo(rightX, rightY);
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
   /**
    * Draw pegman at specified position with given frame.
    * @param x Grid x position (can be fractional for animation)
@@ -1576,12 +1614,7 @@ export class MazeGame {
       // Hi-contrast skin: coloured halo under the character so its position
       // reads as a bright accent against both black walls and white paths.
       if (this.skin.highContrast) {
-        this.ctx.save();
-        this.ctx.fillStyle = this.skin.look;
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 5, this.squareSize * 0.4, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.restore();
+        this.drawHcHalo(centerX, centerY + 5, this.squareSize * 0.35);
       }
 
       // Apply scale for visibility
@@ -1607,6 +1640,11 @@ export class MazeGame {
       );
 
       this.ctx.restore();
+
+      // HC direction pointer sits on top of the sprite so it stays visible.
+      if (this.skin.highContrast) {
+        this.drawHcDirectionPointer(centerX, centerY + 5, this.squareSize * 0.35, frame);
+      }
     } else {
       // Fallback rendering
       const centerX = px + this.squareSize / 2;
@@ -1660,12 +1698,7 @@ export class MazeGame {
       const centerY = py + this.squareSize / 2 - 5;
 
       if (this.skin.highContrast) {
-        this.ctx.save();
-        this.ctx.fillStyle = this.skin.look;
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 5, this.squareSize * 0.4, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.restore();
+        this.drawHcHalo(centerX, centerY + 5, this.squareSize * 0.35);
       }
 
       // Save context, rotate around center, draw, restore
