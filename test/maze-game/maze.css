@@ -66,10 +66,9 @@ html {
   --focus-ring: #ffff00;
 }
 
-/* HC focus marker on form controls only. The universal `*` form of
- * this rule also lit up focused Blockly block paths with a yellow
- * outline-offset-2 bounding box, which read as an extra rectangle on
- * top of the keyboard-nav plugin's own selection stroke. */
+/* HC focus marker on interactive controls. Scoped to form controls
+ * (not `*`) so Blockly's own SVG focus/selection paths are left to
+ * the renderer and the keyboard-nav plugin. */
 :root[data-theme="hc"] button:focus-visible,
 :root[data-theme="hc"] input:focus-visible,
 :root[data-theme="hc"] select:focus-visible,
