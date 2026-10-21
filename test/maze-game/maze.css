@@ -300,6 +300,14 @@ h1 {
   color: #c62828;
 }
 
+/* Dark/HC override — bg/text follow the theme; border keeps the
+ * state-colour (green/orange/red) so the semantic signal survives. */
+:root[data-theme="dark"] #capacityBubble,
+:root[data-theme="hc"] #capacityBubble {
+  background: var(--surface);
+  color: var(--on-surface);
+}
+
 #capacityBubble.hidden {
   display: none;
 }
@@ -424,6 +432,42 @@ button:active {
   background: #e68900;
 }
 
+/* Dark/HC: Run / Reset / Ghost get themed surfaces. We retain their
+ * distinct accents (left border in the brand hue) so a user can still
+ * tell them apart at a glance. */
+:root[data-theme="dark"] #runButton,
+:root[data-theme="hc"] #runButton,
+:root[data-theme="dark"] #ghostRunButton,
+:root[data-theme="hc"] #ghostRunButton,
+:root[data-theme="dark"] #resetButton,
+:root[data-theme="hc"] #resetButton {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+}
+:root[data-theme="dark"] #runButton,
+:root[data-theme="hc"] #runButton {
+  border-left-color: #4caf50;
+}
+:root[data-theme="dark"] #ghostRunButton,
+:root[data-theme="hc"] #ghostRunButton {
+  border-left-color: #7c4dff;
+}
+:root[data-theme="dark"] #resetButton,
+:root[data-theme="hc"] #resetButton {
+  border-left-color: #ff9800;
+}
+:root[data-theme="dark"] #runButton:hover,
+:root[data-theme="hc"] #runButton:hover,
+:root[data-theme="dark"] #ghostRunButton:hover,
+:root[data-theme="hc"] #ghostRunButton:hover,
+:root[data-theme="dark"] #resetButton:hover,
+:root[data-theme="hc"] #resetButton:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
 .game-container {
   flex: 0 0 auto;
   min-width: 0;
@@ -517,6 +561,13 @@ button:active {
   position: absolute;
   background: rgba(76, 175, 80, 0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .game-container.compact .level-selector button,
+:root[data-theme="hc"] .game-container.compact .level-selector button {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
 }
 
 .game-container.compact .level-selector #prevLevel {
@@ -1276,6 +1327,21 @@ header.christmas h1::after {
   border-color: #b71c1c;
 }
 
+:root[data-theme="dark"] .shortcuts-modal .delete-data-btn,
+:root[data-theme="hc"] .shortcuts-modal .delete-data-btn {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #c62828;
+}
+
+:root[data-theme="dark"] .shortcuts-modal .delete-data-btn:hover,
+:root[data-theme="hc"] .shortcuts-modal .delete-data-btn:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+  border-left-color: #c62828;
+}
+
 .shortcuts-modal .about-link {
   display: block;
   margin-top: 12px;
@@ -1599,6 +1665,13 @@ dialog.switch-touch-entry-overlay::backdrop {
   cursor: pointer;
   font-family: inherit;
   touch-action: none;
+}
+
+:root[data-theme="dark"] .switch-touch-entry-cancel,
+:root[data-theme="hc"] .switch-touch-entry-cancel {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--border);
 }
 
 .switch-touch-entry-cancel:focus-visible {
@@ -2062,6 +2135,13 @@ body.touch-switch-active .blocklyToolboxDiv {
   pointer-events: none;
 }
 
+:root[data-theme="dark"] .level-banner,
+:root[data-theme="hc"] .level-banner {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
 .level-banner.active {
   transform: translate(-50%, -50%) scale(1);
   opacity: 1;
@@ -2221,6 +2301,21 @@ body.switch-scan-active dialog.result-modal {
   color: #1976d2;
 }
 
+/* Dark/HC: result-modal state titles + stage-intro name follow
+ * --on-surface so they're readable against the dark dialog surface.
+ * The 4px border-top state accent (green/grey/blue) stays as the
+ * state signal. */
+:root[data-theme="dark"] .result-modal.success .result-modal-title,
+:root[data-theme="hc"] .result-modal.success .result-modal-title,
+:root[data-theme="dark"] .result-modal.failure .result-modal-title,
+:root[data-theme="hc"] .result-modal.failure .result-modal-title,
+:root[data-theme="dark"] .result-modal.stage-intro .result-modal-title,
+:root[data-theme="hc"] .result-modal.stage-intro .result-modal-title,
+:root[data-theme="dark"] .stage-intro-name,
+:root[data-theme="hc"] .stage-intro-name {
+  color: var(--on-surface);
+}
+
 .result-modal.stage-intro .result-modal-message {
   white-space: pre-line;
 }
@@ -2259,6 +2354,21 @@ body.switch-scan-active dialog.result-modal {
   cursor: pointer;
   transition: background-color 0.15s ease;
   overflow: hidden;
+}
+
+:root[data-theme="dark"] .result-modal-ok,
+:root[data-theme="hc"] .result-modal-ok {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #2196f3;
+}
+
+:root[data-theme="dark"] .result-modal-ok:hover,
+:root[data-theme="hc"] .result-modal-ok:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+  border-left-color: var(--focus-ring);
 }
 
 .result-modal-ok .ok-text {
@@ -2328,6 +2438,21 @@ body.switch-scan-active dialog.result-modal {
   background: #424242;
 }
 
+:root[data-theme="dark"] .result-modal-cancel,
+:root[data-theme="hc"] .result-modal-cancel {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
+:root[data-theme="dark"] .result-modal-cancel:hover,
+:root[data-theme="hc"] .result-modal-cancel:hover,
+:root[data-theme="dark"] .result-modal-cancel:active,
+:root[data-theme="hc"] .result-modal-cancel:active {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
 /* Graduation modal buttons */
 .graduation-buttons {
   flex-direction: column;
@@ -2356,6 +2481,38 @@ body.switch-scan-active dialog.result-modal {
 
 .graduation-secondary:active {
   background: #424242;
+}
+
+:root[data-theme="dark"] .graduation-primary,
+:root[data-theme="hc"] .graduation-primary {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #4caf50;
+}
+
+:root[data-theme="dark"] .graduation-primary:hover,
+:root[data-theme="hc"] .graduation-primary:hover,
+:root[data-theme="dark"] .graduation-primary:active,
+:root[data-theme="hc"] .graduation-primary:active {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+  border-left-color: var(--focus-ring);
+}
+
+:root[data-theme="dark"] .graduation-secondary,
+:root[data-theme="hc"] .graduation-secondary {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
+:root[data-theme="dark"] .graduation-secondary:hover,
+:root[data-theme="hc"] .graduation-secondary:hover,
+:root[data-theme="dark"] .graduation-secondary:active,
+:root[data-theme="hc"] .graduation-secondary:active {
+  background: var(--surface);
+  border-color: var(--focus-ring);
 }
 
 /* ============================================================
@@ -2876,6 +3033,13 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   z-index: 10000;
   pointer-events: none;
+}
+
+:root[data-theme="dark"] .switch-scan-idle-chip,
+:root[data-theme="hc"] .switch-scan-idle-chip {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--border);
 }
 .switch-scan-action-menu,
 .switch-scan-dropdown-menu {
