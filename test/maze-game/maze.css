@@ -3104,30 +3104,44 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
   stroke-width: 2px !important;
 }
 
-/* Make the "selected block" indicator visually distinct from the
-   switch-scan amber focus ring. The keyboard-nav plugin paints
-   .blocklySelected with #ff6600 orange at 2px (our HC default stroke
-   width); at that scale the orange reads too similar to the yellow
-   ring. Push to magenta at 3px so a user can tell at a glance which
-   block is scan-focused vs which block is the committed selection. */
-:root[data-theme="hc"] .blocklySelected > .blocklyPath {
-  stroke: #ff00ff !important;
+/* Thicker orange stroke on the HC-themed committed-selection /
+   keyboard-focused block so the marker reads at HC weight. The
+   plugin paints the same #ff6600 but at 2px for `.blocklySelected`
+   and gates the `.blocklyActiveFocus` stroke on a
+   `.blocklyKeyboardNavigation` ancestor; re-stating the colour
+   here (gated only by the HC theme, not by the keyboard-nav class)
+   keeps the stroke on regardless of that gate, and bumps the width
+   to 3px for HC parity. */
+:root[data-theme="hc"] .blocklySelected > .blocklyPath,
+:root[data-theme="hc"] .blocklyActiveFocus.blocklyPath,
+:root[data-theme="hc"] .blocklyActiveFocus > .blocklyPath {
+  stroke: #ff6600 !important;
   stroke-width: 3px !important;
 }
 
-/* While switch-scan is active, the switch-scan ring is the primary
-   focus marker; Blockly's selection stroke on a previously-visited
-   block adds noise. Hide the selection stroke so users scanning
-   through the workspace see only the amber ring on their current
-   target. Block-insertion flows surface their own candidate-
-   connector highlighting (via the keyboard-nav plugin), so this
-   doesn't affect inserting from the toolbox.
+/* Zelos paints the committed selection with a second overlay path
+   (`.blocklyPathSelected`) that applies an SVG glow filter driven by
+   the theme's `selectedGlowColour`. Blockly's default glow colour is
+   goldenrod #fc3, and the HC theme's `selectedGlowOpacity: 0` isn't
+   honoured by the filter — so the glow drowns the orange stroke
+   above in a yellow halo. Kill the filter here so only the stroke
+   paints. */
+:root[data-theme="hc"] .blocklySelected > .blocklyPath.blocklyPathSelected {
+  filter: none !important;
+}
 
-   Second selector is a specificity-matched variant so this rule
-   outranks the HC magenta override above — otherwise the HC magenta
-   stroke paints through the hide. */
-body.switch-scan-active .blocklySelected > .blocklyPath,
-:root[data-theme="hc"] body.switch-scan-active .blocklySelected > .blocklyPath {
+/* While the switch-scan cursor is operating on a workspace block
+   (`blocks` sub-scan on the workspace, action menu, block Edit
+   dropdown, or move preview) the amber scan ring / dashed pinned
+   outline are the primary focus markers; Blockly's selection and
+   active-focus strokes on the same block would compete. Hide them
+   in those frames only — leave them visible while the scan is on
+   the toolbox / header / dom-item regions or the outer workspace
+   region, since the committed selection is what tells the user
+   WHERE a newly-inserted block will land. */
+body.switch-scan-on-workspace-block .blocklySelected > .blocklyPath,
+body.switch-scan-on-workspace-block .blocklyActiveFocus.blocklyPath,
+body.switch-scan-on-workspace-block .blocklyActiveFocus > .blocklyPath {
   stroke-opacity: 0 !important;
 }
 

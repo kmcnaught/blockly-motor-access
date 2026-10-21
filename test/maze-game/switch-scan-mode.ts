@@ -1351,6 +1351,7 @@ export class SwitchScanController {
     this.enabled = false;
 
     document.body.classList.remove('switch-scan-active');
+    document.body.classList.remove('switch-scan-on-workspace-block');
 
     // Unbind events.
     // Capture-phase flag must match `enable()` so removal cleans up
@@ -2012,8 +2013,25 @@ export class SwitchScanController {
       if (this.pinnedEl) this.pinnedEl.style.display = 'none';
       this.sentinelChip.style.display = 'none';
       if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
+      document.body.classList.remove('switch-scan-on-workspace-block');
       return;
     }
+
+    // Toggle the "scan is operating on a workspace block" marker so CSS
+    // can hide Blockly's committed-selection stroke (which would compete
+    // visually with the amber scan ring / dashed pinned outline). Kept
+    // visible for toolbox / header / dom-item scans and the outer
+    // workspace region frame — the user needs to see the insertion
+    // anchor while scanning elsewhere.
+    const onWorkspaceBlock =
+      (frame.kind === 'blocks' && frame.regionName === 'workspace') ||
+      frame.kind === 'action-menu' ||
+      (frame.kind === 'dropdown-values' && frame.block !== null) ||
+      frame.kind === 'move-candidates';
+    document.body.classList.toggle(
+      'switch-scan-on-workspace-block',
+      onWorkspaceBlock,
+    );
 
     // Auto-scan idle affordance — visible only when we're in auto mode
     // AND the timer hasn't started yet AND a run isn't underway. Hide
