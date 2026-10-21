@@ -463,6 +463,35 @@ button:active {
   transition: opacity 0.3s ease;
 }
 
+:root[data-theme="dark"] .level-selector,
+:root[data-theme="hc"] .level-selector {
+  background: var(--chrome-bg);
+}
+
+:root[data-theme="dark"] .level-selector button,
+:root[data-theme="hc"] .level-selector button {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
+:root[data-theme="dark"] .level-selector button:hover:not(:disabled),
+:root[data-theme="hc"] .level-selector button:hover:not(:disabled) {
+  border-color: var(--focus-ring);
+}
+
+:root[data-theme="dark"] .level-selector button:disabled,
+:root[data-theme="hc"] .level-selector button:disabled {
+  background: var(--chrome-bg);
+  color: var(--on-surface);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .level-selector span,
+:root[data-theme="hc"] .level-selector span {
+  color: var(--on-surface);
+}
+
 /* Compact mode: hide label and overlay buttons on canvas */
 .game-container.compact .level-selector {
   position: absolute;
