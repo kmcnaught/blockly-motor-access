@@ -3197,3 +3197,25 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
 :root[data-theme="hc"] .blocklyPath {
   stroke-width: 2px !important;
 }
+
+/* Make the "selected block" indicator visually distinct from the
+   switch-scan amber focus ring. The keyboard-nav plugin paints
+   .blocklySelected with #ff6600 orange at 2px (our HC default stroke
+   width); at that scale the orange reads too similar to the yellow
+   ring. Push to magenta at 3px so a user can tell at a glance which
+   block is scan-focused vs which block is the committed selection. */
+:root[data-theme="hc"] .blocklySelected > .blocklyPath {
+  stroke: #ff00ff !important;
+  stroke-width: 3px !important;
+}
+
+/* While switch-scan is active, the switch-scan ring is the primary
+   focus marker; Blockly's selection stroke on a previously-visited
+   block adds noise. Hide the selection stroke so users scanning
+   through the workspace see only the amber ring on their current
+   target. Block-insertion flows surface their own candidate-
+   connector highlighting (via the keyboard-nav plugin), so this
+   doesn't affect inserting from the toolbox. */
+body.switch-scan-active .blocklySelected > .blocklyPath {
+  stroke-opacity: 0 !important;
+}
