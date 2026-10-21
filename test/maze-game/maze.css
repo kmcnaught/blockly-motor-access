@@ -579,6 +579,18 @@ button:active {
   gap: 8px;
 }
 
+/* Grid-mode-only header controls. The theme dropdown lives here
+ * because the unified settings modal (which hosts the Appearance
+ * picker in normal mode) is hidden in grid mode along with the cog
+ * button — users driving via a Grid 3 gridset need a direct handle. */
+.grid-mode-only {
+  display: none;
+}
+body.grid-mode .grid-mode-only,
+body.grid-coding-mode .grid-mode-only {
+  display: flex;
+}
+
 .selector-group select {
   padding: 8px 14px;
   font-size: 14px;

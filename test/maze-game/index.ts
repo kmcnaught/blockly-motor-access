@@ -2465,9 +2465,17 @@ shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 const themeRadios = document.querySelectorAll<HTMLInputElement>(
   'input[name="theme"]',
 );
-for (const radio of Array.from(themeRadios)) {
-  radio.checked = radio.value === currentThemeSetting;
+const themeSelect = document.getElementById(
+  'themeSelect',
+) as HTMLSelectElement | null;
+
+function syncThemeControls(setting: ThemeSetting): void {
+  for (const radio of Array.from(themeRadios)) {
+    radio.checked = radio.value === setting;
+  }
+  if (themeSelect) themeSelect.value = setting;
 }
+syncThemeControls(currentThemeSetting);
 
 // Track the effective theme that's currently painted so OS-preference
 // changes that don't actually move the needle (e.g. a dark-mode flip
@@ -2483,14 +2491,21 @@ function updateEffectiveTheme(next: EffectiveTheme): void {
   workspace.setTheme(pickBlocklyTheme(next));
 }
 
+function setThemeSetting(setting: ThemeSetting): void {
+  currentThemeSetting = setting;
+  persistThemeSetting(setting);
+  syncThemeControls(setting);
+  updateEffectiveTheme(resolveEffectiveTheme(setting));
+}
+
 for (const radio of Array.from(themeRadios)) {
   radio.addEventListener('change', () => {
-    if (!radio.checked) return;
-    currentThemeSetting = radio.value as ThemeSetting;
-    persistThemeSetting(currentThemeSetting);
-    updateEffectiveTheme(resolveEffectiveTheme(currentThemeSetting));
+    if (radio.checked) setThemeSetting(radio.value as ThemeSetting);
   });
 }
+themeSelect?.addEventListener('change', () => {
+  setThemeSetting(themeSelect.value as ThemeSetting);
+});
 installThemeListeners(() => currentThemeSetting, updateEffectiveTheme);
 
 // ========== BLOCK MOVEMENT MODE DROPDOWN ==========
@@ -3189,6 +3204,32 @@ function buildHeaderDropdownSources(): Record<string, HeaderDropdownSource> {
       commit: (value) => {
         const select = document.getElementById(
           'stageDropdown',
+        ) as HTMLSelectElement | null;
+        if (!select) return;
+        select.value = value;
+        select.dispatchEvent(new Event('change'));
+      },
+    },
+    // Theme picker surfaced in grid mode where the settings cog is
+    // hidden. Mouse / mirrored commit flow: set the <select>'s value
+    // and fire a native change so the handler at the theme wiring
+    // above runs (persists mazeTheme, re-paints effective theme).
+    theme: {
+      getOptions: () => {
+        const select = document.getElementById(
+          'themeSelect',
+        ) as HTMLSelectElement | null;
+        if (!select) return [];
+        const opts: Array<[string, string]> = [];
+        for (const opt of Array.from(select.options)) {
+          const label = opt.textContent?.trim() || opt.value;
+          opts.push([label, opt.value]);
+        }
+        return opts;
+      },
+      commit: (value) => {
+        const select = document.getElementById(
+          'themeSelect',
         ) as HTMLSelectElement | null;
         if (!select) return;
         select.value = value;
