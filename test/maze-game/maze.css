@@ -680,7 +680,9 @@ button:active {
 }
 
 :root[data-theme="dark"] #pegmanButton:hover,
-:root[data-theme="hc"] #pegmanButton:hover {
+:root[data-theme="hc"] #pegmanButton:hover,
+:root[data-theme="dark"] #pegmanButton.buttonHover,
+:root[data-theme="hc"] #pegmanButton.buttonHover {
   background: var(--surface);
   border-color: var(--focus-ring);
 }
