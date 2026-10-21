@@ -3215,8 +3215,13 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
    through the workspace see only the amber ring on their current
    target. Block-insertion flows surface their own candidate-
    connector highlighting (via the keyboard-nav plugin), so this
-   doesn't affect inserting from the toolbox. */
-body.switch-scan-active .blocklySelected > .blocklyPath {
+   doesn't affect inserting from the toolbox.
+
+   Second selector is a specificity-matched variant so this rule
+   outranks the HC magenta override above — otherwise the HC magenta
+   stroke paints through the hide. */
+body.switch-scan-active .blocklySelected > .blocklyPath,
+:root[data-theme="hc"] body.switch-scan-active .blocklySelected > .blocklyPath {
   stroke-opacity: 0 !important;
 }
 
