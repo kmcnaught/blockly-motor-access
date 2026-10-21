@@ -6,7 +6,7 @@
 
 /**
  * @fileoverview Layout pipeline: panel sizing, page zoom, compact mode,
- * collapsible sidebar, and ResizeObserver wiring.
+ * and ResizeObserver wiring.
  */
 
 import * as Blockly from 'blockly/core';
@@ -165,43 +165,6 @@ function checkCompactMode() {
   }
 }
 
-// ========== COLLAPSIBLE SIDEBAR ==========
-
-let sidebarCollapsed = false;
-
-/**
- * Collapse the sidebar (game panel).
- */
-function collapseSidebar() {
-  if (!mainContainer) return;
-  mainContainer.classList.add('sidebar-collapsed');
-  sidebarCollapsed = true;
-  // Trigger layout after CSS transition completes
-  setTimeout(() => scheduleLayout(), 400);
-}
-
-/**
- * Expand the sidebar (game panel).
- */
-function expandSidebar() {
-  if (!mainContainer) return;
-  mainContainer.classList.remove('sidebar-collapsed');
-  sidebarCollapsed = false;
-  // Schedule layout after CSS transition completes
-  setTimeout(() => scheduleLayout(), 400);
-}
-
-/**
- * Toggle the sidebar collapsed state.
- */
-export function toggleSidebar() {
-  if (sidebarCollapsed) {
-    expandSidebar();
-  } else {
-    collapseSidebar();
-  }
-}
-
 // ========== LAYOUT PIPELINE ==========
 // scheduleLayout/doLayout coalesce all layout work (panel reflow, Blockly SVG
 // resize, narrow-class toggle, grid min-height) into a single rAF per frame.
@@ -332,7 +295,7 @@ function applyPanelWidths(): void {
 
   const canvasWrapper = gameContainer.querySelector('.canvas-wrapper') as HTMLElement | null;
 
-  if (d.isGridMode || sidebarCollapsed) {
+  if (d.isGridMode) {
     // Clear explicit widths/heights; CSS handles these modes
     blocklyContainer.style.flex = '';
     blocklyContainer.style.width = '';
@@ -574,10 +537,6 @@ export function initLayout(deps: LayoutDeps): void {
   window.addEventListener('resize', enforceFitZoom);
   window.addEventListener('resize', checkCompactMode);
   window.addEventListener('resize', checkGridModeLevelVisibility);
-
-  // Wire sidebar toggle
-  const sidebarToggle = document.getElementById('sidebarToggle');
-  sidebarToggle?.addEventListener('click', toggleSidebar);
 
   // Wire zoom buttons
   document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
