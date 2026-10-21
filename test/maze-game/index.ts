@@ -26,7 +26,7 @@ import {javascriptGenerator} from 'blockly/javascript';
 import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
-import {registerMazeBlocks, setCurrentSkin} from './blocks';
+import {registerMazeBlocks, refreshForwardIcons, setCurrentSkin} from './blocks';
 import {themeFor} from './themes';
 import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
@@ -2489,6 +2489,10 @@ function updateEffectiveTheme(next: EffectiveTheme): void {
   currentEffectiveTheme = next;
   applyTheme(next);
   workspace.setTheme(pickBlocklyTheme(next));
+  // The move-forward block icon has a dark HC variant (white silhouette
+  // vanishes against the white HC block body). Re-apply so a theme flip
+  // without a skin change still swaps the icon.
+  refreshForwardIcons(workspace);
 }
 
 function setThemeSetting(setting: ThemeSetting): void {

@@ -52,44 +52,57 @@ let currentSkinId = 0;
 export function setCurrentSkin(skinId: number, workspace?: Blockly.Workspace) {
   currentSkinId = skinId;
   if (workspace) {
-    const newSrc =
-      WHEELCHAIR_SKIN_IDS.has(skinId)
-        ? 'assets/wheel_forward.svg'
-        : 'assets/steps.svg';
+    applyForwardIconToWorkspace(workspace);
+  }
+}
 
-    // Update all moveForward blocks on the workspace
-    const blocks = workspace.getBlocksByType('maze_moveForward', false);
-    blocks.forEach((block) => {
+/**
+ * Re-apply the current forward icon to all `maze_moveForward` blocks
+ * (both workspace and flyout). Call this after a theme change — the
+ * icon source depends on both skin and effective theme, so flipping
+ * themes without touching the skin still needs an icon refresh.
+ */
+export function refreshForwardIcons(workspace: Blockly.Workspace) {
+  applyForwardIconToWorkspace(workspace);
+}
+
+function applyForwardIconToWorkspace(workspace: Blockly.Workspace) {
+  const newSrc = getForwardIconSrc();
+
+  const blocks = workspace.getBlocksByType('maze_moveForward', false);
+  blocks.forEach((block) => {
+    const imageField = block.getField('ICON') as Blockly.FieldImage;
+    if (imageField) {
+      imageField.setValue(newSrc);
+    }
+  });
+
+  // Also update blocks in the toolbox flyout.
+  const svgWorkspace = workspace as Blockly.WorkspaceSvg;
+  const flyout = svgWorkspace.getFlyout() || svgWorkspace.getToolbox()?.getFlyout();
+  if (flyout) {
+    const flyoutWorkspace = flyout.getWorkspace();
+    const flyoutBlocks = flyoutWorkspace.getBlocksByType('maze_moveForward', false);
+    flyoutBlocks.forEach((block) => {
       const imageField = block.getField('ICON') as Blockly.FieldImage;
       if (imageField) {
         imageField.setValue(newSrc);
       }
     });
-
-    // Also update blocks in the toolbox flyout
-    const svgWorkspace = workspace as Blockly.WorkspaceSvg;
-    // Try both: simple flyout (getFlyout on workspace) and category flyout (via toolbox)
-    const flyout = svgWorkspace.getFlyout() || svgWorkspace.getToolbox()?.getFlyout();
-    if (flyout) {
-      const flyoutWorkspace = flyout.getWorkspace();
-      const flyoutBlocks = flyoutWorkspace.getBlocksByType('maze_moveForward', false);
-      flyoutBlocks.forEach((block) => {
-        const imageField = block.getField('ICON') as Blockly.FieldImage;
-        if (imageField) {
-          imageField.setValue(newSrc);
-        }
-      });
-    }
   }
 }
 
 /**
- * Get the appropriate forward icon based on current skin.
+ * Get the appropriate forward icon based on current skin AND effective
+ * page theme. In HC the block body is white, so the standard white
+ * silhouette would vanish; use a dark variant of the same asset.
  */
 function getForwardIconSrc(): string {
-  return WHEELCHAIR_SKIN_IDS.has(currentSkinId)
-    ? 'assets/wheel_forward.svg'
-    : 'assets/steps.svg';
+  const isHc = document.documentElement.dataset.theme === 'hc';
+  const wheelchair = WHEELCHAIR_SKIN_IDS.has(currentSkinId);
+  const base = wheelchair ? 'wheel_forward' : 'steps';
+  const suffix = isHc ? '_hc' : '';
+  return `assets/${base}${suffix}.svg`;
 }
 
 /**
