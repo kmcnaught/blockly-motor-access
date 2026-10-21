@@ -229,6 +229,21 @@ h1 {
   transform: translateY(1px);
 }
 
+:root[data-theme="dark"] .clear-workspace-btn,
+:root[data-theme="hc"] .clear-workspace-btn {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
+:root[data-theme="dark"] .clear-workspace-btn:hover,
+:root[data-theme="hc"] .clear-workspace-btn:hover,
+:root[data-theme="dark"] .clear-workspace-btn:active,
+:root[data-theme="hc"] .clear-workspace-btn:active {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+}
+
 /* Hide buttons when blockly is hidden (immediate mode) */
 #blocklyDiv.hidden ~ .workspace-btns {
   display: none;
@@ -1748,6 +1763,21 @@ dialog.switch-touch-refresh-prompt::backdrop {
 .switch-touch-refresh-reload {
   background: #1976d2;
   color: #fff;
+}
+
+:root[data-theme="dark"] .switch-touch-refresh-reload,
+:root[data-theme="hc"] .switch-touch-refresh-reload {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid #1976d2;
+}
+
+:root[data-theme="dark"] .switch-touch-refresh-reload:hover,
+:root[data-theme="hc"] .switch-touch-refresh-reload:hover {
+  background: var(--surface);
+  border-color: var(--focus-ring);
+  border-left-color: #1976d2;
 }
 
 /* Body class applied while touch-switch mode is active. Disables
