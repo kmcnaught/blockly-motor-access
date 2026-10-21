@@ -1227,33 +1227,6 @@ header.christmas h1::after {
   margin: 0 0 10px 0;
 }
 
-.setting-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  text-align: left;
-}
-
-.setting-item:hover {
-  background-color: #f5f5f5;
-}
-
-.setting-item input[type="checkbox"] {
-  cursor: pointer;
-  width: 18px;
-  height: 18px;
-}
-
-.setting-item span {
-  font-size: 1em;
-  color: #333;
-  user-select: none;
-}
-
 /* Unified settings modal — give it room for the expanded switch-access
    panel without overflowing on smaller viewports. */
 .shortcuts-modal {
@@ -1381,6 +1354,11 @@ body.grid-coding-mode .switch-access-section {
   color: #1976d2;
   list-style: revert; /* keep the default disclosure triangle */
   padding: 4px 0;
+}
+
+:root[data-theme="dark"] .shortcuts-disclosure-summary,
+:root[data-theme="hc"] .shortcuts-disclosure-summary {
+  color: var(--on-surface);
 }
 
 .shortcuts-disclosure-summary:hover {
@@ -1528,6 +1506,14 @@ body.grid-coding-mode .switch-access-section {
   outline-offset: 1px;
 }
 
+:root[data-theme="dark"] .switch-settings-capture.switch-settings-capturing,
+:root[data-theme="hc"] .switch-settings-capture.switch-settings-capturing {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-color: var(--focus-ring);
+  outline-color: var(--focus-ring);
+}
+
 /* Transient validation error below a capture row. Empty (no text)
    by default so the layout doesn't jump when there's nothing to say. */
 .switch-settings-error {
@@ -1645,11 +1631,11 @@ dialog.switch-touch-entry-overlay::backdrop {
 dialog.switch-touch-refresh-prompt {
   max-width: min(90vw, 420px);
   padding: 20px 24px;
-  border: 1px solid #bdbdbd;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  color: #212121;
+  color: var(--on-surface);
 }
 
 dialog.switch-touch-refresh-prompt::backdrop {
@@ -1666,7 +1652,7 @@ dialog.switch-touch-refresh-prompt::backdrop {
   margin: 0 0 16px;
   font-size: 14px;
   line-height: 1.4;
-  color: #424242;
+  color: var(--on-surface);
 }
 
 .switch-touch-refresh-buttons {
@@ -1681,8 +1667,9 @@ dialog.switch-touch-refresh-prompt::backdrop {
 }
 
 .switch-touch-refresh-ok {
-  background: #e0e0e0;
-  color: #212121;
+  background: var(--chrome-bg);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
 }
 
 .switch-touch-refresh-reload {
@@ -1744,11 +1731,28 @@ body.touch-switch-active .blocklyToolboxDiv {
   background: #d0d0d0;
 }
 
+:root[data-theme="dark"] .sidebar-toggle,
+:root[data-theme="hc"] .sidebar-toggle {
+  background: var(--surface);
+  border-left-color: var(--border);
+  border-right-color: var(--border);
+}
+
+:root[data-theme="dark"] .sidebar-toggle:hover,
+:root[data-theme="hc"] .sidebar-toggle:hover {
+  background: var(--chrome-bg);
+}
+
 .sidebar-toggle .toggle-icon {
   font-size: 18px;
   font-weight: bold;
   color: #666;
   transition: transform 0.3s ease;
+}
+
+:root[data-theme="dark"] .sidebar-toggle .toggle-icon,
+:root[data-theme="hc"] .sidebar-toggle .toggle-icon {
+  color: var(--on-surface);
 }
 
 /* Collapsed state */
@@ -2408,6 +2412,13 @@ body.grid-mode .game-container {
   margin-bottom: 8px;
 }
 
+:root[data-theme="dark"] .grid-mode-level,
+:root[data-theme="hc"] .grid-mode-level {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
 .grid-mode-level.hidden {
   display: none;
 }
@@ -2422,6 +2433,13 @@ body.grid-mode .game-container {
   background: #e3f2fd;
   border-radius: 8px;
   margin-top: 16px;
+}
+
+:root[data-theme="dark"] .grid-mode-instruction-count,
+:root[data-theme="hc"] .grid-mode-instruction-count {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
 }
 
 .grid-mode-instruction-count.hidden {
@@ -2460,7 +2478,7 @@ body.grid-mode .container.sidebar-collapsed .game-container {
 body.grid-mode {
   height: 100vh;
   overflow: hidden;
-  background: white;
+  background: var(--chrome-bg);
 }
 
 /* Canvas size is set dynamically by JS (getCanvasSize); no CSS constraints needed. */
@@ -2499,7 +2517,7 @@ body.grid-coding-mode .blocklyFlyout {
 body.grid-coding-mode {
   height: 100vh;
   overflow: hidden;
-  background: white;
+  background: var(--chrome-bg);
 }
 
 /* Container layout for grid coding mode - side by side */
@@ -2564,6 +2582,13 @@ body.grid-coding-mode .game-container {
   border-radius: 6px;
 }
 
+:root[data-theme="dark"] .grid-coding-level,
+:root[data-theme="hc"] .grid-coding-level {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+}
+
 .grid-coding-level.hidden {
   display: none;
 }
@@ -2597,6 +2622,13 @@ body.grid-coding-mode .game-container.compact {
   padding: 12px 32px;
   background: #f3e5f5;
   border-radius: 8px;
+}
+
+:root[data-theme="dark"] .grid-coding-block-count,
+:root[data-theme="hc"] .grid-coding-block-count {
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
 }
 
 /* Canvas wrapper in grid coding mode - height determines width via aspect-ratio */
