@@ -28,19 +28,12 @@ const RIGHT_TURN = ' ↻';
 const MOVE_FORWARD = ' ↑';
 
 /**
- * Common HSV hue for all movement blocks.
+ * Block style names. Actual colours live in themes.ts; swap themes at
+ * runtime via workspace.setTheme(...).
  */
-const MOVEMENT_HUE = 290;
-
-/**
- * HSV hue for loop block.
- */
-const LOOPS_HUE = 120;
-
-/**
- * Common HSV hue for all logic blocks.
- */
-const LOGIC_HUE = 210;
+const MOVEMENT_STYLE = 'movement_blocks';
+const LOOPS_STYLE = 'loop_blocks';
+const LOGIC_STYLE = 'logic_blocks';
 
 /**
  * Skin ID for wheelchair character.
@@ -160,7 +153,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: MOVEMENT_HUE,
+      style: MOVEMENT_STYLE,
       tooltip: '%{BKY_MAZE_MOVE_FORWARD_TOOLTIP}',
       extensions: ['maze_forward_icon_init'],
     },
@@ -178,7 +171,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: MOVEMENT_HUE,
+      style: MOVEMENT_STYLE,
       tooltip: '%{BKY_MAZE_TURN_TOOLTIP}',
     },
 
@@ -202,7 +195,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: LOGIC_HUE,
+      style: LOGIC_STYLE,
       tooltip: '%{BKY_MAZE_IF_TOOLTIP}',
     },
 
@@ -230,7 +223,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: LOGIC_HUE,
+      style: LOGIC_STYLE,
       tooltip: '%{BKY_MAZE_IFELSE_TOOLTIP}',
     },
 
@@ -254,7 +247,7 @@ export function registerMazeBlocks() {
         },
       ],
       previousStatement: null,
-      colour: LOOPS_HUE,
+      style: LOOPS_STYLE,
       tooltip: '%{BKY_MAZE_WHILE_TOOLTIP}',
     },
 
@@ -278,7 +271,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: LOOPS_HUE,
+      style: LOOPS_STYLE,
       tooltip: '%{BKY_MAZE_REPEAT_TIMES_TOOLTIP}',
     },
 
@@ -302,7 +295,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: LOGIC_HUE,
+      style: LOGIC_STYLE,
       tooltip: '%{BKY_MAZE_IF_COLOR_TOOLTIP}',
     },
 
@@ -330,7 +323,7 @@ export function registerMazeBlocks() {
       ],
       previousStatement: null,
       nextStatement: null,
-      colour: LOGIC_HUE,
+      style: LOGIC_STYLE,
       tooltip: '%{BKY_MAZE_IF_COLOR_ELSE_TOOLTIP}',
     },
   ]);

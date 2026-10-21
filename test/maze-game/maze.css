@@ -2589,3 +2589,43 @@ body.switch-scan-active .blocklyWorkspaceFocusRing {
     drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
   vertical-align: middle;
 }
+
+/* High-contrast block theme.
+   Block body: white fill (from highContrastTheme) with dark label text.
+   Dropdown/editable field pills: dark fill with white text, so they read
+   as clearly interactive chips against the white block body. The existing
+   white dropdown chevron is already readable on a dark pill, no override
+   needed. */
+
+/* Default: all SVG text in HC mode is dark (block labels like "move
+   forward" / "if there is a path"). Both the <text> and inner <tspan>
+   nodes need the override because zelos sets inline fill on tspans. */
+body.theme-hc .blocklyText,
+body.theme-hc .blocklyText tspan {
+  fill: #111 !important;
+}
+
+/* Exception: text inside an editable field (dropdowns, text inputs) sits
+   on top of the dark pill below, so it needs to be white. The nested
+   tspan selector catches zelos's inline-filled glyphs (e.g. the ↺/↻
+   suffixes on the turn-direction dropdown). */
+body.theme-hc .blocklyEditableField .blocklyText,
+body.theme-hc .blocklyEditableField .blocklyText tspan,
+body.theme-hc .blocklyDropdownText {
+  fill: #ffffff !important;
+}
+
+/* The pill itself. Zelos paints this using the block's secondary/tertiary
+   theme colour; override to a dark fill with a crisp black outline. */
+body.theme-hc .blocklyDropdownRect,
+body.theme-hc .blocklyFieldRect {
+  fill: #2a2a2a !important;
+  stroke: #000 !important;
+}
+
+/* Thicker outlines for the block bodies themselves. Zelos's default
+   stroke-width is 1px; doubling it makes block edges much easier to
+   track visually, which is the whole point of HC mode. */
+body.theme-hc .blocklyPath {
+  stroke-width: 2px !important;
+}

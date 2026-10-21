@@ -27,6 +27,7 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
+import {themeFor, type ThemeId} from './themes';
 import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
 import {loadMessages, getBrowserLocale, msg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
@@ -617,9 +618,16 @@ function getInitialLevel(): number {
 const initialLevel = getInitialLevel();
 const initialMaxBlocks = getMaxBlocksForLevel(initialLevel - 1, currentExecutionMode === 'practice');
 
+const savedThemeId: ThemeId =
+  localStorage.getItem('mazeBlockTheme') === 'high-contrast' ? 'high-contrast' : 'default';
+if (savedThemeId === 'high-contrast') {
+  document.body.classList.add('theme-hc');
+}
+
 // Initialize Blockly workspace with level-specific configuration
 const workspace = Blockly.inject('blocklyDiv', {
   renderer: 'zelos',
+  theme: themeFor(savedThemeId),
   toolbox: getToolboxForLevel(initialLevel),
   trashcan: false,
   maxBlocks: initialMaxBlocks === Infinity ? undefined : initialMaxBlocks,
@@ -2440,6 +2448,18 @@ highlightSizeSelect.addEventListener('change', () => {
   const size = highlightSizeSelect.value as HighlightSize;
   localStorage.setItem('mazeHighlightSize', size);
   keyboardNavigation.setConnectionSize(size);
+});
+
+// ========== HIGH CONTRAST BLOCK THEME ==========
+
+const highContrastCheckbox = document.querySelector<HTMLInputElement>('#highContrastCheckbox')!;
+highContrastCheckbox.checked = savedThemeId === 'high-contrast';
+
+highContrastCheckbox.addEventListener('change', () => {
+  const id: ThemeId = highContrastCheckbox.checked ? 'high-contrast' : 'default';
+  localStorage.setItem('mazeBlockTheme', id);
+  document.body.classList.toggle('theme-hc', id === 'high-contrast');
+  workspace.setTheme(themeFor(id));
 });
 
 // ========== CONFIRMATION MODAL ==========
