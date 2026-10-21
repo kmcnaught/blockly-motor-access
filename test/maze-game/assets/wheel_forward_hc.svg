@@ -5,6 +5,7 @@
   <path d="M14 36 Q8 24 14 12" stroke="#111111" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
   <!-- Solid wheel -->
   <circle cx="30" cy="24" r="14" fill="#111111"/>
-  <!-- Hub uses block color via currentColor -->
-  <circle cx="30" cy="24" r="5" fill="#a855a8"/>
+  <!-- Hub is white so it reads as an opening at the centre of the dark
+       wheel against the white HC block body. -->
+  <circle cx="30" cy="24" r="5" fill="#ffffff"/>
 </svg>

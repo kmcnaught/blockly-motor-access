@@ -90,8 +90,10 @@ export const highContrastTheme = Blockly.Theme.defineTheme('maze-high-contrast',
     flyoutForegroundColour: '#ffffff',
     flyoutOpacity: 1,
     // Muted grey scrollbar — the workspace rarely needs scrolling, so a
-    // high-saturation yellow bar was distracting without benefit.
-    scrollbarColour: '#555555',
+    // high-saturation yellow bar was distracting without benefit. #595959
+    // is the minimum grey that clears WCAG 3:1 contrast against the
+    // black workspace bg for non-text UI (3.00:1).
+    scrollbarColour: '#595959',
     scrollbarOpacity: 1.0,
     insertionMarkerColour: '#ffff00',
     insertionMarkerOpacity: 0.9,
