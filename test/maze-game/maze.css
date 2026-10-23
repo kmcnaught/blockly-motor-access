@@ -398,14 +398,14 @@ button:active {
 }
 
 /* Consistent focus indicator: gap + colored outer ring.
-   Uses --element-color if set (auto-matches button color), else --focus-accent, else white.
+   Uses --focus-accent if set, else --element-color (auto-matches button color), else --focus-ring (amber).
    Set --element-color on colored elements, or --focus-accent to override just the focus ring. */
 :focus {
   outline: none;
 }
 
 :focus-visible {
-  outline: 3px solid var(--focus-accent, var(--element-color, white));
+  outline: 3px solid var(--focus-accent, var(--element-color, var(--focus-ring)));
   outline-offset: 2px;
 }
 
