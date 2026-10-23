@@ -12,18 +12,18 @@
     <div id="leftPadding" class="screen-padding left-padding"></div>
     <div class="main-content-wrapper">
     <header role="region" aria-label="Header" data-scan-region="header">
-      <div class="zoom-controls" aria-label="Page zoom">
-        <button id="zoomOutBtn" class="icon-button" title="Zoom out" aria-label="Zoom out" data-scan-item>−</button>
+      <div class="zoom-controls" aria-label="Page zoom" data-msg-aria-label="MAZE_ZOOM_PANEL">
+        <button id="zoomOutBtn" class="icon-button" title="Zoom out" aria-label="Zoom out" data-msg-title="MAZE_ZOOM_OUT" data-msg-aria-label="MAZE_ZOOM_OUT" data-scan-item>−</button>
         <span id="zoomLabel" class="zoom-label">100%</span>
-        <button id="zoomInBtn" class="icon-button" title="Zoom in" aria-label="Zoom in" data-scan-item>+</button>
+        <button id="zoomInBtn" class="icon-button" title="Zoom in" aria-label="Zoom in" data-msg-title="MAZE_ZOOM_IN" data-msg-aria-label="MAZE_ZOOM_IN" data-scan-item>+</button>
       </div>
-      <h1>Maze</h1>
+      <h1 data-msg="MAZE_TITLE">Maze</h1>
       <div class="header-center">
-        <span id="modeLabel" class="mode-label">Coding</span>
+        <span id="modeLabel" class="mode-label" data-msg="MAZE_MODE_CODING">Coding</span>
       </div>
       <div class="header-selectors">
-        <button id="modeToggle" class="mode-toggle coding" aria-label="Toggle execution mode" data-scan-item>
-          <span id="modeAction" class="mode-action">Switch to Practice</span>
+        <button id="modeToggle" class="mode-toggle coding" aria-label="Toggle execution mode" data-msg-aria-label="MAZE_MODE_TOGGLE" data-scan-item>
+          <span id="modeAction" class="mode-action" data-msg="MAZE_SWITCH_TO_PRACTICE">Switch to Practice</span>
         </button>
         <div class="selector-group grid-mode-only">
           <select id="themeSelect" data-scan-item data-scan-dropdown-source="theme" aria-label="Appearance">
@@ -36,7 +36,7 @@
         <div class="selector-group">
           <button id="pegmanButton" data-scan-item data-scan-dropdown-source="character"><img src="assets/pegman.png"><span>▼</span></button>
         </div>
-        <button id="muteButton" class="mute-button" aria-label="Mute sound" aria-pressed="false" data-scan-item>
+        <button id="muteButton" class="mute-button" aria-label="Mute sound" aria-pressed="false" data-msg-aria-label="MAZE_MUTE" data-scan-item>
           <span class="mute-icon sound-on">&#128266;</span>
           <span class="mute-icon sound-off">&#128263;</span>
         </button>
@@ -44,6 +44,7 @@
           <select id="languageSelect" data-scan-item data-scan-dropdown-source="language" aria-label="Language">
             <option value="en">English</option>
             <option value="fr">Français</option>
+            <option value="es">Español</option>
           </select>
         </div>
       </div>
@@ -53,59 +54,59 @@
       <div class="instruction-content"><span id="levelInstruction"></span><span id="contextualHint"></span></div>
       <div class="stage-selector" id="stageSelector">
         <label for="stageDropdown" id="stageLabel">Stage:</label>
-        <select id="stageDropdown" data-scan-item data-scan-dropdown-source="stage" aria-label="Select stage">
+        <select id="stageDropdown" data-scan-item data-scan-dropdown-source="stage" aria-label="Select stage" data-msg-aria-label="MAZE_STAGE_SELECT">
           <!-- Options populated dynamically by JavaScript -->
         </select>
       </div>
-      <button id="settingsBtn" class="settings-btn" aria-label="Open settings" title="Settings" data-scan-item>&#9881;</button>
+      <button id="settingsBtn" class="settings-btn" aria-label="Open settings" title="Settings" data-msg-aria-label="MAZE_SETTINGS" data-msg-title="MAZE_SETTINGS" data-scan-item>&#9881;</button>
     </div>
 
     <div class="container">
       <div class="blockly-container">
         <div id="blocklyDiv"></div>
         <div class="workspace-btns" data-scan-region="workspace-actions">
-          <button id="deleteBlockBtn" class="clear-workspace-btn" data-scan-item>Delete block</button>
-          <button id="clearWorkspaceBtn" class="clear-workspace-btn" data-scan-item>Delete all</button>
+          <button id="deleteBlockBtn" class="clear-workspace-btn" data-msg="MAZE_DELETE_BLOCK" data-scan-item>Delete block</button>
+          <button id="clearWorkspaceBtn" class="clear-workspace-btn" data-msg="MAZE_CLEAR_WORKSPACE" data-scan-item>Delete all</button>
         </div>
 
         <!-- Immediate Mode Panel (for levels 1-2) -->
         <div id="immediateModePanel" class="immediate-mode-panel hidden" role="region" aria-label="Practice controls" data-scan-region="practice-controls">
           <div class="immediate-hint"><span id="immediateHint"></span><img id="immediateMarker" class="immediate-marker" alt="goal" /></div>
           <div class="command-buttons">
-            <button id="cmdForward" class="command-btn" aria-label="Move Forward" data-scan-item>
+            <button id="cmdForward" class="command-btn" aria-label="Move Forward" data-msg-aria-label="MAZE_PRACTICE_FORWARD" data-scan-item>
               <span class="cmd-label" data-msg="MAZE_PRACTICE_FORWARD">Move Forward</span>
               <span class="cmd-icon cmd-icon-steps" aria-hidden="true"></span>
             </button>
-            <button id="cmdTurnLeft" class="command-btn" aria-label="Turn Left" data-scan-item>
+            <button id="cmdTurnLeft" class="command-btn" aria-label="Turn Left" data-msg-aria-label="MAZE_PRACTICE_TURN_LEFT" data-scan-item>
               <span class="cmd-label" data-msg="MAZE_PRACTICE_TURN_LEFT">Turn Left</span>
               <span class="cmd-icon cmd-icon-turn-left" aria-hidden="true"></span>
             </button>
-            <button id="cmdTurnRight" class="command-btn" aria-label="Turn Right" data-scan-item>
+            <button id="cmdTurnRight" class="command-btn" aria-label="Turn Right" data-msg-aria-label="MAZE_PRACTICE_TURN_RIGHT" data-scan-item>
               <span class="cmd-label" data-msg="MAZE_PRACTICE_TURN_RIGHT">Turn Right</span>
               <span class="cmd-icon cmd-icon-turn-right" aria-hidden="true"></span>
             </button>
           </div>
           <div class="immediate-keyboard-hint">
-            <span><kbd>↑</kbd> forward</span>
-            <span><kbd>←</kbd> turn left</span>
-            <span><kbd>→</kbd> turn right</span>
-            <span><kbd>R</kbd> reset</span>
+            <span><kbd>↑</kbd> <span data-msg="MAZE_KEYHINT_FORWARD">forward</span></span>
+            <span><kbd>←</kbd> <span data-msg="MAZE_KEYHINT_TURN_LEFT">turn left</span></span>
+            <span><kbd>→</kbd> <span data-msg="MAZE_KEYHINT_TURN_RIGHT">turn right</span></span>
+            <span><kbd>R</kbd> <span data-msg="MAZE_KEYHINT_RESET">reset</span></span>
           </div>
         </div>
       </div>
 
       <div class="game-container" role="region" aria-label="Maze actions" data-scan-region="maze-actions">
         <div class="level-selector">
-          <button id="prevLevel" data-scan-item>&lt; Back</button>
+          <button id="prevLevel" data-msg="MAZE_PREV_LEVEL" data-scan-item>&lt; Back</button>
           <span id="levelDisplay">Level 1</span>
-          <button id="nextLevel" data-scan-item>Next &gt;</button>
+          <button id="nextLevel" data-msg="MAZE_NEXT_LEVEL" data-scan-item>Next &gt;</button>
         </div>
 
         <!-- Grid Mode Level Label (shown above maze in Grid mode) -->
-        <div id="gridModeLevel" class="grid-mode-level hidden">Level 1</div>
+        <div id="gridModeLevel" class="grid-mode-level hidden"></div>
 
         <!-- Grid Coding Mode Level Label -->
-        <div id="gridCodingLevel" class="grid-coding-level hidden">Level 1</div>
+        <div id="gridCodingLevel" class="grid-coding-level hidden"></div>
 
         <div class="canvas-wrapper">
           <canvas id="mazeCanvas"></canvas>
@@ -122,17 +123,17 @@
         </div>
 
         <!-- Grid Mode Instruction Count (shown below maze in Grid mode) -->
-        <div id="gridModeInstructionCount" class="grid-mode-instruction-count hidden">Instructions: 0</div>
+        <div id="gridModeInstructionCount" class="grid-mode-instruction-count hidden"><span data-msg="MAZE_GRID_INSTRUCTIONS_LABEL">Instructions:</span> <span class="count">0</span></div>
 
         <!-- Grid Coding Mode Controls -->
         <div id="gridCodingControls" class="grid-coding-controls hidden">
-          <span id="gridCodingBlockCount" class="grid-coding-block-count">Blocks: 0</span>
+          <span id="gridCodingBlockCount" class="grid-coding-block-count"><span data-msg="MAZE_GRID_BLOCKS_LABEL">Blocks:</span> <span class="count">0</span></span>
         </div>
 
         <div class="game-controls">
-          <button id="runButton" data-scan-item>Run Program</button>
-          <button id="ghostRunButton" class="hidden" data-scan-item>Ghost Run</button>
-          <button id="resetButton" data-scan-item>Reset</button>
+          <button id="runButton" data-msg="MAZE_RUN_PROGRAM" data-scan-item>Run Program</button>
+          <button id="ghostRunButton" class="hidden" data-msg="MAZE_GHOST_RUN_BUTTON" data-scan-item>Ghost Run</button>
+          <button id="resetButton" data-msg="MAZE_RESET_PROGRAM" data-scan-item>Reset</button>
           <div id="capacityBubble" class="hidden"></div>
         </div>
       </div>
@@ -144,12 +145,12 @@
 
     <!-- Control buttons positioned at page edges -->
     <!-- Left side: decrease («) at edge, increase (») moves out when both visible -->
-    <button id="padLeftDecBtn" class="padding-control-btn pad-left-dec" aria-label="Decrease left padding">&laquo;</button>
-    <button id="padLeftIncBtn" class="padding-control-btn pad-left-inc" aria-label="Increase left padding">&raquo;</button>
+    <button id="padLeftDecBtn" class="padding-control-btn pad-left-dec" aria-label="Decrease left padding" data-msg-aria-label="MAZE_PAD_LEFT_DEC">&laquo;</button>
+    <button id="padLeftIncBtn" class="padding-control-btn pad-left-inc" aria-label="Increase left padding" data-msg-aria-label="MAZE_PAD_LEFT_INC">&raquo;</button>
 
     <!-- Right side: decrease (») at edge, increase («) moves out when both visible -->
-    <button id="padRightDecBtn" class="padding-control-btn pad-right-dec" aria-label="Decrease right padding">&raquo;</button>
-    <button id="padRightIncBtn" class="padding-control-btn pad-right-inc" aria-label="Increase right padding">&laquo;</button>
+    <button id="padRightDecBtn" class="padding-control-btn pad-right-dec" aria-label="Decrease right padding" data-msg-aria-label="MAZE_PAD_RIGHT_DEC">&raquo;</button>
+    <button id="padRightIncBtn" class="padding-control-btn pad-right-inc" aria-label="Increase right padding" data-msg-aria-label="MAZE_PAD_RIGHT_INC">&laquo;</button>
 
     <div id="pegmanMenu"></div>
     <div id="hintDialog"><button class="close-btn">&times;</button><span id="hintText"></span></div>
@@ -161,12 +162,12 @@
       <p id="resultModalMessage2" class="result-modal-message"></p>
       <div class="result-modal-buttons">
         <button id="resultModalCancel" class="result-modal-cancel" hidden data-scan-item>
-          <span class="cancel-text">Cancel</span>
-          <span class="cancel-hint">[Esc]</span>
+          <span class="cancel-text" data-msg="MAZE_CANCEL">Cancel</span>
+          <span class="cancel-hint" data-msg="MAZE_KEY_ESC">[Esc]</span>
         </button>
         <button id="resultModalOk" class="result-modal-ok" data-scan-item>
-          <span class="ok-text">OK</span>
-          <span class="ok-hint">[Enter]</span>
+          <span class="ok-text" data-msg="MAZE_OK">OK</span>
+          <span class="ok-hint" data-msg="MAZE_KEY_ENTER">[Enter]</span>
           <span class="ok-progress"></span>
         </button>
       </div>
@@ -187,8 +188,8 @@
       <h2 id="confirmationModalTitle" class="result-modal-title"></h2>
       <p id="confirmationModalMessage" class="result-modal-message"></p>
       <div class="result-modal-buttons">
-        <button id="confirmationModalCancel" class="result-modal-cancel" data-scan-item>Cancel</button>
-        <button id="confirmationModalConfirm" class="result-modal-ok" data-scan-item>Confirm</button>
+        <button id="confirmationModalCancel" class="result-modal-cancel" data-msg="MAZE_CANCEL" data-scan-item>Cancel</button>
+        <button id="confirmationModalConfirm" class="result-modal-ok" data-msg="MAZE_CONFIRM" data-scan-item>Confirm</button>
       </div>
     </dialog>
 
@@ -198,8 +199,8 @@
       <p id="stageIntroConcept" class="result-modal-message"></p>
       <div class="result-modal-buttons">
         <button id="stageIntroOk" class="result-modal-ok" data-scan-item>
-          <span class="ok-text">Let's Go!</span>
-          <span class="ok-hint">[Enter]</span>
+          <span class="ok-text" data-msg="MAZE_LETS_GO">Let's Go!</span>
+          <span class="ok-hint" data-msg="MAZE_KEY_ENTER">[Enter]</span>
         </button>
       </div>
     </dialog>
@@ -235,7 +236,7 @@
          hidden mode-panels (display:none via .mode-panel.hidden)
          contribute nothing to the scan. -->
     <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle" data-scan-region="settings-modal">
-      <h2 id="shortcutsModalTitle" class="result-modal-title">Settings</h2>
+      <h2 id="shortcutsModalTitle" class="result-modal-title" data-msg="MAZE_SETTINGS">Settings</h2>
 
       <div class="settings-columns">
         <section class="settings-col settings-col-main" id="switchAccessSection">
@@ -272,11 +273,11 @@
             <p class="mode-info">Use a mouse, joystick cursor, head mouse, eye gaze or any other assistive tech to control a cursor. Everything can be done with single left clicks only.</p>
             <p class="mode-info">Some users prefer to drag blocks; if that’s difficult you can click twice to move.</p>
             <div class="setting-row">
-              <label for="blockMovementSelect">Rearrange blocks using</label>
+              <label for="blockMovementSelect" data-msg="MAZE_SETTING_BLOCK_MOVEMENT">Rearrange blocks using</label>
               <select id="blockMovementSelect" data-scan-item>
-                <option value="both">Drag or click</option>
-                <option value="click-to-move">Click-to-move</option>
-                <option value="drag">Drag</option>
+                <option value="both" data-msg="MAZE_BLOCK_MOVEMENT_BOTH">Drag or click</option>
+                <option value="click-to-move" data-msg="MAZE_BLOCK_MOVEMENT_CLICK">Click-to-move</option>
+                <option value="drag" data-msg="MAZE_BLOCK_MOVEMENT_DRAG">Drag</option>
               </select>
             </div>
           </div>
@@ -416,26 +417,26 @@
           <details class="shortcuts-disclosure">
             <summary class="shortcuts-disclosure-summary" data-scan-item>Keyboard navigation reference</summary>
             <div class="shortcuts-list">
-              <div class="shortcut-item"><kbd>R</kbd> Run program</div>
-              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> Reset maze position</div>
-              <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> Change levels</div>
-              <div class="shortcut-item"><kbd>H</kbd> Toggle instructions</div>
-              <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> Change character</div>
-              <div class="shortcut-item"><kbd>L</kbd> Change language</div>
-              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> Mute/unmute</div>
+              <div class="shortcut-item"><kbd>R</kbd> <span data-msg="MAZE_SHORTCUT_RUN">Run program</span></div>
+              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>R</kbd> <span data-msg="MAZE_SHORTCUT_RESET">Reset maze position</span></div>
+              <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> <span data-msg="MAZE_SHORTCUT_CHANGE_LEVELS">Change levels</span></div>
+              <div class="shortcut-item"><kbd>H</kbd> <span data-msg="MAZE_SHORTCUT_TOGGLE_INSTRUCTIONS">Toggle instructions</span></div>
+              <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> <span data-msg="MAZE_SHORTCUT_CHANGE_CHARACTER">Change character</span></div>
+              <div class="shortcut-item"><kbd>L</kbd> <span data-msg="MAZE_SHORTCUT_CHANGE_LANGUAGE">Change language</span></div>
+              <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>M</kbd> <span data-msg="MAZE_SHORTCUT_MUTE">Mute/unmute</span></div>
             </div>
           </details>
         </section>
       </div>
 
       <div class="result-modal-buttons">
-        <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn" data-scan-item>Delete all saved data</button>
+        <button id="deleteUserDataBtn" class="result-modal-cancel delete-data-btn" data-msg="MAZE_DELETE_ALL_DATA" data-scan-item>Delete all saved data</button>
         <button id="shortcutsModalClose" class="result-modal-ok" data-scan-item>
-          <span class="ok-text">Close</span>
-          <span class="ok-hint">[Esc]</span>
+          <span class="ok-text" data-msg="MAZE_CLOSE">Close</span>
+          <span class="ok-hint" data-msg="MAZE_KEY_ESC">[Esc]</span>
         </button>
       </div>
-      <a href="https://kmcnaught.co.uk/block-coding/new-curriculum" target="_blank" rel="noopener" class="about-link">About</a>
+      <a href="https://kmcnaught.co.uk/block-coding/new-curriculum" target="_blank" rel="noopener" class="about-link" data-msg="MAZE_ABOUT">About</a>
     </dialog>
 
     <!-- Build SHA label -->

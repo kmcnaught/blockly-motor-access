@@ -10,11 +10,34 @@
  */
 
 import * as Blockly from 'blockly/core';
+// Blockly's built-in chrome strings ("Duplicate", "Delete Block", "Add Comment",
+// "Collapse Block", variable/function dialog labels, trash tooltips, etc.) are
+// shipped as locale-specific msg packs. Importing each pack mutates a module-
+// level Msg object as a side effect; we then selectively copy the active
+// locale's contents into Blockly.Msg inside loadMessages(). Static imports keep
+// webpack happy (no async/dynamic-import chunking) and the three packs are
+// small enough to bundle together.
+import * as BlocklyMsgEn from 'blockly/msg/en';
+import * as BlocklyMsgFr from 'blockly/msg/fr';
+import * as BlocklyMsgEs from 'blockly/msg/es';
 
 /**
  * Supported languages for the maze game
  */
-export type SupportedLocale = 'en' | 'fr';
+export type SupportedLocale = 'en' | 'fr' | 'es';
+
+/**
+ * Map of locale -> Blockly built-in message pack.
+ *
+ * Each imported module is a flat key/value object (e.g. DUPLICATE_BLOCK,
+ * DELETE_BLOCK, ADD_COMMENT). We cast through unknown because the upstream
+ * @types tries to type these as a namespace.
+ */
+const BLOCKLY_MSG_PACKS: Record<SupportedLocale, Record<string, string>> = {
+  en: BlocklyMsgEn as unknown as Record<string, string>,
+  fr: BlocklyMsgFr as unknown as Record<string, string>,
+  es: BlocklyMsgEs as unknown as Record<string, string>,
+};
 
 /**
  * Message definitions for all supported languages
@@ -155,6 +178,70 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     // Workspace controls
     MAZE_DELETE_BLOCK: 'Delete block',
     MAZE_CLEAR_WORKSPACE: 'Delete all',
+
+    // === Strings routed from HTML via data-msg (added Step 3) ===
+    MAZE_ZOOM_PANEL: 'Page zoom',
+    MAZE_ZOOM_OUT: 'Zoom out',
+    MAZE_ZOOM_IN: 'Zoom in',
+    MAZE_MODE_TOGGLE: 'Toggle execution mode',
+    MAZE_SHOW_SHORTCUTS: 'Show keyboard shortcuts',
+    MAZE_TOGGLE_PANEL: 'Toggle maze panel',
+    MAZE_PREV_LEVEL: '< Back',
+    MAZE_NEXT_LEVEL: 'Next >',
+    MAZE_GRID_INSTRUCTIONS_LABEL: 'Instructions:',
+    MAZE_GRID_BLOCKS_LABEL: 'Blocks:',
+    MAZE_KEYHINT_FORWARD: 'forward',
+    MAZE_KEYHINT_TURN_LEFT: 'turn left',
+    MAZE_KEYHINT_TURN_RIGHT: 'turn right',
+    MAZE_KEYHINT_RESET: 'reset',
+    MAZE_CANCEL: 'Cancel',
+    MAZE_CONFIRM: 'Confirm',
+    MAZE_KEY_ESC: '[Esc]',
+    MAZE_KEY_ENTER: '[Enter]',
+    MAZE_LETS_GO: 'Let\'s Go!',
+    MAZE_SHORTCUTS_TITLE: 'Keyboard Shortcuts',
+    MAZE_SHORTCUT_RUN: 'Run program',
+    MAZE_SHORTCUT_RESET: 'Reset maze position',
+    MAZE_SHORTCUT_CHANGE_LEVELS: 'Change levels',
+    MAZE_SHORTCUT_TOGGLE_INSTRUCTIONS: 'Toggle instructions',
+    MAZE_SHORTCUT_CHANGE_CHARACTER: 'Change character',
+    MAZE_SHORTCUT_CHANGE_LANGUAGE: 'Change language',
+    MAZE_SHORTCUT_MUTE: 'Mute/unmute',
+    MAZE_SETTINGS: 'Settings',
+    MAZE_SETTING_BLOCK_MOVEMENT: 'Rearrange blocks using',
+    MAZE_BLOCK_MOVEMENT_BOTH: 'Drag or click',
+    MAZE_BLOCK_MOVEMENT_CLICK: 'Click-to-move',
+    MAZE_BLOCK_MOVEMENT_DRAG: 'Drag',
+    MAZE_SETTING_HIGHLIGHT_SIZE: 'Connection highlight size',
+    MAZE_HIGHLIGHT_MINIMAL: 'Minimal',
+    MAZE_HIGHLIGHT_MEDIUM: 'Medium',
+    MAZE_HIGHLIGHT_LARGE: 'Large',
+    MAZE_DELETE_ALL_DATA: 'Delete all saved data',
+    MAZE_CLOSE: 'Close',
+    MAZE_ABOUT: 'About',
+    MAZE_PAD_LEFT_DEC: 'Decrease left padding',
+    MAZE_PAD_LEFT_INC: 'Increase left padding',
+    MAZE_PAD_RIGHT_DEC: 'Decrease right padding',
+    MAZE_PAD_RIGHT_INC: 'Increase right padding',
+
+    // === Strings added in Step 1 (fix silent i18n bugs and route JS-side hardcoded strings) ===
+    // Universal fallback instruction shown when a level lacks a semantic instruction key.
+    MAZE_INSTRUCTION_1: 'Reach the goal.',
+    // Mute button aria-label: when sound is ON, the action is "mute" — so MAZE_UNMUTE labels
+    // the button that mutes (yes, the key name and value semantics are inverted; preserving
+    // existing call-site behaviour at index.ts:749/753).
+    MAZE_UNMUTE: 'Mute sound',
+    MAZE_MUTE: 'Unmute sound',
+    // Blockly help prompt override (replaces Blockly.Msg['HELP_PROMPT']).
+    MAZE_HELP_PROMPT: 'Press → to move to block fields',
+    // Toasts shown when entering move mode (click vs. keyboard).
+    MAZE_TOAST_CLICK_TO_MOVE: 'Click a connection to move block there',
+    MAZE_TOAST_KEYBOARD_MOVE: 'Use arrows to move block, or Esc to exit move mode',
+    // Delete-all-data confirmation modal.
+    MAZE_DELETE_DATA_TITLE: 'Delete All Data',
+    MAZE_DELETE_DATA_MESSAGE: 'Delete all saved programs and settings? This cannot be undone.',
+    // Generic OK button label (used by 4 modal sites).
+    MAZE_OK: 'OK',
 
     // ===========================================
     // Reusable Level Instructions
@@ -385,6 +472,62 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_DELETE_BLOCK: 'Supprimer le bloc',
     MAZE_CLEAR_WORKSPACE: 'Tout supprimer',
 
+    // === Strings routed from HTML via data-msg (added Step 3) ===
+    MAZE_ZOOM_PANEL: 'Zoom de la page',
+    MAZE_ZOOM_OUT: 'Zoom arrière',
+    MAZE_ZOOM_IN: 'Zoom avant',
+    MAZE_MODE_TOGGLE: 'Basculer le mode d\'exécution',
+    MAZE_SHOW_SHORTCUTS: 'Afficher les raccourcis clavier',
+    MAZE_TOGGLE_PANEL: 'Basculer le panneau du labyrinthe',
+    MAZE_PREV_LEVEL: '< Retour',
+    MAZE_NEXT_LEVEL: 'Suivant >',
+    MAZE_GRID_INSTRUCTIONS_LABEL: 'Instructions :',
+    MAZE_GRID_BLOCKS_LABEL: 'Blocs :',
+    MAZE_KEYHINT_FORWARD: 'avancer',
+    MAZE_KEYHINT_TURN_LEFT: 'tourner à gauche',
+    MAZE_KEYHINT_TURN_RIGHT: 'tourner à droite',
+    MAZE_KEYHINT_RESET: 'réinitialiser',
+    MAZE_CANCEL: 'Annuler',
+    MAZE_CONFIRM: 'Confirmer',
+    MAZE_KEY_ESC: '[Échap]',
+    MAZE_KEY_ENTER: '[Entrée]',
+    MAZE_LETS_GO: 'C\'est parti !',
+    MAZE_SHORTCUTS_TITLE: 'Raccourcis clavier',
+    MAZE_SHORTCUT_RUN: 'Exécuter le programme',
+    MAZE_SHORTCUT_RESET: 'Réinitialiser la position',
+    MAZE_SHORTCUT_CHANGE_LEVELS: 'Changer de niveau',
+    MAZE_SHORTCUT_TOGGLE_INSTRUCTIONS: 'Afficher/masquer les instructions',
+    MAZE_SHORTCUT_CHANGE_CHARACTER: 'Changer de personnage',
+    MAZE_SHORTCUT_CHANGE_LANGUAGE: 'Changer de langue',
+    MAZE_SHORTCUT_MUTE: 'Couper/activer le son',
+    MAZE_SETTINGS: 'Paramètres',
+    MAZE_SETTING_BLOCK_MOVEMENT: 'Déplacer les blocs avec',
+    MAZE_BLOCK_MOVEMENT_BOTH: 'Glisser ou cliquer',
+    MAZE_BLOCK_MOVEMENT_CLICK: 'Cliquer pour déplacer',
+    MAZE_BLOCK_MOVEMENT_DRAG: 'Glisser',
+    MAZE_SETTING_HIGHLIGHT_SIZE: 'Taille de surbrillance des connexions',
+    MAZE_HIGHLIGHT_MINIMAL: 'Minimale',
+    MAZE_HIGHLIGHT_MEDIUM: 'Moyenne',
+    MAZE_HIGHLIGHT_LARGE: 'Grande',
+    MAZE_DELETE_ALL_DATA: 'Supprimer toutes les données',
+    MAZE_CLOSE: 'Fermer',
+    MAZE_ABOUT: 'À propos',
+    MAZE_PAD_LEFT_DEC: 'Diminuer la marge gauche',
+    MAZE_PAD_LEFT_INC: 'Augmenter la marge gauche',
+    MAZE_PAD_RIGHT_DEC: 'Diminuer la marge droite',
+    MAZE_PAD_RIGHT_INC: 'Augmenter la marge droite',
+
+    // === Strings added in Step 1 (fix silent i18n bugs and route JS-side hardcoded strings) ===
+    MAZE_INSTRUCTION_1: 'Atteignez l\'objectif.',
+    MAZE_UNMUTE: 'Couper le son',
+    MAZE_MUTE: 'Activer le son',
+    MAZE_HELP_PROMPT: 'Appuyez sur → pour aller aux champs du bloc',
+    MAZE_TOAST_CLICK_TO_MOVE: 'Cliquez sur une connexion pour y déplacer le bloc',
+    MAZE_TOAST_KEYBOARD_MOVE: 'Utilisez les flèches pour déplacer le bloc, ou Échap pour quitter le mode déplacement',
+    MAZE_DELETE_DATA_TITLE: 'Supprimer toutes les données',
+    MAZE_DELETE_DATA_MESSAGE: 'Supprimer tous les programmes et paramètres sauvegardés ? Cette action est irréversible.',
+    MAZE_OK: 'OK',
+
     // ===========================================
     // Reusable Level Instructions
     // Named semantically for reuse across levels
@@ -475,6 +618,281 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_INSTRUCTION_25: 'Naviguez en utilisant la détection de chemin.',
     MAZE_INSTRUCTION_26: 'Utilisez toutes vos compétences pour résoudre ce labyrinthe.',
   },
+
+  es: {
+    // Block text (from Maze.* — matches blockly-games/pxt-blockly Spanish)
+    MAZE_MOVE_FORWARD: 'avanzar',
+    MAZE_TURN: 'girar',
+    MAZE_TURN_LEFT: 'girar a la izquierda',
+    MAZE_TURN_RIGHT: 'girar a la derecha',
+    MAZE_PATH_AHEAD: 'si hay camino enfrente',
+    MAZE_PATH_LEFT: 'si hay camino a la izquierda',
+    MAZE_PATH_RIGHT: 'si hay camino a la derecha',
+    MAZE_DO: 'hacer',
+    MAZE_ELSE: 'sino',
+    MAZE_REPEAT_UNTIL: 'repetir hasta',
+
+    // Tooltips (from Maze.*)
+    MAZE_MOVE_FORWARD_TOOLTIP: 'Mueve al jugador un cuadro hacia delante.',
+    MAZE_TURN_TOOLTIP: 'Gira al jugador a izquierda o derecha 90 grados.',
+    MAZE_IF_TOOLTIP: 'Si hay un camino en la dirección especificada, entonces ejecuta unas acciones.',
+    MAZE_IFELSE_TOOLTIP:
+      'Si hay un camino en la dirección especificada, entonces ejecuta el primer bloque de acciones. Sino, haz el segundo bloque de acciones.',
+    MAZE_WHILE_TOOLTIP: 'Repite las acciones contenidas hasta alcanzar el punto final.',
+
+    // UI strings (from Games.*)
+    MAZE_TITLE: 'Laberinto',
+    MAZE_RUN_PROGRAM: 'Ejecutar el programa',
+    MAZE_RESET_PROGRAM: 'Reiniciar',
+    MAZE_LEVEL: 'Nivel',
+
+    // Capacity (simplified from Maze.capacity0/1/2)
+    MAZE_CAPACITY: 'Te quedan %1 bloques.',
+    MAZE_CAPACITY_1: 'Te queda %1 bloque.',
+
+    // Alert messages
+    MAZE_CONGRATULATIONS: '¡Enhorabuena!',
+    MAZE_FAILURE_MESSAGE: 'El programa ha terminado, pero no has llegado a la meta.',
+    MAZE_TIMEOUT_MESSAGE: 'El programa ha tardado demasiado. Comprueba si hay bucles infinitos.',
+
+    // Result modal messages
+    MAZE_SOLVED_BLOCKS_ONE: '¡Has resuelto este nivel con 1 bloque!',
+    MAZE_SOLVED_BLOCKS: '¡Has resuelto este nivel con %1 bloques!',
+    MAZE_FAILURE_TITLE: '¡Casi!',
+    MAZE_TIMEOUT_TITLE: '¡Demasiado lento!',
+    MAZE_ERROR_TITLE: '¡Vaya!',
+    MAZE_ERROR_MESSAGE: 'Eso no ha funcionado. ¡Prueba otro camino!',
+    MAZE_GHOST_RUN_BUTTON: 'Ensayo',
+    MAZE_GHOST_RUN_TITLE: '¡Ensayo terminado!',
+    MAZE_GHOST_RUN_SUCCESS: 'Tu programa ha llegado a la meta — ¡pruébalo de verdad ahora!',
+    MAZE_GHOST_RUN_FAILURE: 'Tu programa no ha llegado a la meta. Revisa tus movimientos e inténtalo de nuevo.',
+    MAZE_NEXT_LEVEL_PROMPT: '¿Estás listo para el siguiente nivel?',
+    MAZE_ALL_LEVELS_COMPLETE: '¡Has completado todos los niveles!',
+
+    // Hints (from Maze.help*)
+    MAZE_HINT_STACK: 'Une un par de bloques «avanzar» para ayudarme a llegar a la meta.',
+    MAZE_HINT_ONE_TOP_BLOCK: 'En este nivel, necesitas unir los bloques en el espacio de trabajo en blanco.',
+    MAZE_HINT_RUN: 'Ejecuta tu programa para ver qué pasa.',
+    MAZE_HINT_RESET: 'Tu programa no ha resuelto el laberinto. Pulsa «Reiniciar» e inténtalo otra vez.',
+    MAZE_HINT_REPEAT: 'Llega al final de este camino usando tan solo dos bloques. Utiliza «repetir» para ejecutar un bloque más de una vez.',
+    MAZE_HINT_CAPACITY: 'Has usado todos los bloques de este nivel. Para crear un bloque nuevo, primero debes eliminar uno existente.',
+    MAZE_HINT_REPEAT_MANY: 'Puedes usar más de un bloque dentro de un bloque «repetir».',
+    MAZE_HINT_IF: 'Un bloque «si» hará algo solamente si la condición es verdadera. Intenta girar a la izquierda si hay camino a la izquierda.',
+    MAZE_HINT_MENU: 'Pulsa en %1 en el bloque «si» para cambiar su condición.',
+    MAZE_HINT_IF_ELSE: 'Los bloques «si-sino» harán una cosa o la otra.',
+    MAZE_HINT_WALL_FOLLOW: '¿Puedes resolver este complicado laberinto? Intenta seguir la pared de la izquierda. ¡Solo para programadores avanzados!',
+
+    // Practice mode (direct control before programming)
+    MAZE_PRACTICE_FORWARD: 'Avanzar',
+    MAZE_PRACTICE_TURN_LEFT: 'Girar a la izquierda',
+    MAZE_PRACTICE_TURN_RIGHT: 'Girar a la derecha',
+    MAZE_PRACTICE_HINT: 'Usa los botones para controlar al personaje. ¿Puedes llevarlo hasta la meta?',
+    MAZE_PRACTICE_FELL: '¡Oh, no! Inténtalo otra vez.',
+    MAZE_MODE_PRACTICE: 'Práctica',
+    MAZE_MODE_CODING: 'Programación',
+    MAZE_SWITCH_TO_PRACTICE: 'Cambiar a Práctica',
+    MAZE_SWITCH_TO_CODING: 'Cambiar a Programación',
+
+    // Practice mode instructions for coding levels (when played in practice mode)
+    MAZE_INSTRUCTION_1_PRACTICE: 'Pulsa avanzar para llegar a la meta.',
+    MAZE_INSTRUCTION_2_PRACTICE: 'Usa girar y avanzar para llegar a la meta.',
+    MAZE_INSTRUCTION_3_PRACTICE: 'Recorre el camino más largo hasta la meta.',
+    MAZE_INSTRUCTION_4_PRACTICE: 'Encuentra el camino entre los giros.',
+    MAZE_INSTRUCTION_5_PRACTICE: 'Recorre el laberinto para llegar a la meta.',
+    MAZE_INSTRUCTION_6_PRACTICE: 'Fíjate en los caminos que se bifurcan hacia la meta.',
+    MAZE_INSTRUCTION_7_PRACTICE: 'Elige la dirección correcta en cada cruce.',
+    MAZE_INSTRUCTION_8_PRACTICE: 'Recorre el camino complejo hasta la meta.',
+    MAZE_INSTRUCTION_9_PRACTICE: 'Encuentra tu camino en el laberinto ramificado.',
+    MAZE_INSTRUCTION_10_PRACTICE: 'Resuelve este laberinto difícil paso a paso.',
+    MAZE_MODE_TRANSITION: '¡Muy bien! Ahora vamos a probar la programación. Planifica tus movimientos y después pulsa Ejecutar.',
+
+    // Practice-only levels (P1-P8) - separate track for learning controls
+    MAZE_PRACTICE_LEVEL_1: 'Pulsa avanzar para moverte. ¡Explora la zona!',
+    MAZE_PRACTICE_LEVEL_2: 'Usa los botones de girar para cambiar de dirección y después avanza.',
+    MAZE_PRACTICE_LEVEL_3: 'El camino se estrecha. ¿Puedes llegar a la meta?',
+    MAZE_PRACTICE_LEVEL_4: 'Sigue el camino hasta la meta.',
+    MAZE_PRACTICE_LEVEL_5: 'Atraviesa los giros para llegar a la meta.',
+    MAZE_PRACTICE_LEVEL_6: '¡Sube las escaleras hasta la meta!',
+    MAZE_PRACTICE_LEVEL_7: 'Encuentra el camino alrededor hasta la meta.',
+    MAZE_PRACTICE_LEVEL_8: 'Un laberinto más y estarás listo para programar.',
+    MAZE_PRACTICE_GRADUATION_TITLE: '¡Ya dominas los controles!',
+    MAZE_PRACTICE_GRADUATION_MESSAGE: '¿Listo para escribir tus propios programas?',
+    MAZE_PRACTICE_TRY_CODING: 'Probar el modo Programación [Intro]',
+    MAZE_PRACTICE_STAY: 'Quedarse en Práctica [Esc]',
+    MAZE_PRACTICE_INSTRUCTION: 'Da instrucciones al jugador para llevarlo a la meta',
+
+    // Grid mode (for use inside Grid 3 AAC software)
+    MAZE_GRID_INSTRUCTION: 'Da instrucciones al jugador para llevarlo a la meta',
+    MAZE_GRID_INSTRUCTIONS: 'Instrucciones usadas: %1',
+    MAZE_GRID_SUCCESS_TITLE: '¡Hurra!',
+    MAZE_GRID_SUCCESS_MESSAGE: '¡Has llegado a la meta con %1 instrucciones!',
+    MAZE_GRID_GRADUATION_TITLE: '¡Muy bien!',
+    MAZE_GRID_GRADUATION_MESSAGE: '¡Has terminado todos los laberintos! En el modo Programación puedes escribir un programa para guiar al personaje.',
+
+    // Grid coding mode (immediate execution + block building)
+    MAZE_GRID_CODING_INSTRUCTION: 'Usa las teclas de flecha para construir tu programa. ¡Mira cómo aparecen los bloques!',
+    MAZE_GRID_BLOCKS: 'Bloques: %1',
+    MAZE_GRID_CODING_SUCCESS_TITLE: '¡Buen trabajo!',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE: '¡Has escrito un programa con %1 bloques!',
+    MAZE_GRID_CODING_SUCCESS_MESSAGE2: 'Pulsa Ejecutar el código %PLAY% para verlo otra vez.',
+    MAZE_GRID_CODING_RUN_AGAIN: 'Ejecutar otra vez',
+    // A1 (Guided) completion - transition to A2 (Challenge)
+    MAZE_GRID_CODING_A1_COMPLETE_TITLE: '¡Excelente trabajo!',
+    MAZE_GRID_CODING_A1_COMPLETE_MESSAGE: '¡Has completado todos los niveles guiados!\n\n¿Listo para un reto?\n\nEn los siguientes niveles escribirás todo tu programa primero y después lo ejecutarás para ver qué pasa.',
+    // A2 (Challenge) completion - end of grid coding
+    MAZE_GRID_CODING_STAGE_COMPLETE_TITLE: '¡Muy bien!',
+    MAZE_GRID_CODING_STAGE_COMPLETE_MESSAGE: '¡Has terminado todos los niveles introductorios! Necesitarás otro gridset para explorar la programación avanzada.',
+    MAZE_GRID_CODING_INTRO_TITLE: '¡Te damos la bienvenida a la programación!',
+    MAZE_GRID_CODING_INTRO_LINE1: 'Programar nos permite escribir una lista de instrucciones para que el ordenador las siga.',
+    MAZE_GRID_CODING_INTRO_LINE2: 'Usa tus instrucciones para mover al personaje hasta la meta.',
+    MAZE_GRID_CODING_INTRO_LINE3: 'Cuando hayas terminado, ejecuta el código otra vez para ver la repetición.',
+    MAZE_GRID_PRACTICE_INTRO_TITLE: '¡Te damos la bienvenida al modo Práctica!',
+    MAZE_GRID_PRACTICE_INTRO_LINE1: 'Ayuda al personaje a llegar a la meta.',
+    MAZE_GRID_PRACTICE_INTRO_LINE2: 'Usa los botones para avanzar y girar.',
+    MAZE_GRID_PRACTICE_INTRO_LINE3: '¡Domina los controles en el modo Práctica antes de probar el modo Programación!',
+
+    // Workspace controls
+    MAZE_DELETE_BLOCK: 'Eliminar bloque',
+    MAZE_CLEAR_WORKSPACE: 'Eliminar todo',
+
+    // === Strings routed from HTML via data-msg (added Step 3) ===
+    MAZE_ZOOM_PANEL: 'Zoom de la página',
+    MAZE_ZOOM_OUT: 'Reducir zoom',
+    MAZE_ZOOM_IN: 'Aumentar zoom',
+    MAZE_MODE_TOGGLE: 'Alternar modo de ejecución',
+    MAZE_SHOW_SHORTCUTS: 'Mostrar atajos de teclado',
+    MAZE_TOGGLE_PANEL: 'Alternar el panel del laberinto',
+    MAZE_PREV_LEVEL: '< Atrás',
+    MAZE_NEXT_LEVEL: 'Siguiente >',
+    MAZE_GRID_INSTRUCTIONS_LABEL: 'Instrucciones:',
+    MAZE_GRID_BLOCKS_LABEL: 'Bloques:',
+    MAZE_KEYHINT_FORWARD: 'avanzar',
+    MAZE_KEYHINT_TURN_LEFT: 'girar izquierda',
+    MAZE_KEYHINT_TURN_RIGHT: 'girar derecha',
+    MAZE_KEYHINT_RESET: 'reiniciar',
+    MAZE_CANCEL: 'Cancelar',
+    MAZE_CONFIRM: 'Confirmar',
+    MAZE_KEY_ESC: '[Esc]',
+    MAZE_KEY_ENTER: '[Entrar]',
+    MAZE_LETS_GO: '¡Vamos!',
+    MAZE_SHORTCUTS_TITLE: 'Atajos de teclado',
+    MAZE_SHORTCUT_RUN: 'Ejecutar programa',
+    MAZE_SHORTCUT_RESET: 'Reiniciar posición',
+    MAZE_SHORTCUT_CHANGE_LEVELS: 'Cambiar de nivel',
+    MAZE_SHORTCUT_TOGGLE_INSTRUCTIONS: 'Mostrar/ocultar instrucciones',
+    MAZE_SHORTCUT_CHANGE_CHARACTER: 'Cambiar de personaje',
+    MAZE_SHORTCUT_CHANGE_LANGUAGE: 'Cambiar idioma',
+    MAZE_SHORTCUT_MUTE: 'Silenciar/activar sonido',
+    MAZE_SETTINGS: 'Ajustes',
+    MAZE_SETTING_BLOCK_MOVEMENT: 'Mover bloques con',
+    MAZE_BLOCK_MOVEMENT_BOTH: 'Arrastrar o hacer clic',
+    MAZE_BLOCK_MOVEMENT_CLICK: 'Clic para mover',
+    MAZE_BLOCK_MOVEMENT_DRAG: 'Arrastrar',
+    MAZE_SETTING_HIGHLIGHT_SIZE: 'Tamaño del resaltado de conexión',
+    MAZE_HIGHLIGHT_MINIMAL: 'Mínimo',
+    MAZE_HIGHLIGHT_MEDIUM: 'Medio',
+    MAZE_HIGHLIGHT_LARGE: 'Grande',
+    MAZE_DELETE_ALL_DATA: 'Borrar todos los datos guardados',
+    MAZE_CLOSE: 'Cerrar',
+    MAZE_ABOUT: 'Acerca de',
+    MAZE_PAD_LEFT_DEC: 'Reducir margen izquierdo',
+    MAZE_PAD_LEFT_INC: 'Aumentar margen izquierdo',
+    MAZE_PAD_RIGHT_DEC: 'Reducir margen derecho',
+    MAZE_PAD_RIGHT_INC: 'Aumentar margen derecho',
+
+    // === Strings added in Step 1 (fix silent i18n bugs and route JS-side hardcoded strings) ===
+    MAZE_INSTRUCTION_1: 'Llega a la meta.',
+    MAZE_UNMUTE: 'Silenciar',
+    MAZE_MUTE: 'Activar el sonido',
+    MAZE_HELP_PROMPT: 'Pulsa → para ir a los campos del bloque',
+    MAZE_TOAST_CLICK_TO_MOVE: 'Pulsa en una conexión para mover el bloque ahí',
+    MAZE_TOAST_KEYBOARD_MOVE: 'Usa las flechas para mover el bloque, o Esc para salir del modo mover',
+    MAZE_DELETE_DATA_TITLE: 'Eliminar todos los datos',
+    MAZE_DELETE_DATA_MESSAGE: '¿Eliminar todos los programas y ajustes guardados? Esta acción no se puede deshacer.',
+    MAZE_OK: 'OK',
+
+    // ===========================================
+    // Reusable Level Instructions
+    // ===========================================
+
+    // Stage A: Sequencing
+    MAZE_INSTRUCTION_MOVE_FORWARD: 'Escribe un programa para avanzar y llegar a la meta.',
+    MAZE_INSTRUCTION_NAVIGATE_TURNS: 'Atraviesa los giros para llegar a la meta.',
+    MAZE_INSTRUCTION_USE_MOVE_AND_TURN: 'Usa los bloques de avanzar y girar para llegar a la meta.',
+
+    // Stage B: Repeat X Times
+    MAZE_INSTRUCTION_REPEAT_LONG_PATH: 'Usa un bloque «repetir» para recorrer el camino largo.',
+    MAZE_INSTRUCTION_MULTIPLE_IN_REPEAT: 'Pon varios movimientos dentro de un bloque «repetir» para llegar a la meta.',
+    MAZE_INSTRUCTION_CODE_BEFORE_REPEAT: 'Usa algo de código antes del bloque «repetir» para llegar a la meta.',
+    MAZE_INSTRUCTION_WRITE_PROGRAM: 'Escribe un programa para llegar a la meta.',
+
+    // Stage C: Repeat Until
+    MAZE_INSTRUCTION_KEEP_GOING: 'Sigue avanzando hasta la meta.',
+    MAZE_INSTRUCTION_KEEP_ZIGZAGGING: 'Sigue zigzagueando hasta la meta.',
+
+    // Stage D: Colored Conditionals
+    MAZE_INSTRUCTION_USE_COLORS: 'Usa las formas de colores para decidir hacia qué lado girar.',
+
+    // Stage E: If-Else
+    MAZE_INSTRUCTION_IF_ELSE_TWO_ACTIONS: 'Usa «si-sino» para elegir entre dos acciones.',
+    MAZE_INSTRUCTION_IF_ELSE_PATH: 'Usa «si-sino» para elegir según dónde esté el camino.',
+
+    // Stage F: Challenge
+    MAZE_INSTRUCTION_USE_EVERYTHING: 'Usa todo lo que has aprendido para resolver este reto.',
+
+    // Stage names and concepts (for stage progression UI)
+    MAZE_STAGE_1_NAME: 'Secuenciación',
+    MAZE_STAGE_1_CONCEPT: 'Los ordenadores siguen tus instrucciones una a una.\n\nEscribe un programa para decirle al personaje qué hacer y después ejecútalo para probarlo.',
+    MAZE_STAGE_2_NAME: 'Repetir',
+    MAZE_STAGE_2_CONCEPT: 'Los bucles nos permiten decirle al ordenador que repita unas instrucciones un número determinado de veces.\n\nUsa el bloque «repetir» para resolver estos retos.',
+    MAZE_STAGE_3_NAME: 'Repetir hasta',
+    MAZE_STAGE_3_CONCEPT: 'También podemos decirle al ordenador que repita instrucciones hasta llegar a la meta.',
+    MAZE_STAGE_4_NAME: 'Condicionales',
+    MAZE_STAGE_4_CONCEPT: 'Un bloque «si» le dice al ordenador que solo siga una instrucción cuando se cumple una condición.\n\nLos siguientes niveles te permiten dar instrucciones distintas según el color de una casilla.',
+    MAZE_STAGE_5_NAME: 'Si-Sino',
+    MAZE_STAGE_5_CONCEPT: 'Un bloque «si-sino» te permite elegir entre dos acciones.\n\nEstos niveles te permiten elegir instrucciones según el color, o detectar dónde hay un camino que seguir.',
+    MAZE_STAGE_6_NAME: 'Reto',
+    MAZE_STAGE_6_CONCEPT: '¡Combínalo todo para resolver estos laberintos difíciles!',
+    MAZE_STAGE: 'Etapa',
+    MAZE_STAGE_SELECT: 'Seleccionar etapa',
+
+    // Grid coding stage names (for grid mode stage dropdown)
+    MAZE_GRID_STAGE_1_NAME: 'Guiado',
+    MAZE_GRID_STAGE_1_DESC: 'Ver cada movimiento',
+    MAZE_GRID_STAGE_2_NAME: 'Reto',
+    MAZE_GRID_STAGE_2_DESC: 'Construir y ejecutar',
+
+    // New block messages for repeat times and colored conditionals
+    MAZE_REPEAT: 'repetir',
+    MAZE_TIMES: 'veces',
+    MAZE_REPEAT_TIMES_TOOLTIP: 'Repite las acciones contenidas un número específico de veces.',
+    MAZE_IF_ON: 'si está sobre',
+    MAZE_IF_ON_RED: 'si está sobre rojo',
+    MAZE_IF_ON_BLUE: 'si está sobre azul',
+    MAZE_IF_COLOR: 'si está sobre %1',
+    MAZE_IF_COLOR_TOOLTIP: 'Hacer algo si estás sobre una casilla de color.',
+    MAZE_IF_COLOR_ELSE_TOOLTIP: 'Hacer algo si estás sobre una casilla de color; en otro caso, hacer otra cosa.',
+    MAZE_COLOR_RED: 'rojo',
+    MAZE_COLOR_BLUE: 'azul',
+
+    // Extended level instructions for 26 levels
+    MAZE_INSTRUCTION_11: 'Recorre el largo camino recto.',
+    MAZE_INSTRUCTION_12: 'Usa «repetir» para subir el patrón en escalera.',
+    MAZE_INSTRUCTION_13: 'Gira y avanza con bucles.',
+    MAZE_INSTRUCTION_14: 'Combina bucles con giros.',
+    MAZE_INSTRUCTION_15: 'Sigue avanzando hasta llegar a la meta.',
+    MAZE_INSTRUCTION_16: 'Recorre el camino sinuoso.',
+    MAZE_INSTRUCTION_17: 'Encuentra tu camino en el laberinto.',
+    MAZE_INSTRUCTION_18: 'Resuelve este camino complejo.',
+    MAZE_INSTRUCTION_19: 'Gira cuando veas una casilla roja.',
+    MAZE_INSTRUCTION_20: 'Rojo significa girar a la izquierda; azul, a la derecha.',
+    MAZE_INSTRUCTION_21: 'Sigue el camino de colores.',
+    MAZE_INSTRUCTION_22: 'Usa los colores para recorrer el laberinto.',
+    MAZE_INSTRUCTION_23: 'Gira cuando haya un camino a la izquierda.',
+    MAZE_INSTRUCTION_24: 'Comprueba los caminos y gira según corresponda.',
+    MAZE_INSTRUCTION_25: 'Avanza usando la detección de caminos.',
+    MAZE_INSTRUCTION_26: 'Usa todas tus habilidades para resolver este laberinto.',
+  },
 };
 
 /**
@@ -496,10 +914,24 @@ export function loadMessages(locale: SupportedLocale = 'en'): void {
 
   currentLocale = locale;
 
-  // Load all messages into Blockly.Msg
+  // Step 1: load Blockly's built-in chrome strings for this locale.
+  // This sets HUNDREDS of keys (DUPLICATE_BLOCK, DELETE_BLOCK, ADD_COMMENT,
+  // COLLAPSE_BLOCK, variable/function dialog text, trash tooltips, HELP_PROMPT,
+  // etc.) so the right-click context menu and built-in dialogs follow the
+  // active locale. Must run BEFORE the MAZE_* overlay so our overrides win.
+  Object.assign(Blockly.Msg, BLOCKLY_MSG_PACKS[locale]);
+
+  // Step 2: overlay our MAZE_* (and any other) keys on top, so anything we
+  // explicitly translate wins over the upstream Blockly pack.
   Object.entries(MESSAGES[locale]).forEach(([key, value]) => {
     Blockly.Msg[key] = value;
   });
+
+  // Step 3: re-apply the MAZE_HELP_PROMPT override on top of HELP_PROMPT,
+  // which the Blockly pack will have overwritten with the generic Blockly
+  // wording. Our override is intentionally maze-specific (focuses on field
+  // navigation).
+  Blockly.Msg['HELP_PROMPT'] = msg('MAZE_HELP_PROMPT');
 }
 
 /**
@@ -531,7 +963,52 @@ export function getBrowserLocale(): SupportedLocale {
   if (langCode === 'fr') {
     return 'fr';
   }
+  if (langCode === 'es') {
+    return 'es';
+  }
 
   // Default to English
   return 'en';
+}
+
+/**
+ * Walk the DOM under `root` and translate any element annotated with a
+ * `data-msg*` attribute using the current locale.
+ *
+ * Supported attributes:
+ *   - `data-msg="KEY"`              -> sets textContent
+ *   - `data-msg-aria-label="KEY"`   -> sets aria-label
+ *   - `data-msg-title="KEY"`        -> sets title
+ *   - `data-msg-placeholder="KEY"`  -> sets placeholder
+ *
+ * Call this after the locale changes (or on initial render) so static HTML
+ * strings follow the active language without bespoke JS for each one.
+ *
+ * @param root Optional subtree to scan. Defaults to the whole document.
+ */
+export function applyDataMsg(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('[data-msg]').forEach((el) => {
+    const key = el.dataset.msg;
+    if (key) {
+      el.textContent = msg(key);
+    }
+  });
+  root.querySelectorAll<HTMLElement>('[data-msg-aria-label]').forEach((el) => {
+    const key = el.getAttribute('data-msg-aria-label');
+    if (key) {
+      el.setAttribute('aria-label', msg(key));
+    }
+  });
+  root.querySelectorAll<HTMLElement>('[data-msg-title]').forEach((el) => {
+    const key = el.getAttribute('data-msg-title');
+    if (key) {
+      el.setAttribute('title', msg(key));
+    }
+  });
+  root.querySelectorAll<HTMLElement>('[data-msg-placeholder]').forEach((el) => {
+    const key = el.getAttribute('data-msg-placeholder');
+    if (key) {
+      el.setAttribute('placeholder', msg(key));
+    }
+  });
 }

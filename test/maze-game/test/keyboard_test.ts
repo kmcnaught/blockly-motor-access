@@ -194,6 +194,21 @@ suite('Language toggle (L key)', function () {
     chai.assert.equal(value, 'fr');
   });
 
+  test('pressing L again switches to Spanish', async function () {
+    await pressKey(this.browser, 'L');
+
+    await this.browser.waitUntil(
+      async () => {
+        const value = await getValue(this.browser, '#languageSelect');
+        return value === 'es';
+      },
+      {timeout: 3000, timeoutMsg: 'Language did not switch to es after second L'},
+    );
+
+    const value = await getValue(this.browser, '#languageSelect');
+    chai.assert.equal(value, 'es');
+  });
+
   test('pressing L again returns to English', async function () {
     await pressKey(this.browser, 'L');
 
@@ -202,7 +217,7 @@ suite('Language toggle (L key)', function () {
         const value = await getValue(this.browser, '#languageSelect');
         return value === 'en';
       },
-      {timeout: 3000, timeoutMsg: 'Language did not return to en after second L'},
+      {timeout: 3000, timeoutMsg: 'Language did not return to en after third L'},
     );
 
     const value = await getValue(this.browser, '#languageSelect');
