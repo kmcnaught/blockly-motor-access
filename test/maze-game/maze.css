@@ -1400,6 +1400,13 @@ header.christmas h1::after {
   border-left: 0;
 }
 
+/* The segmented primary group clips its children with overflow:hidden
+   for the rounded outer shape, which would eat the default outline-
+   offset:2px focus ring. Draw it inside instead. */
+.mode-selector-primary > .mode-chip:focus-visible {
+  outline-offset: -3px;
+}
+
 .mode-chip:hover:not([aria-pressed="true"]):not(.mode-chip--alt) {
   filter: brightness(0.95);
 }
