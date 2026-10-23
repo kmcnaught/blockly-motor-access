@@ -1072,6 +1072,16 @@ export class SwitchScanController {
   private workspace: Blockly.WorkspaceSvg;
   private mazeGame: MazeGame;
   private enabled = false;
+  // Scan-dormant state. Entered by Tab (user takes over with native
+  // keyboard focus); exited by pressing the Advance switch. While
+  // suspended, the highlight is hidden and the Advance/Select/Back
+  // keys fall through to the browser so Enter can activate the
+  // keyboard-focused element and Esc can close a modal natively.
+  private suspended = false;
+  // Remembers whether auto-scan was mid-cycle at suspend time, so
+  // Resume restarts the timer at the same cadence instead of making
+  // the user re-wake it.
+  private wasAutoScanningBeforeSuspend = false;
   // True while the maze is running a user program. Set by the
   // execution-state subscription; gates key input and overlay rendering
   // so the highlight isn't competing with the maze animation for the
@@ -1375,6 +1385,8 @@ export class SwitchScanController {
     // (matches `enable()`'s contract — fresh idle scanner per session).
     this.clearAutoTimer();
     this.autoState = 'idle';
+    this.suspended = false;
+    this.wasAutoScanningBeforeSuspend = false;
 
     // Silence any in-progress utterance so a disable doesn't
     // leave the voice talking over a now-hidden highlight.
@@ -2179,6 +2191,47 @@ export class SwitchScanController {
   }
 
   /**
+   * Hand control back to the browser's native keyboard focus. Hides
+   * the scan cursor and clears the auto-scan timer (if any) so a user
+   * Tabbing through the modal gets uninterrupted native keyboard
+   * behaviour. The frame stack and cursor are preserved; resumeScan()
+   * restores the pre-suspend state.
+   */
+  private suspendScan(): void {
+    if (this.suspended) return;
+    this.suspended = true;
+    this.wasAutoScanningBeforeSuspend =
+      this.scanMode === 'auto' && this.autoState === 'scanning';
+    if (this.wasAutoScanningBeforeSuspend) {
+      this.clearAutoTimer();
+      this.autoState = 'idle';
+    }
+    if (this.highlightEl) this.highlightEl.style.display = 'none';
+    if (this.pinnedEl) this.pinnedEl.style.display = 'none';
+    if (this.sentinelChip) this.sentinelChip.style.display = 'none';
+    if (this.autoIdleChip) this.autoIdleChip.style.display = 'none';
+    this.tts?.cancel();
+  }
+
+  /**
+   * Re-engage scan at the preserved cursor position. In auto mode, if
+   * the user was mid-cycle at suspend time, the timer restarts at the
+   * same cadence instead of making them re-wake it.
+   */
+  private resumeScan(): void {
+    if (!this.suspended) return;
+    this.suspended = false;
+    if (this.wasAutoScanningBeforeSuspend) {
+      this.autoState = 'scanning';
+      this.wasAutoScanningBeforeSuspend = false;
+      this.renderHighlight({speak: false});
+      this.startAutoTimer();
+    } else {
+      this.renderHighlight({speak: false});
+    }
+  }
+
+  /**
    * Pause the scanner while a maze run is in flight. Hides every
    * overlay (highlight, sentinel chip, action menu, dropdown menu) so
    * the maze animation reads cleanly, and flips `executing` so
@@ -2423,6 +2476,27 @@ export class SwitchScanController {
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement
     ) {
+      return;
+    }
+
+    // Tab (with or without Shift) hands control back to the browser's
+    // native focus traversal. Suspend scan so the switch keys stop
+    // intercepting Enter / Esc on whatever the user Tabs to.
+    if (e.key === 'Tab') {
+      this.suspendScan();
+      return;
+    }
+
+    // While suspended, the only key we care about is the Advance
+    // switch (resumes scan at the preserved cursor position). Every
+    // other key falls through to the browser so Enter can activate the
+    // keyboard-focused element, Esc can close a native <dialog>, etc.
+    if (this.suspended) {
+      if (e.key === this.switchAdvance) {
+        this.resumeScan();
+        e.stopPropagation();
+        e.preventDefault();
+      }
       return;
     }
 
