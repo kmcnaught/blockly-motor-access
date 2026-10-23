@@ -2532,20 +2532,24 @@ themeSelect?.addEventListener('change', () => {
 });
 installThemeListeners(() => currentThemeSetting, updateEffectiveTheme);
 
-// ========== BLOCK MOVEMENT MODE DROPDOWN ==========
+// ========== BLOCK MOVEMENT MODE ==========
 
-const blockMovementSelect = document.querySelector<HTMLSelectElement>('#blockMovementSelect')!;
-blockMovementSelect.value = blockMovementMode;
-
-blockMovementSelect.addEventListener('change', () => {
-  const mode = blockMovementSelect.value as BlockMovementMode;
-  localStorage.setItem('mazeBlockMovementMode', mode);
-  const ctm = mode !== 'drag';
-  const drag = mode !== 'click-to-move';
-  keyboardNavigation.setClickToMoveEnabled(ctm);
-  keyboardNavigation.setMouseDragEnabled(drag);
-  keyboardNavigation.setKeepBlockOnMouse(false);
-});
+const blockMovementRadios = document.querySelectorAll<HTMLInputElement>(
+  'input[name="blockMovement"]',
+);
+for (const radio of blockMovementRadios) {
+  radio.checked = radio.value === blockMovementMode;
+  radio.addEventListener('change', () => {
+    if (!radio.checked) return;
+    const mode = radio.value as BlockMovementMode;
+    localStorage.setItem('mazeBlockMovementMode', mode);
+    const ctm = mode !== 'drag';
+    const drag = mode !== 'click-to-move';
+    keyboardNavigation.setClickToMoveEnabled(ctm);
+    keyboardNavigation.setMouseDragEnabled(drag);
+    keyboardNavigation.setKeepBlockOnMouse(false);
+  });
+}
 
 // ========== CONFIRMATION MODAL ==========
 

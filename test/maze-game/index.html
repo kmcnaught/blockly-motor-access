@@ -276,14 +276,36 @@
             <p class="mode-info">Any pointer + left-click works, or touch control on a tablet.</p>
             <p class="mode-info">Use a mouse, joystick cursor, head mouse, eye gaze or any other assistive tech to control a cursor. Everything can be done with single left clicks only.</p>
             <p class="mode-info">Some users prefer to drag blocks; if that’s difficult you can click twice to move.</p>
-            <div class="setting-row">
-              <label for="blockMovementSelect" data-msg="MAZE_SETTING_BLOCK_MOVEMENT">Rearrange blocks using</label>
-              <select id="blockMovementSelect" data-scan-item>
-                <option value="both" data-msg="MAZE_BLOCK_MOVEMENT_BOTH">Drag or click</option>
-                <option value="click-to-move" data-msg="MAZE_BLOCK_MOVEMENT_CLICK">Click-to-move</option>
-                <option value="drag" data-msg="MAZE_BLOCK_MOVEMENT_DRAG">Drag</option>
-              </select>
-            </div>
+            <fieldset class="block-movement-group" id="blockMovementGroup">
+              <legend data-msg="MAZE_SETTING_BLOCK_MOVEMENT">Rearrange blocks using</legend>
+
+              <label class="block-movement-option" data-scan-item>
+                <input type="radio" name="blockMovement" value="drag">
+                <span class="bm-illustration" data-art="drag" aria-hidden="true"></span>
+                <span class="bm-copy">
+                  <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_DRAG">Drag</span>
+                  <span class="bm-desc">Drag blocks to move them.</span>
+                </span>
+              </label>
+
+              <label class="block-movement-option" data-scan-item>
+                <input type="radio" name="blockMovement" value="click-to-move">
+                <span class="bm-illustration" data-art="click" aria-hidden="true"></span>
+                <span class="bm-copy">
+                  <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_CLICK">Click</span>
+                  <span class="bm-desc">Click a block, then click where it should go. Valid spots highlight.</span>
+                </span>
+              </label>
+
+              <label class="block-movement-option" data-scan-item>
+                <input type="radio" name="blockMovement" value="both" checked>
+                <span class="bm-illustration" data-art="both" aria-hidden="true"></span>
+                <span class="bm-copy">
+                  <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_BOTH">Both</span>
+                  <span class="bm-desc">Drag, or click to move. Whichever's easier.</span>
+                </span>
+              </label>
+            </fieldset>
           </div>
 
           <!-- Switches panel. Reuses the pre-existing #switchAccessPanel
