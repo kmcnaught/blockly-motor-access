@@ -3581,11 +3581,7 @@ if (!isGridMode && !isGridCodingMode) {
     const modeSwitchesBtn = document.getElementById(
       'modeSwitches',
     ) as HTMLButtonElement | null;
-    const modeGrid3Btn = document.getElementById(
-      'modeGrid3',
-    ) as HTMLButtonElement | null;
     const pointerPanel = document.getElementById('pointerPanel');
-    const grid3Panel = document.getElementById('grid3Panel');
     const switchesPanel = document.getElementById('switchAccessPanel');
 
     type AccessMode = 'pointer' | 'switches';
@@ -3604,12 +3600,7 @@ if (!isGridMode && !isGridCodingMode) {
       }
     };
 
-    const setGrid3Expanded = (expanded: boolean) => {
-      modeGrid3Btn?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      grid3Panel?.classList.toggle('hidden', !expanded);
-    };
-
-    if (modePointerBtn && modeSwitchesBtn && modeGrid3Btn) {
+    if (modePointerBtn && modeSwitchesBtn) {
       modePointerBtn.addEventListener('click', () => {
         syncModeUI('pointer');
         if (switchAccessCheckbox.checked) {
@@ -3624,11 +3615,6 @@ if (!isGridMode && !isGridCodingMode) {
           switchAccessCheckbox.dispatchEvent(new Event('change'));
         }
       });
-      modeGrid3Btn.addEventListener('click', () => {
-        const open =
-          modeGrid3Btn.getAttribute('aria-expanded') === 'true';
-        setGrid3Expanded(!open);
-      });
 
       // Re-sync chips when the checkbox flips from a non-chip path
       // (notably the touch-mode cancel dispatch).
@@ -3637,7 +3623,6 @@ if (!isGridMode && !isGridCodingMode) {
       });
 
       syncModeUI(switchAccessCheckbox.checked ? 'switches' : 'pointer');
-      setGrid3Expanded(false);
     }
   }
 
