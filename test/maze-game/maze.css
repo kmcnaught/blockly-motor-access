@@ -1367,12 +1367,18 @@ header.christmas h1::after {
   margin: 0;
 }
 
-/* Mode selector — three segmented buttons picking between access
-   modes. Pointer / Switches toggle switch-scan on / off; Grid 3 is
-   informational and leaves state alone. */
+/* Pointer / Switches share a true 2-way segmented control; Grid 3
+   sits alongside as a visually distinct "learn more" affordance. */
 .mode-selector {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.mode-selector-primary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
+  flex: 1;
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
@@ -1390,11 +1396,11 @@ header.christmas h1::after {
   text-align: center;
 }
 
-.mode-chip:first-child {
+.mode-selector-primary > .mode-chip:first-child {
   border-left: 0;
 }
 
-.mode-chip:hover:not([aria-pressed="true"]) {
+.mode-chip:hover:not([aria-pressed="true"]):not(.mode-chip--alt) {
   filter: brightness(0.95);
 }
 
@@ -1410,10 +1416,56 @@ header.christmas h1::after {
   color: var(--surface);
 }
 
+/* Grid 3 chip — outlined, link-coloured, no "pressed" fill. aria-expanded
+   drives the only state visual (subtle outline when open). */
+.mode-chip--alt {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  background: transparent;
+  color: #1976d2;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.mode-chip--alt:hover {
+  background: var(--chrome-bg);
+}
+
+.mode-chip--alt[aria-expanded="true"] {
+  border-style: solid;
+  border-color: #1976d2;
+}
+
+:root[data-theme="dark"] .mode-chip--alt,
+:root[data-theme="hc"] .mode-chip--alt {
+  color: var(--on-surface);
+}
+
+:root[data-theme="dark"] .mode-chip--alt[aria-expanded="true"],
+:root[data-theme="hc"] .mode-chip--alt[aria-expanded="true"] {
+  border-color: var(--on-surface);
+}
+
 .mode-chip-arrow {
   margin-left: 2px;
   font-weight: 400;
   opacity: 0.85;
+}
+
+/* Grid 3 reveal card — sits below the active mode panel when expanded. */
+.grid3-info {
+  padding: 12px 14px;
+  background: var(--chrome-bg);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grid3-info.hidden {
+  display: none;
 }
 
 /* Mode panels — one visible at a time, matched to the chip the user

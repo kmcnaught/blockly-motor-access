@@ -247,22 +247,21 @@
         <section class="settings-col settings-col-main" id="switchAccessSection">
           <h3 class="settings-heading">How you'll use this app</h3>
 
-          <!-- Mode selector. Pointer/Switches are real modes (toggle
-               switch-scan on/off); Grid 3 is informational — selecting it
-               just reveals install guidance without changing switch state.
-               role="group" + aria-pressed on each <button> models these
-               as a labelled set of toggle buttons. We deliberately don't
-               use role="radiogroup" (which would require arrow-key nav
-               and aria-checked) — Tab-through is the expected keyboard
-               path, and switch-scan reaches each chip via data-scan-item. -->
-          <div class="mode-selector" role="group" aria-label="Access method">
-            <button type="button" class="mode-chip" id="modePointer" data-mode="pointer" aria-pressed="true" data-scan-item>
-              Pointer / Touch
-            </button>
-            <button type="button" class="mode-chip" id="modeSwitches" data-mode="switches" aria-pressed="false" data-scan-item>
-              Switches
-            </button>
-            <button type="button" class="mode-chip" id="modeGrid3" data-mode="grid3" aria-pressed="false" data-scan-item>
+          <!-- Pointer / Switches are the two committable modes and share
+               aria-pressed semantics. Grid 3 is a sibling affordance that
+               reveals install guidance without changing switch state;
+               styled distinctly so it reads as "an alternative route",
+               not a third mutually-exclusive choice. -->
+          <div class="mode-selector">
+            <div class="mode-selector-primary" role="group" aria-label="Access method">
+              <button type="button" class="mode-chip" id="modePointer" data-mode="pointer" aria-pressed="true" data-scan-item>
+                Pointer / Touch
+              </button>
+              <button type="button" class="mode-chip" id="modeSwitches" data-mode="switches" aria-pressed="false" data-scan-item>
+                Switches
+              </button>
+            </div>
+            <button type="button" class="mode-chip mode-chip--alt" id="modeGrid3" aria-expanded="false" aria-controls="grid3Panel" data-scan-item>
               Grid 3 <span class="mode-chip-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
@@ -388,10 +387,9 @@
             </details>
           </div>
 
-          <!-- Grid 3 panel. Informational — selecting this chip reveals
-               install guidance and an external link to the grid-set index.
-               Does not change switch-scan state. -->
-          <div class="mode-panel hidden" id="grid3Panel">
+          <!-- Grid 3 info panel. Separate from the pointer/switches panels
+               so revealing it doesn't hide the committed mode's settings. -->
+          <div class="grid3-info hidden" id="grid3Panel">
             <p class="mode-info">Grid 3 is a communication app from Smartbox for Windows and iPad. We publish ready-to-use grid sets that drive this app through its keyboard commands.</p>
             <!-- TODO(settings-rework): point href to the real hosted grid-set index when published. -->
             <p><a href="#" target="_blank" rel="noopener" class="grid3-link" data-scan-item>See available grid sets &rarr;</a></p>

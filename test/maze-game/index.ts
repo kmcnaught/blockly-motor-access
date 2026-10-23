@@ -3570,11 +3570,9 @@ if (!isGridMode && !isGridCodingMode) {
       applyEnabled(switchAccessCheckbox.checked);
     });
 
-    // ========== MODE SELECTOR (Pointer / Switches / Grid 3) ==========
-    // The three mode chips drive the switchAccessCheckbox for Pointer /
-    // Switches; Grid 3 is informational (no state change). A change
-    // listener below keeps the chip visuals in sync when applyEnabled
-    // flips the checkbox back from paths like touch-mode cancel.
+    // Pointer / Switches are the two committable modes; Grid 3 is a
+    // separate reveal affordance for its info card and does not touch
+    // switch-scan state.
     const modePointerBtn = document.getElementById(
       'modePointer',
     ) as HTMLButtonElement | null;
@@ -3588,26 +3586,25 @@ if (!isGridMode && !isGridCodingMode) {
     const grid3Panel = document.getElementById('grid3Panel');
     const switchesPanel = document.getElementById('switchAccessPanel');
 
-    type AccessMode = 'pointer' | 'switches' | 'grid3';
+    type AccessMode = 'pointer' | 'switches';
 
     const syncModeUI = (mode: AccessMode) => {
       const chips: Array<[HTMLButtonElement | null, AccessMode]> = [
         [modePointerBtn, 'pointer'],
         [modeSwitchesBtn, 'switches'],
-        [modeGrid3Btn, 'grid3'],
       ];
       for (const [btn, m] of chips) {
         if (btn) btn.setAttribute('aria-pressed', m === mode ? 'true' : 'false');
       }
       pointerPanel?.classList.toggle('hidden', mode !== 'pointer');
-      grid3Panel?.classList.toggle('hidden', mode !== 'grid3');
-      // SwitchScanSettings.setPanelVisible also toggles .hidden on
-      // switchesPanel from applyEnabled; keep it in sync with the chip
-      // too so Grid 3 selection hides the switches panel without
-      // disabling switch access.
       if (switchesPanel) {
         switchesPanel.classList.toggle('hidden', mode !== 'switches');
       }
+    };
+
+    const setGrid3Expanded = (expanded: boolean) => {
+      modeGrid3Btn?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      grid3Panel?.classList.toggle('hidden', !expanded);
     };
 
     if (modePointerBtn && modeSwitchesBtn && modeGrid3Btn) {
@@ -3626,27 +3623,19 @@ if (!isGridMode && !isGridCodingMode) {
         }
       });
       modeGrid3Btn.addEventListener('click', () => {
-        // Grid 3 is informational — selecting it reveals install
-        // guidance but does NOT touch switch-scan state. No checkbox
-        // dispatch here, unlike the Pointer / Switches handlers above.
-        syncModeUI('grid3');
+        const open =
+          modeGrid3Btn.getAttribute('aria-expanded') === 'true';
+        setGrid3Expanded(!open);
       });
 
-      // Re-sync chips when the checkbox state changes from paths that
-      // don't go through a chip click (notably the touch-mode cancel
-      // dispatch). Skip when Grid 3 is the current chip — selecting it
-      // doesn't change the checkbox, and we don't want a stray change
-      // elsewhere to drag the user out of Grid 3's info view.
+      // Re-sync chips when the checkbox flips from a non-chip path
+      // (notably the touch-mode cancel dispatch).
       switchAccessCheckbox.addEventListener('change', () => {
-        const grid3Active =
-          modeGrid3Btn.getAttribute('aria-pressed') === 'true';
-        if (grid3Active) return;
         syncModeUI(switchAccessCheckbox.checked ? 'switches' : 'pointer');
       });
 
-      // Seed from the initial switch-access state. switchAccessCheckbox
-      // was .checked = switchScanInitialEnabled a few lines up.
       syncModeUI(switchAccessCheckbox.checked ? 'switches' : 'pointer');
+      setGrid3Expanded(false);
     }
   }
 
