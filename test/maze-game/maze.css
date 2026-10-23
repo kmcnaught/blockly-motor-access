@@ -1776,17 +1776,11 @@ header.christmas h1::after {
 
 .shortcuts-modal .about-link {
   display: inline-block;
-  margin: 12px auto 0;
-  font-size: 0.85em;
+  margin-left: 32px;
+  font-size: 1em;
   color: var(--on-surface);
   text-decoration: none;
-}
-
-/* Centre the inline-block in the dialog without the <a> stretching
-   full-width — avoids a huge click/focus target. */
-.shortcuts-modal > .about-link {
-  display: block;
-  width: fit-content;
+  align-self: center;
 }
 
 .shortcuts-modal .about-link:hover {

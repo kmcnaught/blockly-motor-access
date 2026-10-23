@@ -2454,7 +2454,6 @@ gridPracticeIntroModal.addEventListener('click', () => {
 // instruction-bar cog button `#settingsBtn`; see todo.md #1.)
 
 const shortcutsModal = document.getElementById('shortcutsModal')!;
-const shortcutsModalClose = document.getElementById('shortcutsModalClose')!;
 const shortcutsModalCloseX = document.getElementById('shortcutsModalCloseX')!;
 const settingsBtn = document.getElementById('settingsBtn')!;
 
@@ -2463,7 +2462,7 @@ const settingsBtn = document.getElementById('settingsBtn')!;
 // `shortcutsDialog` variable name so the dozens of `showConfirmationModal` /
 // `dismissOpenDialogs` references that already check it keep working.
 const shortcutsDialog = new Dialog('shortcutsModal', {
-  focusSelector: '#shortcutsModalClose',
+  focusSelector: '#shortcutsModalCloseX',
   closeOnEscape: true,
   closeOnBackdropClick: true
 });
@@ -2472,7 +2471,6 @@ const shortcutsDialog = new Dialog('shortcutsModal', {
 settingsBtn.addEventListener('click', () => shortcutsDialog.show());
 
 // Close button handler.
-shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
 shortcutsModalCloseX.addEventListener('click', () => shortcutsDialog.hide());
 
 // ========== APPEARANCE / THEME ==========
