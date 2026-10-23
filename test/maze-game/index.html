@@ -236,6 +236,11 @@
          hidden mode-panels (display:none via .mode-panel.hidden)
          contribute nothing to the scan. -->
     <dialog id="shortcutsModal" class="result-modal shortcuts-modal" aria-labelledby="shortcutsModalTitle" data-scan-region="settings-modal">
+      <!-- Placed before the title so Tab wrap + switch-scan reach it first. -->
+      <button type="button" id="shortcutsModalCloseX" class="modal-close-x"
+              aria-label="Close" data-msg-aria-label="MAZE_CLOSE" data-scan-item>
+        <span aria-hidden="true">&times;</span>
+      </button>
       <h2 id="shortcutsModalTitle" class="result-modal-title" data-msg="MAZE_SETTINGS">Settings</h2>
 
       <div class="settings-columns">

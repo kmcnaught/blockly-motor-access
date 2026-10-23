@@ -1299,6 +1299,44 @@ header.christmas h1::after {
   width: 800px;
   max-width: 95vw;
   text-align: left;
+  position: relative;
+}
+
+.result-modal.shortcuts-modal > .result-modal-title {
+  padding-right: 44px;
+}
+
+.modal-close-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--on-surface);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close-x:hover {
+  background: var(--chrome-bg);
+  border-color: var(--border);
+}
+
+.modal-close-x:focus-visible {
+  outline: 2px solid #1976d2;
+  outline-offset: 1px;
+}
+
+:root[data-theme="hc"] .modal-close-x:focus-visible {
+  outline-color: var(--on-surface);
 }
 
 /* 2-column grid for the settings body. The main column holds the

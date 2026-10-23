@@ -2455,6 +2455,7 @@ gridPracticeIntroModal.addEventListener('click', () => {
 
 const shortcutsModal = document.getElementById('shortcutsModal')!;
 const shortcutsModalClose = document.getElementById('shortcutsModalClose')!;
+const shortcutsModalCloseX = document.getElementById('shortcutsModalCloseX')!;
 const settingsBtn = document.getElementById('settingsBtn')!;
 
 // Initialize the unified settings dialog using Dialog class.
@@ -2472,6 +2473,7 @@ settingsBtn.addEventListener('click', () => shortcutsDialog.show());
 
 // Close button handler.
 shortcutsModalClose.addEventListener('click', () => shortcutsDialog.hide());
+shortcutsModalCloseX.addEventListener('click', () => shortcutsDialog.hide());
 
 // ========== APPEARANCE / THEME ==========
 // Four-way radio picker (system / light / dark / hc). The resolved
