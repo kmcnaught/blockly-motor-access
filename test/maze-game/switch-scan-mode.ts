@@ -2454,6 +2454,11 @@ export class SwitchScanController {
    */
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.enabled) return;
+    // Ignore browser auto-repeat keydowns. Switch users press
+    // intentionally; a held key firing a second Select would race
+    // ahead through newly-pushed confirmation sub-scans and
+    // double-activate (e.g. Delete → auto-confirm).
+    if (e.repeat) return;
     // While the maze is running a program, advance/select are dead.
     // The user should be watching the animation, not driving the
     // scanner; resuming happens automatically via handleRunEnd.
