@@ -289,7 +289,7 @@
                 </span>
                 <span class="bm-copy">
                   <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_DRAG">Drag</span>
-                  <span class="bm-desc">Use touch or your cursor to drag blocks to rearrange the code.</span>
+                  <span class="bm-desc">Use touch or your cursor to drag blocks to rearrange the code. Requires mouse to be held down or latched.</span>
                 </span>
               </label>
 
@@ -309,7 +309,10 @@
 
               <label class="block-movement-option" data-scan-item>
                 <input type="radio" name="blockMovement" value="both" checked>
-                <span class="bm-illustration bm-illustration--both" aria-hidden="true"></span>
+                <span class="bm-illustration bm-illustration--both" aria-hidden="true">
+                  <span class="bm-both-half bm-both-click"></span>
+                  <span class="bm-both-half bm-both-drag"></span>
+                </span>
                 <span class="bm-copy">
                   <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_BOTH">Both</span>
                   <span class="bm-desc">Drag or click-to-move both work. You may find it easier to just pick your preferred mode.</span>

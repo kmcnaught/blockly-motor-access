@@ -1619,14 +1619,38 @@ header.christmas h1::after {
   background-position: center;
 }
 
-/* "Both" option has no dedicated art yet — keep a dashed placeholder
-   so it reads as "a slot that will be filled" rather than broken art. */
-.bm-illustration--both {
-  border-style: dashed;
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    rgba(128, 128, 128, 0.15) 6px 7px
+/* "Both" option composes the drag + click illustrations into a single
+   tile — click top-left, drag bottom-right — joined by a sawtooth
+   zigzag along the diagonal. */
+.bm-both-half {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+.bm-both-click {
+  background-image: url('./assets/block-click.png');
+  clip-path: polygon(
+    0% 0%, 100% 0%,
+    90% 10%, 95% 15%, 80% 20%,
+    70% 30%, 75% 35%, 60% 40%,
+    50% 50%, 55% 55%, 40% 60%,
+    30% 70%, 35% 75%, 20% 80%,
+    10% 90%, 15% 95%, 0% 100%
+  );
+}
+
+.bm-both-drag {
+  background-image: url('./assets/block-drag.png');
+  clip-path: polygon(
+    100% 0%,
+    90% 10%, 95% 15%, 80% 20%,
+    70% 30%, 75% 35%, 60% 40%,
+    50% 50%, 55% 55%, 40% 60%,
+    30% 70%, 35% 75%, 20% 80%,
+    10% 90%, 15% 95%, 0% 100%,
+    100% 100%
   );
 }
 
@@ -1653,15 +1677,15 @@ header.christmas h1::after {
 /* Centred on the "turn" block the illustration shows being dragged. */
 .bm-cursor--grab {
   top: 50%;
-  left: 50%;
+  left: 68%;
   transform: translate(-50%, -50%);
 }
 
 /* Arrow tip (upper-left of the SVG) parks on the top-row green
    connection target in the illustration. */
 .bm-cursor--pointer {
-  top: 18%;
-  left: 3%;
+  top: 10%;
+  left: 14%;
 }
 
 .bm-copy {
