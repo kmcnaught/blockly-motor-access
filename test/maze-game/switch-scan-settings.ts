@@ -175,6 +175,8 @@ export class SwitchScanSettings {
   private readonly inputModeToggle: HTMLInputElement | null;
   private readonly touchSettingsGroup: HTMLElement | null;
   private readonly touchSwipeAdvanceSelect: HTMLSelectElement | null;
+  private readonly touchExitBtn: HTMLButtonElement | null;
+  private readonly experimentalSection: HTMLDetailsElement | null;
   private readonly panelEl: HTMLElement | null;
 
   /** Live values. Auto-applied on every accepted change. */
@@ -263,6 +265,12 @@ export class SwitchScanSettings {
     this.touchSwipeAdvanceSelect = document.getElementById(
       'touchSwipeAdvance',
     ) as HTMLSelectElement | null;
+    this.touchExitBtn = document.getElementById(
+      'touchExitBtn',
+    ) as HTMLButtonElement | null;
+    this.experimentalSection = document.querySelector<HTMLDetailsElement>(
+      '.experimental-section',
+    );
 
     if (this.switchACaptureBtn) {
       this.switchACaptureBtn.disabled = false;
@@ -357,6 +365,17 @@ export class SwitchScanSettings {
         this.currentInputMode = this.inputModeToggle!.checked
           ? 'touch'
           : 'keyboard';
+        this.refreshInputModeVisibility();
+        this.emitChange();
+      });
+    }
+
+    if (this.touchExitBtn) {
+      this.touchExitBtn.addEventListener('click', () => {
+        if (this.inputModeToggle) {
+          this.inputModeToggle.checked = false;
+        }
+        this.currentInputMode = 'keyboard';
         this.refreshInputModeVisibility();
         this.emitChange();
       });
@@ -547,6 +566,13 @@ export class SwitchScanSettings {
     toggle(this.switchModeGroup, touch);
     toggle(this.scanSpeedGroup, touch);
     toggle(this.scanBonusGroup, touch);
+    // Reveal the touch controls (and the exit button inside them) by
+    // opening the Experimental disclosure when touch is already live.
+    // Users in touch mode otherwise have no visible handhold for
+    // getting back to keyboard switches.
+    if (this.experimentalSection && touch) {
+      this.experimentalSection.open = true;
+    }
     // Keyboard-mode switch-B / scan-speed / settle-time visibility
     // also depends on the step/auto mode. When returning to keyboard,
     // let that logic re-apply so a user who was in Auto before

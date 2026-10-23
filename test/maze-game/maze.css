@@ -1522,6 +1522,24 @@ header.christmas h1::after {
   margin: 6px 0;
 }
 
+/* Prominent exit affordance for users already in touch-input mode —
+   lives inside #touchSettingsGroup so it only renders while touch is
+   the active input. */
+.touch-exit-btn {
+  flex: 1;
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.touch-exit-btn:hover {
+  background: var(--chrome-bg);
+}
+
 .mode-info {
   margin: 0;
   font-size: 0.9em;
