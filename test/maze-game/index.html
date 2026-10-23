@@ -281,7 +281,12 @@
 
               <label class="block-movement-option" data-scan-item>
                 <input type="radio" name="blockMovement" value="drag">
-                <span class="bm-illustration" data-art="drag" aria-hidden="true"></span>
+                <span class="bm-illustration bm-illustration--drag" aria-hidden="true">
+                  <svg class="bm-cursor bm-cursor--grab" viewBox="0 0 24 24">
+                    <path d="M7 14 V11 a1.5 1.5 0 0 1 3 0 v-1.5 a1.5 1.5 0 0 1 3 0 V9 a1.5 1.5 0 0 1 3 0 v1 a1.5 1.5 0 0 1 3 0 v6 a5 5 0 0 1 -5 5 h-2 a5 5 0 0 1 -5 -5 Z"
+                          fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+                  </svg>
+                </span>
                 <span class="bm-copy">
                   <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_DRAG">Drag</span>
                   <span class="bm-desc">Use touch or your cursor to drag blocks to rearrange the code.</span>
@@ -290,7 +295,12 @@
 
               <label class="block-movement-option" data-scan-item>
                 <input type="radio" name="blockMovement" value="click-to-move">
-                <span class="bm-illustration" data-art="click" aria-hidden="true"></span>
+                <span class="bm-illustration bm-illustration--click" aria-hidden="true">
+                  <svg class="bm-cursor bm-cursor--pointer" viewBox="0 0 24 24">
+                    <polygon points="4,2 4,19 8.5,15.5 11.5,21.5 13.5,20.5 10.5,14.5 16,14.5"
+                             fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/>
+                  </svg>
+                </span>
                 <span class="bm-copy">
                   <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_CLICK">Click</span>
                   <span class="bm-desc">Click a focused block to enter move mode, then click where to put it.</span>
@@ -299,7 +309,7 @@
 
               <label class="block-movement-option" data-scan-item>
                 <input type="radio" name="blockMovement" value="both" checked>
-                <span class="bm-illustration" data-art="both" aria-hidden="true"></span>
+                <span class="bm-illustration bm-illustration--both" aria-hidden="true"></span>
                 <span class="bm-copy">
                   <span class="bm-label" data-msg="MAZE_BLOCK_MOVEMENT_BOTH">Both</span>
                   <span class="bm-desc">Drag or click-to-move both work. You may find it easier to just pick your preferred mode.</span>

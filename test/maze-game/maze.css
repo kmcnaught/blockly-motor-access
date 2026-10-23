@@ -1608,17 +1608,60 @@ header.christmas h1::after {
 }
 
 .bm-illustration {
+  position: relative;
   flex: 0 0 auto;
   width: 72px;
-  height: 48px;
-  border: 1px dashed var(--border);
+  height: 72px;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--chrome-bg);
+  background-color: var(--chrome-bg);
+  background-size: cover;
+  background-position: center;
+}
+
+/* "Both" option has no dedicated art yet — keep a dashed placeholder
+   so it reads as "a slot that will be filled" rather than broken art. */
+.bm-illustration--both {
+  border-style: dashed;
   background-image: repeating-linear-gradient(
     135deg,
     transparent 0 6px,
     rgba(128, 128, 128, 0.15) 6px 7px
   );
+}
+
+.bm-illustration--drag {
+  background-image: url('./assets/block-drag.png');
+}
+
+.bm-illustration--click {
+  background-image: url('./assets/block-click.png');
+}
+
+/* Overlay a canonical cursor glyph on the illustration — the source
+   screenshots don't capture the OS cursor cleanly, so we paint it in.
+   Positions are tuned to each image: grab sits on the dragged block,
+   pointer sits over a highlighted connection. */
+.bm-cursor {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+
+/* Centred on the "turn" block the illustration shows being dragged. */
+.bm-cursor--grab {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Arrow tip (upper-left of the SVG) parks on the top-row green
+   connection target in the illustration. */
+.bm-cursor--pointer {
+  top: 18%;
+  left: 3%;
 }
 
 .bm-copy {
