@@ -103,7 +103,30 @@ function moveLabel(cmd: string, param: string | number | null): string {
     case 'strike_pose': return `Strike a ${param} pose!`;
     case 'wave': return `Wave ${param}!`;
     case 'step': return `Step ${param}!`;
-    case 'freeze': return `Freeze for ${param} seconds!`;
+    case 'freeze': return `Freeze for ${param} ${param === 1 ? 'second' : 'seconds'}!`;
+    default: return cmd;
+  }
+}
+
+/**
+ * Shorter form spoken by TTS. The card keeps the full phrasing (parameters
+ * are often the whole joke — "jellyfish", "superhero") but the voice says
+ * just the verb so pacing stays tight and short moves don't get clipped.
+ */
+function spokenLabel(cmd: string): string {
+  switch (cmd) {
+    case 'clap': return 'Clap!';
+    case 'spin': return 'Spin!';
+    case 'jump': return 'Jump!';
+    case 'wiggle': return 'Wiggle!';
+    case 'bow': return 'Bow!';
+    case 'dance_like_a': return 'Dance!';
+    case 'pull_face': return 'Pull a face!';
+    case 'make_noise': return 'Make a noise!';
+    case 'strike_pose': return 'Strike a pose!';
+    case 'wave': return 'Wave!';
+    case 'step': return 'Step!';
+    case 'freeze': return 'Freeze!';
     default: return cmd;
   }
 }
@@ -444,10 +467,9 @@ export class DanceStage {
 
     // Render the card for this move.
     this.cardEmojiEl.textContent = moveEmoji(move.cmd, move.param);
-    const label = moveLabel(move.cmd, move.param);
-    this.cardLabelEl.textContent = label;
+    this.cardLabelEl.textContent = moveLabel(move.cmd, move.param);
     this.onHighlight?.(move.blockId);
-    this.speak(label);
+    this.speak(spokenLabel(move.cmd));
 
     // Drive the progress bar. Speed multiplier scales freezes too — a Fast
     // run shortens held poses by design.
