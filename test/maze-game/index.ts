@@ -27,7 +27,8 @@ import {KeyboardNavigation, TriggerMode} from '../../src/index';
 import {registerFlyoutCursor} from '../../src/flyout_cursor';
 import {registerNavigationDeferringToolbox} from '../../src/navigation_deferring_toolbox';
 import {registerMazeBlocks, setCurrentSkin} from './blocks';
-import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
+import {MazeGame, getMaxBlocksForLevel, getStageForLevel, getFirstLevelIndexForStage, getLevelsForStage, getLevelConfig, isDanceLevel, STAGES, CODING_LEVELS, GRID_STAGES, getGridStageConfig, type ResultType, type GridStageConfig} from './maze';
+import {DanceStage} from './dance-stage';
 import {loadMessages, getBrowserLocale, msg, applyDataMsg, type SupportedLocale} from './messages';
 import {ImmediateModeController} from './immediate-mode';
 import {GridCodingModeController} from './grid-coding-mode';
@@ -317,6 +318,23 @@ function getToolboxForLevel(level: number): Blockly.utils.toolbox.ToolboxDefinit
         break;
       case 'maze_ifElse':
         contents.push({kind: 'block', type: 'maze_ifElse'});
+        break;
+      // Dance Party blocks — just include them as-is, defaults for dropdowns
+      // come from the block definition.
+      case 'dance_clap':
+      case 'dance_spin':
+      case 'dance_jump':
+      case 'dance_wiggle':
+      case 'dance_bow':
+      case 'dance_like_a':
+      case 'dance_pull_face':
+      case 'dance_make_noise':
+      case 'dance_strike_pose':
+      case 'dance_wave':
+      case 'dance_step':
+      case 'dance_freeze':
+      case 'dance_repeat':
+        contents.push({kind: 'block', type: blockType});
         break;
     }
   }
@@ -734,6 +752,43 @@ MazeGame.setPracticeModeEnabled(currentExecutionMode === 'practice');
 
 const mazeGame = new MazeGame('mazeCanvas', initialLevel, savedSkin);
 
+// ========== DANCE PARTY STAGE ==========
+// The dance stage overlays the maze canvas on dance levels.
+// updateDanceModeUI() below toggles body.dance-mode and shows/hides the stage.
+const danceStageHost = document.querySelector('.canvas-wrapper') as HTMLElement;
+const danceStage = danceStageHost ? new DanceStage(danceStageHost) : null;
+danceStage?.onRunningChanged((isRunning) => {
+  const runBtn = document.getElementById('runButton') as HTMLButtonElement | null;
+  const stopBtn = document.getElementById('danceStopButton') as HTMLButtonElement | null;
+  if (runBtn) runBtn.disabled = isRunning;
+  if (stopBtn) stopBtn.classList.toggle('hidden', !isRunning);
+});
+
+/**
+ * Determine whether the current level is a Dance Party level.
+ * We check the raw CODING_LEVELS entry since practice mode doesn't have
+ * dance levels (and MazeGame always reports levels 1-based).
+ */
+function isCurrentLevelDance(): boolean {
+  if (MazeGame.isPracticeModeEnabled()) return false;
+  const cfg = getLevelConfig(mazeGame.getLevel() - 1, false);
+  return isDanceLevel(cfg);
+}
+
+/**
+ * Apply dance-mode UI state: show the stage, add body class to hide the
+ * canvas, show the Stop button slot.
+ */
+function updateDanceModeUI(): void {
+  const isDance = isCurrentLevelDance();
+  document.body.classList.toggle('dance-mode', isDance);
+  if (isDance) {
+    danceStage?.show();
+  } else {
+    danceStage?.hide();
+  }
+}
+
 // ========== SOUND MUTE STATE ==========
 
 // Load saved sound preference from localStorage (default: enabled)
@@ -955,6 +1010,7 @@ function setExecutionMode(mode: ExecutionMode): void {
     mazeGame.setLevel(1);
     updateWorkspaceForLevel(1);
     updateLevelDisplay();
+    updateDanceModeUI();
   }
 
   updateModeUI();
@@ -1421,6 +1477,12 @@ window.addEventListener('resize', hidePegmanMenu);
  * Run the program - shared by main button, fullscreen button, and keyboard shortcuts.
  */
 function runProgram() {
+  // Dance levels don't share state with MazeGame, so the maze-executing
+  // guard would wrongly block them.
+  if (isCurrentLevelDance()) {
+    executeProgram();
+    return;
+  }
   if (mazeGame.isExecuting()) return;
 
   // In grid coding mode, dismiss success modal if visible and replay
@@ -1453,6 +1515,16 @@ function runGhostProgram() {
 }
 
 function executeProgram(options?: { ghostRun?: boolean }): void {
+  // Dance Party levels route through the dance stage, not MazeGame.
+  if (isCurrentLevelDance()) {
+    if (danceStage?.isRunning()) return;
+    hasRun = true;
+    hideHint();
+    const code = javascriptGenerator.workspaceToCode(workspace);
+    danceStage?.run(code);
+    return;
+  }
+
   if (mazeGame.isExecuting()) return;
   setGhostRunButtonVisible(false);
   hasRun = true;
@@ -1477,6 +1549,11 @@ document.getElementById('ghostRunButton')?.addEventListener('click', runGhostPro
 
 // Reset button handler
 document.getElementById('resetButton')?.addEventListener('click', resetProgram);
+
+// Dance Party Stop button handler
+document.getElementById('danceStopButton')?.addEventListener('click', () => {
+  danceStage?.stop();
+});
 
 // Delete focused block button handler
 // Prevent mousedown from stealing focus away from the workspace/block
@@ -1506,6 +1583,7 @@ populateStageDropdown();
 
 // Initial level display update
 updateLevelDisplay();
+updateDanceModeUI();
 
 // Initialize padding controls manager for eye gaze accessibility
 const paddingManager = new PaddingControlsManager({
@@ -2806,6 +2884,8 @@ function performLevelTransition(newLevel: number, showBanner: boolean = true, sh
     mazeGame.setLevel(newLevel);
     updateWorkspaceForLevel(newLevel);
     updateLevelDisplay();
+    // Show/hide the dance stage depending on the new level kind.
+    updateDanceModeUI();
     resetHintState();
     // Update URL to reflect level change
     updateUrlState();

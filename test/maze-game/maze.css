@@ -1979,3 +1979,114 @@ body.grid-mode .screen-padding,
 body.grid-coding-mode .screen-padding {
   display: none;
 }
+
+/* ================================================================
+ * Dance Party stage
+ * Replaces the maze canvas on the "G - Dance Party" level.
+ * ================================================================ */
+
+/* Hide the canvas, its overlays, and the maze-specific instruction bar
+ * when a dance level is active. The dance stage carries its own copy. */
+body.dance-mode #mazeCanvas,
+body.dance-mode #levelBanner,
+body.dance-mode #confettiContainer,
+body.dance-mode #fallOverlay,
+body.dance-mode #instructionBar {
+  display: none;
+}
+
+/* Hide the Reset button in dance mode — Stop replaces it. */
+body.dance-mode #resetButton {
+  display: none;
+}
+
+.dance-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.dance-stage.hidden {
+  display: none;
+}
+
+.dance-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  padding: 32px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 85%;
+  max-width: 560px;
+  min-height: 55%;
+  text-align: center;
+}
+
+.dance-card-emoji {
+  font-size: clamp(80px, 18vmin, 180px);
+  line-height: 1;
+}
+
+.dance-card-label {
+  font-size: clamp(28px, 4.5vmin, 48px);
+  font-weight: 600;
+  color: #333;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.dance-progress {
+  width: 85%;
+  max-width: 560px;
+  height: 14px;
+  background: #e8e8e8;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.dance-progress-bar {
+  height: 100%;
+  /* Dance block hue is 320 (magenta/pink). */
+  background: hsl(320, 70%, 55%);
+  width: 100%;
+  /* Transition is set inline during playback so we can tune per-move duration. */
+}
+
+.dance-next-up {
+  font-size: 16px;
+  color: #777;
+  font-family: 'Roboto', Arial, sans-serif;
+  min-height: 1.2em;
+}
+
+/* Stop button — only visible in dance mode (the controller adds .hidden off-dance). */
+#danceStopButton {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  background: hsl(320, 70%, 55%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#danceStopButton:hover {
+  background: hsl(320, 70%, 48%);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+#danceStopButton.hidden {
+  display: none;
+}

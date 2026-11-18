@@ -293,6 +293,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_5_CONCEPT: "An 'if-else' block lets you choose between two actions.\n\nThese levels let you choose instructions based on colour, or detect where there is a path to follow.",
     MAZE_STAGE_6_NAME: 'Challenge',
     MAZE_STAGE_6_CONCEPT: 'Put everything together to solve these challenging mazes!',
+    MAZE_STAGE_7_NAME: 'Dance Party',
+    MAZE_STAGE_7_CONCEPT: 'Pick some dance moves, press Run, and watch the show!',
     MAZE_STAGE: 'Stage',
     MAZE_STAGE_SELECT: 'Select Stage',
 
@@ -578,6 +580,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_5_CONCEPT: "Un bloc « si-sinon » vous permet de choisir entre deux actions.\n\nCes niveaux vous permettent de choisir des instructions basées sur la couleur, ou de détecter où il y a un chemin à suivre.",
     MAZE_STAGE_6_NAME: 'Défi',
     MAZE_STAGE_6_CONCEPT: 'Combinez tout pour résoudre ces labyrinthes difficiles !',
+    MAZE_STAGE_7_NAME: 'Soirée dansante',
+    MAZE_STAGE_7_CONCEPT: 'Choisis des pas de danse, appuie sur Lancer et regarde le spectacle !',
     MAZE_STAGE: 'Étape',
     MAZE_STAGE_SELECT: 'Sélectionner l\'étape',
 
@@ -853,6 +857,8 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_5_CONCEPT: 'Un bloque «si-sino» te permite elegir entre dos acciones.\n\nEstos niveles te permiten elegir instrucciones según el color, o detectar dónde hay un camino que seguir.',
     MAZE_STAGE_6_NAME: 'Reto',
     MAZE_STAGE_6_CONCEPT: '¡Combínalo todo para resolver estos laberintos difíciles!',
+    MAZE_STAGE_7_NAME: 'Fiesta de baile',
+    MAZE_STAGE_7_CONCEPT: '¡Elige unos pasos de baile, pulsa Ejecutar y disfruta del espectáculo!',
     MAZE_STAGE: 'Etapa',
     MAZE_STAGE_SELECT: 'Seleccionar etapa',
 

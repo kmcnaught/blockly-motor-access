@@ -54,6 +54,7 @@ export interface GridStageConfig {
  * A maze level with metadata.
  */
 export interface MazeLevel {
+  kind?: 'maze';          // Discriminator (optional; absent means maze for backcompat)
   maze: number[][];
   stage: number;          // 1-7, which stage this level belongs to
   maxBlocks: number;      // Block limit (Infinity for unlimited)
@@ -61,6 +62,34 @@ export interface MazeLevel {
   instruction?: string;   // Message key for level instruction (e.g., 'MAZE_INSTRUCTION_STAGE_A')
   hints?: string[];       // Message keys for contextual hints available on this level
 }
+
+/**
+ * A non-maze "dance party" bonus level: pick blocks, press Run, watch the
+ * stage cycle through moves. No grid, no maxBlocks, no instruction.
+ *
+ * The optional `instruction` and `hints` slots mirror MazeLevel so code that
+ * reads these fields off a LevelConfig union doesn't need to narrow first.
+ */
+export interface DanceLevel {
+  kind: 'dance';
+  stage: number;          // Shares the stage numbering so dropdown ordering works
+  blocks: string[];       // Starter toolbox
+  instruction?: undefined;
+  hints?: undefined;
+}
+
+/**
+ * Union of all level kinds. Code that reads maze-only fields must narrow on
+ * `kind` first.
+ */
+export type LevelConfig = MazeLevel | DanceLevel;
+
+/**
+ * Dummy 1x1 open maze used when a DanceLevel sits in the levels array — lets
+ * MazeGame initialise without crashing on getMazes(). The canvas is hidden
+ * on dance levels so this maze is never rendered.
+ */
+const DANCE_PLACEHOLDER_MAZE: number[][] = [[2, 3]];
 
 /**
  * Stage definitions - concepts taught in order.
@@ -108,6 +137,13 @@ export const STAGES: StageConfig[] = [
     concept: 'MAZE_STAGE_6_CONCEPT',
     // Default blocks for challenge - individual levels override with custom toolbox
     blocks: ['maze_moveForward', 'maze_turn', 'maze_repeatTimes', 'maze_forever', 'maze_ifColor'],
+  },
+  {
+    // Dance Party — a bonus level with no maze, just a stage of moves.
+    id: 7,
+    name: 'MAZE_STAGE_7_NAME',
+    concept: 'MAZE_STAGE_7_CONCEPT',
+    blocks: ['dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze', 'dance_repeat'],
   },
 ];
 
@@ -282,7 +318,7 @@ const TILE_SHAPES: Record<string, [number, number]> = {
  *
  * SquareType: 0=WALL, 1=OPEN, 2=START, 3=FINISH, 4=RED, 5=BLUE
  */
-export const CODING_LEVELS: MazeLevel[] = [
+export const CODING_LEVELS: LevelConfig[] = [
   // ============================================================
   // STAGE 1: Sequencing (5 levels)
   // Blocks: maze_moveForward, maze_turn
@@ -720,6 +756,13 @@ export const CODING_LEVELS: MazeLevel[] = [
       [0, 0, 0, 0, 0, 0, 0, 0],
     ],
   },
+
+  // G1: Dance Party — bonus level, no maze.
+  {
+    kind: 'dance',
+    stage: 7,
+    blocks: ['dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze', 'dance_repeat'],
+  },
 ];
 
 /**
@@ -858,7 +901,15 @@ export const PRACTICE_LEVELS: MazeLevel[] = [
 export const PRACTICE_MAZES = PRACTICE_LEVELS.map(level => level.maze);
 
 /**
+ * True if this level config is a Dance Party-style stage level (no maze).
+ */
+export function isDanceLevel(config: LevelConfig | null): config is DanceLevel {
+  return !!config && config.kind === 'dance';
+}
+
+/**
  * Get the max blocks limit for a specific level.
+ * Dance levels have no block cap.
  * @param levelIndex 0-based level index
  * @param usePractice Whether to use practice levels
  */
@@ -867,7 +918,8 @@ export function getMaxBlocksForLevel(levelIndex: number, usePractice: boolean): 
   if (levelIndex < 0 || levelIndex >= levels.length) {
     return Infinity;
   }
-  return levels[levelIndex].maxBlocks;
+  const level = levels[levelIndex];
+  return isDanceLevel(level) ? Infinity : level.maxBlocks;
 }
 
 /**
@@ -885,17 +937,17 @@ export function getStageForLevel(levelIndex: number, usePractice: boolean): numb
 
 /**
  * Get levels for a specific stage.
- * @param stageId Stage number (1-6)
+ * @param stageId Stage number (1-7)
  * @param usePractice Whether to use practice levels
  */
-export function getLevelsForStage(stageId: number, usePractice: boolean): MazeLevel[] {
+export function getLevelsForStage(stageId: number, usePractice: boolean): LevelConfig[] {
   const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
   return levels.filter(level => level.stage === stageId);
 }
 
 /**
  * Get the first level index for a specific stage.
- * @param stageId Stage number (1-6)
+ * @param stageId Stage number (1-7)
  * @param usePractice Whether to use practice levels
  */
 export function getFirstLevelIndexForStage(stageId: number, usePractice: boolean): number {
@@ -908,7 +960,7 @@ export function getFirstLevelIndexForStage(stageId: number, usePractice: boolean
  * @param levelIndex 0-based level index
  * @param usePractice Whether to use practice levels
  */
-export function getLevelConfig(levelIndex: number, usePractice: boolean): MazeLevel | null {
+export function getLevelConfig(levelIndex: number, usePractice: boolean): LevelConfig | null {
   const levels = usePractice ? PRACTICE_LEVELS : CODING_LEVELS;
   return levels[levelIndex] ?? null;
 }
@@ -969,11 +1021,14 @@ export class MazeGame {
 
   /**
    * Get the current maze array based on practice mode setting.
-   * Returns plain maze arrays extracted from level metadata.
+   * Returns plain maze arrays extracted from level metadata; dance levels
+   * get a placeholder maze since the canvas is hidden for them anyway.
    */
   private static getMazes(): number[][][] {
     const levels = MazeGame.usePracticeMazes ? PRACTICE_LEVELS : CODING_LEVELS;
-    return levels.map(level => level.maze);
+    return levels.map(level =>
+      isDanceLevel(level) ? DANCE_PLACEHOLDER_MAZE : level.maze
+    );
   }
 
   constructor(canvasId: string, level: number, skinId: number = 1) {
