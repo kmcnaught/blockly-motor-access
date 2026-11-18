@@ -2082,6 +2082,46 @@ body.dance-mode #resetButton {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Speed toggle — three segmented radio buttons at the bottom of the stage.
+ * Switch-scan users need each position reachable as a discrete, large,
+ * focusable control, so the buttons are generously sized with a bright
+ * focus-visible ring. */
+.dance-speed-toggle {
+  display: inline-flex;
+  gap: 0;
+  padding: 4px;
+  background: #f1f1f1;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.dance-speed-btn {
+  --element-color: hsl(320, 70%, 55%);
+  appearance: none;
+  border: 2px solid transparent;
+  background: transparent;
+  color: #555;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 10px 22px;
+  min-width: 80px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.dance-speed-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.dance-speed-btn.is-selected {
+  background: var(--element-color);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
 #danceStopButton:hover {
   background: hsl(320, 70%, 48%);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);

@@ -757,6 +757,8 @@ const mazeGame = new MazeGame('mazeCanvas', initialLevel, savedSkin);
 // updateDanceModeUI() below toggles body.dance-mode and shows/hides the stage.
 const danceStageHost = document.querySelector('.canvas-wrapper') as HTMLElement;
 const danceStage = danceStageHost ? new DanceStage(danceStageHost) : null;
+// Dance stage TTS honours the global mute toggle.
+danceStage?.setSoundEnabledGetter(() => soundEnabled);
 danceStage?.onRunningChanged((isRunning) => {
   const runBtn = document.getElementById('runButton') as HTMLButtonElement | null;
   const stopBtn = document.getElementById('danceStopButton') as HTMLButtonElement | null;

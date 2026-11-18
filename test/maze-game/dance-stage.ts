@@ -16,7 +16,7 @@
 
 import Interpreter from 'js-interpreter';
 
-/** Base duration for each move, in seconds. 1.0x speed, no speed toggle yet. */
+/** Base duration for each move, in seconds. Scaled by the speed multiplier at Run time. */
 const MOVE_DURATIONS: Record<string, number> = {
   clap: 1.0,
   spin: 2.0,
@@ -79,6 +79,16 @@ const PARAM_EMOJI: Record<string, Record<string, string>> = {
 const IDLE_EMOJI = '🎉';
 const DONE_EMOJI = '🎊';
 
+/** Speed-toggle positions. */
+type Speed = 'slow' | 'normal' | 'fast';
+
+/** Duration multipliers applied at Run time; captured for the whole run. */
+const SPEED_MULTIPLIERS: Record<Speed, number> = {
+  slow: 1.5,
+  normal: 1.0,
+  fast: 0.6,
+};
+
 /** Natural-language card text for a queued move. */
 function moveLabel(cmd: string, param: string | number | null): string {
   switch (cmd) {
@@ -134,12 +144,23 @@ export class DanceStage {
   private cardLabelEl: HTMLElement;
   private progressBarEl: HTMLElement;
   private nextUpEl: HTMLElement;
+  private speedButtons: Record<Speed, HTMLButtonElement>;
 
   private log: Move[] = [];
   private running = false;
   private cancelled = false;
   private activeTimeout: ReturnType<typeof setTimeout> | null = null;
   private onRunningChange: ((isRunning: boolean) => void) | null = null;
+
+  /** Selected UI speed; read into currentSpeedMultiplier at Run time. */
+  private selectedSpeed: Speed = 'normal';
+  /** Captured at Run; applied to every move in this run (no mid-run update). */
+  private currentSpeedMultiplier = 1.0;
+  /**
+   * Caller-supplied getter for the global sound-enabled setting. TTS is
+   * skipped when this returns false. Defaults to always-on.
+   */
+  private isSoundEnabled: () => boolean = () => true;
 
   constructor(host: HTMLElement) {
     this.host = host;
@@ -156,6 +177,11 @@ export class DanceStage {
         <div class="dance-progress-bar" id="danceProgressBar"></div>
       </div>
       <div class="dance-next-up" id="danceNextUp"></div>
+      <div class="dance-speed-toggle" role="radiogroup" aria-label="Playback speed">
+        <button type="button" class="dance-speed-btn" data-speed="slow" role="radio" aria-checked="false">Slow</button>
+        <button type="button" class="dance-speed-btn is-selected" data-speed="normal" role="radio" aria-checked="true">Normal</button>
+        <button type="button" class="dance-speed-btn" data-speed="fast" role="radio" aria-checked="false">Fast</button>
+      </div>
     `;
     host.appendChild(stage);
 
@@ -164,6 +190,34 @@ export class DanceStage {
     this.cardLabelEl = stage.querySelector('#danceCardLabel') as HTMLElement;
     this.progressBarEl = stage.querySelector('#danceProgressBar') as HTMLElement;
     this.nextUpEl = stage.querySelector('#danceNextUp') as HTMLElement;
+    this.speedButtons = {
+      slow: stage.querySelector('.dance-speed-btn[data-speed="slow"]') as HTMLButtonElement,
+      normal: stage.querySelector('.dance-speed-btn[data-speed="normal"]') as HTMLButtonElement,
+      fast: stage.querySelector('.dance-speed-btn[data-speed="fast"]') as HTMLButtonElement,
+    };
+    (Object.keys(this.speedButtons) as Speed[]).forEach((speed) => {
+      this.speedButtons[speed].addEventListener('click', () => this.setSpeed(speed));
+    });
+  }
+
+  /**
+   * Install a callback that reports the global sound-enabled state. When it
+   * returns false, TTS narration is skipped. Call from index.ts after wiring
+   * the mute toggle.
+   */
+  public setSoundEnabledGetter(getter: () => boolean): void {
+    this.isSoundEnabled = getter;
+  }
+
+  /** Update the selected speed and reflect it in the button UI. */
+  private setSpeed(speed: Speed): void {
+    this.selectedSpeed = speed;
+    (Object.keys(this.speedButtons) as Speed[]).forEach((s) => {
+      const btn = this.speedButtons[s];
+      const selected = s === speed;
+      btn.classList.toggle('is-selected', selected);
+      btn.setAttribute('aria-checked', String(selected));
+    });
   }
 
   /** Register a callback that fires when run start/stop transitions happen. */
@@ -214,6 +268,9 @@ export class DanceStage {
     this.running = true;
     this.cancelled = false;
     this.log = [];
+    // Snapshot the UI speed for this entire run — mid-run toggle changes
+    // must not affect queued moves.
+    this.currentSpeedMultiplier = SPEED_MULTIPLIERS[this.selectedSpeed];
 
     try {
       const interpreter = new Interpreter(
@@ -251,8 +308,33 @@ export class DanceStage {
       this.activeTimeout = null;
     }
     this.log = [];
+    this.cancelSpeech();
     this.setIdle();
     if (this.onRunningChange) this.onRunningChange(false);
+  }
+
+  /**
+   * Speak a line via Web Speech API. Cancels any in-flight utterance first
+   * so rapid card swaps don't queue a backlog. Silent no-op when the API is
+   * unavailable or the global sound setting is muted.
+   */
+  private speak(text: string): void {
+    if (typeof window === 'undefined') return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    if (!this.isSoundEnabled()) return;
+    synth.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    // Default system voice, default rate/pitch — cross-browser consistency
+    // matters more than per-move variation here.
+    synth.speak(utter);
+  }
+
+  /** Halt any in-flight utterance without emitting new speech. */
+  private cancelSpeech(): void {
+    if (typeof window === 'undefined') return;
+    const synth = window.speechSynthesis;
+    if (synth) synth.cancel();
   }
 
   /**
@@ -295,8 +377,10 @@ export class DanceStage {
     if (!move) {
       // End of program. Leave the progress bar drained — reads as "done".
       this.cardEmojiEl.textContent = DONE_EMOJI;
-      this.cardLabelEl.textContent = "That's all!";
+      const doneText = "That's all!";
+      this.cardLabelEl.textContent = doneText;
       this.nextUpEl.textContent = '';
+      this.speak(doneText);
       this.running = false;
       if (this.onRunningChange) this.onRunningChange(false);
       return;
@@ -304,10 +388,13 @@ export class DanceStage {
 
     // Render the card for this move.
     this.cardEmojiEl.textContent = moveEmoji(move.cmd, move.param);
-    this.cardLabelEl.textContent = moveLabel(move.cmd, move.param);
+    const label = moveLabel(move.cmd, move.param);
+    this.cardLabelEl.textContent = label;
+    this.speak(label);
 
-    // Drive the progress bar.
-    const seconds = moveDuration(move.cmd, move.param);
+    // Drive the progress bar. Speed multiplier scales freezes too — a Fast
+    // run shortens held poses by design.
+    const seconds = moveDuration(move.cmd, move.param) * this.currentSpeedMultiplier;
     this.resetProgressBar();
     // Next frame: install the transition and drain to 0.
     requestAnimationFrame(() => {
