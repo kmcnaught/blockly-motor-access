@@ -143,7 +143,7 @@ export const STAGES: StageConfig[] = [
     id: 7,
     name: 'MAZE_STAGE_7_NAME',
     concept: 'MAZE_STAGE_7_CONCEPT',
-    blocks: ['dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze', 'dance_repeat'],
+    blocks: ['dance_repeat', 'dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze'],
   },
 ];
 
@@ -761,7 +761,7 @@ export const CODING_LEVELS: LevelConfig[] = [
   {
     kind: 'dance',
     stage: 7,
-    blocks: ['dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze', 'dance_repeat'],
+    blocks: ['dance_repeat', 'dance_clap', 'dance_spin', 'dance_like_a', 'dance_pull_face', 'dance_freeze'],
   },
 ];
 
