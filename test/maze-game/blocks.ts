@@ -658,6 +658,6 @@ export function registerMazeBlocks() {
   javascriptGenerator.forBlock['dance_repeat'] = function (block) {
     const times = block.getFieldValue('TIMES');
     const branch = javascriptGenerator.statementToCode(block, 'DO');
-    return `for (let i = 0; i < ${times}; i++) {\n${branch}}\n`;
+    return `for (var count = 0; count < ${times}; count++) {\n${branch}}\n`;
   };
 }
