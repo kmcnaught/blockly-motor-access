@@ -43,6 +43,11 @@ const LOOPS_HUE = 120;
 const LOGIC_HUE = 210;
 
 /**
+ * Shared hue for all dance-party blocks (warm magenta/pink).
+ */
+const DANCE_HUE = 320;
+
+/**
  * Skin ID for wheelchair character.
  */
 const WHEELCHAIR_SKIN_ID = 1;
@@ -328,6 +333,211 @@ export function registerMazeBlocks() {
       colour: LOGIC_HUE,
       tooltip: '%{BKY_MAZE_IF_COLOR_ELSE_TOOLTIP}',
     },
+
+    // Dance party blocks — no-field moves.
+    {
+      type: 'dance_clap',
+      message0: 'clap',
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Clap your hands!',
+    },
+    {
+      type: 'dance_spin',
+      message0: 'spin',
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Spin around!',
+    },
+    {
+      type: 'dance_jump',
+      message0: 'jump',
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Jump up high!',
+    },
+    {
+      type: 'dance_wiggle',
+      message0: 'wiggle',
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Wiggle all over!',
+    },
+    {
+      type: 'dance_bow',
+      message0: 'bow',
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Take a bow!',
+    },
+
+    // Dance party blocks — one-dropdown moves.
+    {
+      type: 'dance_like_a',
+      message0: 'dance like a %1',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['robot', 'robot'],
+            ['chicken', 'chicken'],
+            ['jellyfish', 'jellyfish'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Dance like a robot, chicken, or jellyfish!',
+    },
+    {
+      type: 'dance_pull_face',
+      message0: 'pull a %1 face',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['silly', 'silly'],
+            ['scary', 'scary'],
+            ['surprised', 'surprised'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Make a funny face!',
+    },
+    {
+      type: 'dance_make_noise',
+      message0: 'make a %1 noise',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['moo', 'moo'],
+            ['beep', 'beep'],
+            ['roar', 'roar'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Make a loud noise!',
+    },
+    {
+      type: 'dance_strike_pose',
+      message0: 'strike a %1 pose',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['superhero', 'superhero'],
+            ['teapot', 'teapot'],
+            ['statue', 'statue'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Strike a pose and hold it!',
+    },
+    {
+      type: 'dance_wave',
+      message0: 'wave %1',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['left hand', 'left hand'],
+            ['right hand', 'right hand'],
+            ['both hands', 'both hands'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Give a big wave!',
+    },
+    {
+      type: 'dance_step',
+      message0: 'step %1',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'MOVE',
+          options: [
+            ['forward', 'forward'],
+            ['back', 'back'],
+            ['sideways', 'sideways'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Take a step!',
+    },
+    {
+      type: 'dance_freeze',
+      message0: 'freeze for %1 seconds',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'SECONDS',
+          options: [
+            ['1', '1'],
+            ['2', '2'],
+            ['3', '3'],
+          ],
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Freeze! Hold still.',
+    },
+
+    // Dance party blocks — container (repeat).
+    {
+      type: 'dance_repeat',
+      message0: 'repeat %1 times %2 do %3',
+      args0: [
+        {
+          type: 'field_dropdown',
+          name: 'TIMES',
+          options: [
+            ['2', '2'],
+            ['3', '3'],
+            ['4', '4'],
+          ],
+        },
+        {
+          type: 'input_dummy',
+        },
+        {
+          type: 'input_statement',
+          name: 'DO',
+        },
+      ],
+      previousStatement: null,
+      nextStatement: null,
+      colour: DANCE_HUE,
+      tooltip: 'Do the moves inside a few times!',
+    },
   ]);
 
   // JavaScript code generators
@@ -387,5 +597,67 @@ export function registerMazeBlocks() {
     const branch1 = javascriptGenerator.statementToCode(block, 'ELSE');
     const functionName = color === 'red' ? 'isOnRed' : 'isOnBlue';
     return `if (${functionName}('block_id_${block.id}')) {\n${branch0}} else {\n${branch1}}\n`;
+  };
+
+  // Dance party generators.
+  javascriptGenerator.forBlock['dance_clap'] = function () {
+    return 'clap();\n';
+  };
+
+  javascriptGenerator.forBlock['dance_spin'] = function () {
+    return 'spin();\n';
+  };
+
+  javascriptGenerator.forBlock['dance_jump'] = function () {
+    return 'jump();\n';
+  };
+
+  javascriptGenerator.forBlock['dance_wiggle'] = function () {
+    return 'wiggle();\n';
+  };
+
+  javascriptGenerator.forBlock['dance_bow'] = function () {
+    return 'bow();\n';
+  };
+
+  javascriptGenerator.forBlock['dance_like_a'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `danceLike("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_pull_face'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `pullFace("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_make_noise'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `makeNoise("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_strike_pose'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `strikePose("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_wave'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `wave("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_step'] = function (block) {
+    const move = block.getFieldValue('MOVE');
+    return `step("${move}");\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_freeze'] = function (block) {
+    const seconds = block.getFieldValue('SECONDS');
+    return `freeze(${seconds});\n`;
+  };
+
+  javascriptGenerator.forBlock['dance_repeat'] = function (block) {
+    const times = block.getFieldValue('TIMES');
+    const branch = javascriptGenerator.statementToCode(block, 'DO');
+    return `for (let i = 0; i < ${times}; i++) {\n${branch}}\n`;
   };
 }
