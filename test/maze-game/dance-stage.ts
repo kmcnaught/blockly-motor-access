@@ -15,6 +15,53 @@
  */
 
 import Interpreter from 'js-interpreter';
+import {msg} from './messages';
+
+/**
+ * Map an English dropdown value (the stable generator-side identifier, e.g.
+ * "robot", "left hand") to the i18n key for its display text. The dance
+ * stage receives the English value from the interpreter and uses this to
+ * look up the localised word for the card and TTS.
+ */
+const PARAM_MSG_KEY: Record<string, Record<string, string>> = {
+  dance_like_a: {
+    robot: 'MAZE_DANCE_OPTION_ROBOT',
+    chicken: 'MAZE_DANCE_OPTION_CHICKEN',
+    jellyfish: 'MAZE_DANCE_OPTION_JELLYFISH',
+  },
+  pull_face: {
+    silly: 'MAZE_DANCE_OPTION_SILLY',
+    scary: 'MAZE_DANCE_OPTION_SCARY',
+    surprised: 'MAZE_DANCE_OPTION_SURPRISED',
+  },
+  make_noise: {
+    moo: 'MAZE_DANCE_OPTION_MOO',
+    beep: 'MAZE_DANCE_OPTION_BEEP',
+    roar: 'MAZE_DANCE_OPTION_ROAR',
+  },
+  strike_pose: {
+    superhero: 'MAZE_DANCE_OPTION_SUPERHERO',
+    teapot: 'MAZE_DANCE_OPTION_TEAPOT',
+    statue: 'MAZE_DANCE_OPTION_STATUE',
+  },
+  wave: {
+    'left hand': 'MAZE_DANCE_OPTION_LEFT_HAND',
+    'right hand': 'MAZE_DANCE_OPTION_RIGHT_HAND',
+    'both hands': 'MAZE_DANCE_OPTION_BOTH_HANDS',
+  },
+  step: {
+    forward: 'MAZE_DANCE_OPTION_FORWARD',
+    back: 'MAZE_DANCE_OPTION_BACK',
+    sideways: 'MAZE_DANCE_OPTION_SIDEWAYS',
+  },
+};
+
+/** Translate a dropdown value for display; fall back to the raw value if unmapped. */
+function translatedParam(cmd: string, param: string | number | null): string {
+  if (param === null) return '';
+  const key = PARAM_MSG_KEY[cmd]?.[String(param)];
+  return key ? msg(key) : String(param);
+}
 
 /** Base duration for each move, in seconds. Scaled by the speed multiplier at Run time. */
 const MOVE_DURATIONS: Record<string, number> = {
@@ -92,18 +139,21 @@ const SPEED_MULTIPLIERS: Record<Speed, number> = {
 /** Natural-language card text for a queued move. */
 function moveLabel(cmd: string, param: string | number | null): string {
   switch (cmd) {
-    case 'clap': return 'Clap!';
-    case 'spin': return 'Spin!';
-    case 'jump': return 'Jump!';
-    case 'wiggle': return 'Wiggle!';
-    case 'bow': return 'Bow!';
-    case 'dance_like_a': return `Dance like a ${param}!`;
-    case 'pull_face': return `Pull a ${param} face!`;
-    case 'make_noise': return `Make a ${param} noise!`;
-    case 'strike_pose': return `Strike a ${param} pose!`;
-    case 'wave': return `Wave ${param}!`;
-    case 'step': return `Step ${param}!`;
-    case 'freeze': return `Freeze for ${param} ${param === 1 ? 'second' : 'seconds'}!`;
+    case 'clap': return msg('MAZE_DANCE_LABEL_CLAP');
+    case 'spin': return msg('MAZE_DANCE_LABEL_SPIN');
+    case 'jump': return msg('MAZE_DANCE_LABEL_JUMP');
+    case 'wiggle': return msg('MAZE_DANCE_LABEL_WIGGLE');
+    case 'bow': return msg('MAZE_DANCE_LABEL_BOW');
+    case 'dance_like_a': return msg('MAZE_DANCE_LABEL_LIKE_A', translatedParam(cmd, param));
+    case 'pull_face': return msg('MAZE_DANCE_LABEL_PULL_FACE', translatedParam(cmd, param));
+    case 'make_noise': return msg('MAZE_DANCE_LABEL_MAKE_NOISE', translatedParam(cmd, param));
+    case 'strike_pose': return msg('MAZE_DANCE_LABEL_STRIKE_POSE', translatedParam(cmd, param));
+    case 'wave': return msg('MAZE_DANCE_LABEL_WAVE', translatedParam(cmd, param));
+    case 'step': return msg('MAZE_DANCE_LABEL_STEP', translatedParam(cmd, param));
+    case 'freeze': {
+      const n = Number(param);
+      return n === 1 ? msg('MAZE_DANCE_LABEL_FREEZE_1') : msg('MAZE_DANCE_LABEL_FREEZE_N', n);
+    }
     default: return cmd;
   }
 }
@@ -115,18 +165,18 @@ function moveLabel(cmd: string, param: string | number | null): string {
  */
 function spokenLabel(cmd: string): string {
   switch (cmd) {
-    case 'clap': return 'Clap!';
-    case 'spin': return 'Spin!';
-    case 'jump': return 'Jump!';
-    case 'wiggle': return 'Wiggle!';
-    case 'bow': return 'Bow!';
-    case 'dance_like_a': return 'Dance!';
-    case 'pull_face': return 'Pull a face!';
-    case 'make_noise': return 'Make a noise!';
-    case 'strike_pose': return 'Strike a pose!';
-    case 'wave': return 'Wave!';
-    case 'step': return 'Step!';
-    case 'freeze': return 'Freeze!';
+    case 'clap': return msg('MAZE_DANCE_SPOKEN_CLAP');
+    case 'spin': return msg('MAZE_DANCE_SPOKEN_SPIN');
+    case 'jump': return msg('MAZE_DANCE_SPOKEN_JUMP');
+    case 'wiggle': return msg('MAZE_DANCE_SPOKEN_WIGGLE');
+    case 'bow': return msg('MAZE_DANCE_SPOKEN_BOW');
+    case 'dance_like_a': return msg('MAZE_DANCE_SPOKEN_LIKE_A');
+    case 'pull_face': return msg('MAZE_DANCE_SPOKEN_PULL_FACE');
+    case 'make_noise': return msg('MAZE_DANCE_SPOKEN_MAKE_NOISE');
+    case 'strike_pose': return msg('MAZE_DANCE_SPOKEN_STRIKE_POSE');
+    case 'wave': return msg('MAZE_DANCE_SPOKEN_WAVE');
+    case 'step': return msg('MAZE_DANCE_SPOKEN_STEP');
+    case 'freeze': return msg('MAZE_DANCE_SPOKEN_FREEZE');
     default: return cmd;
   }
 }
@@ -199,24 +249,24 @@ export class DanceStage {
     stage.className = 'dance-stage hidden';
     stage.innerHTML = `
       <div class="dance-stage-corner">
-        <button type="button" class="dance-mute-btn" id="danceMuteBtn" aria-label="Mute sound" aria-pressed="false">
+        <button type="button" class="dance-mute-btn" id="danceMuteBtn" aria-label="${msg('MAZE_DANCE_ARIA_MUTE')}" aria-pressed="false">
           <span class="dance-mute-on">&#128266;</span>
           <span class="dance-mute-off">&#128263;</span>
         </button>
-        <button type="button" class="dance-about-btn" id="danceAboutBtn" aria-label="About this level">&#9432;</button>
+        <button type="button" class="dance-about-btn" id="danceAboutBtn" aria-label="${msg('MAZE_DANCE_ARIA_ABOUT')}">&#9432;</button>
       </div>
       <div class="dance-card">
         <div class="dance-card-emoji" id="danceCardEmoji">${IDLE_EMOJI}</div>
-        <div class="dance-card-label" id="danceCardLabel">Ready!</div>
+        <div class="dance-card-label" id="danceCardLabel">${msg('MAZE_DANCE_READY')}</div>
       </div>
       <div class="dance-progress">
         <div class="dance-progress-bar" id="danceProgressBar"></div>
       </div>
       <div class="dance-next-up" id="danceNextUp"></div>
-      <div class="dance-speed-toggle" role="radiogroup" aria-label="Playback speed">
-        <button type="button" class="dance-speed-btn" data-speed="slow" role="radio" aria-checked="false">Slow</button>
-        <button type="button" class="dance-speed-btn is-selected" data-speed="normal" role="radio" aria-checked="true">Normal</button>
-        <button type="button" class="dance-speed-btn" data-speed="fast" role="radio" aria-checked="false">Fast</button>
+      <div class="dance-speed-toggle" role="radiogroup" aria-label="${msg('MAZE_DANCE_ARIA_SPEED')}">
+        <button type="button" class="dance-speed-btn" data-speed="slow" role="radio" aria-checked="false">${msg('MAZE_DANCE_SPEED_SLOW')}</button>
+        <button type="button" class="dance-speed-btn is-selected" data-speed="normal" role="radio" aria-checked="true">${msg('MAZE_DANCE_SPEED_NORMAL')}</button>
+        <button type="button" class="dance-speed-btn" data-speed="fast" role="radio" aria-checked="false">${msg('MAZE_DANCE_SPEED_FAST')}</button>
       </div>
     `;
     host.appendChild(stage);
@@ -318,7 +368,7 @@ export class DanceStage {
   /** Reset the card to "Ready!" idle state. */
   private setIdle(): void {
     this.cardEmojiEl.textContent = IDLE_EMOJI;
-    this.cardLabelEl.textContent = 'Ready!';
+    this.cardLabelEl.textContent = msg('MAZE_DANCE_READY');
     this.resetProgressBar();
     this.nextUpEl.textContent = '';
     this.onHighlight?.(null);
@@ -454,7 +504,7 @@ export class DanceStage {
       // instruction, and we deliberately don't speak it (the move labels are
       // imperatives; narrating "the end" would just read like another move).
       this.cardEmojiEl.textContent = DONE_EMOJI;
-      this.cardLabelEl.textContent = '[the end]';
+      this.cardLabelEl.textContent = msg('MAZE_DANCE_THE_END');
       this.nextUpEl.textContent = '';
       this.onHighlight?.(null);
       this.running = false;
@@ -486,8 +536,8 @@ export class DanceStage {
     // CSS sizes it down.
     const upcoming = this.log[0];
     this.nextUpEl.textContent = upcoming
-      ? `Next up: ${moveLabel(upcoming.cmd, upcoming.param)}`
-      : 'end of performance';
+      ? msg('MAZE_DANCE_NEXT_UP', moveLabel(upcoming.cmd, upcoming.param))
+      : msg('MAZE_DANCE_END_OF_PERFORMANCE');
 
     // Queue the next move after this one's duration.
     this.activeTimeout = setTimeout(() => {

@@ -337,163 +337,165 @@ export function registerMazeBlocks() {
     // Dance party blocks — no-field moves.
     {
       type: 'dance_clap',
-      message0: 'clap',
+      message0: '%{BKY_MAZE_DANCE_CLAP}',
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Clap your hands!',
+      tooltip: '%{BKY_MAZE_DANCE_CLAP_TOOLTIP}',
     },
     {
       type: 'dance_spin',
-      message0: 'spin',
+      message0: '%{BKY_MAZE_DANCE_SPIN}',
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Spin around!',
+      tooltip: '%{BKY_MAZE_DANCE_SPIN_TOOLTIP}',
     },
     {
       type: 'dance_jump',
-      message0: 'jump',
+      message0: '%{BKY_MAZE_DANCE_JUMP}',
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Jump up high!',
+      tooltip: '%{BKY_MAZE_DANCE_JUMP_TOOLTIP}',
     },
     {
       type: 'dance_wiggle',
-      message0: 'wiggle',
+      message0: '%{BKY_MAZE_DANCE_WIGGLE}',
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Wiggle all over!',
+      tooltip: '%{BKY_MAZE_DANCE_WIGGLE_TOOLTIP}',
     },
     {
       type: 'dance_bow',
-      message0: 'bow',
+      message0: '%{BKY_MAZE_DANCE_BOW}',
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Take a bow!',
+      tooltip: '%{BKY_MAZE_DANCE_BOW_TOOLTIP}',
     },
 
     // Dance party blocks — one-dropdown moves.
+    // Dropdown VALUES (right column) stay English — they're the stable API used
+    // by the generator (e.g. danceLike("robot")). Only the display text is i18n'd.
     {
       type: 'dance_like_a',
-      message0: 'dance like a %1',
+      message0: '%{BKY_MAZE_DANCE_LIKE_A} %1',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['robot', 'robot'],
-            ['chicken', 'chicken'],
-            ['jellyfish', 'jellyfish'],
+            ['%{BKY_MAZE_DANCE_OPTION_ROBOT}', 'robot'],
+            ['%{BKY_MAZE_DANCE_OPTION_CHICKEN}', 'chicken'],
+            ['%{BKY_MAZE_DANCE_OPTION_JELLYFISH}', 'jellyfish'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Dance like a robot, chicken, or jellyfish!',
+      tooltip: '%{BKY_MAZE_DANCE_LIKE_A_TOOLTIP}',
     },
     {
       type: 'dance_pull_face',
-      message0: 'pull a %1 face',
+      message0: '%{BKY_MAZE_DANCE_PULL_FACE_PREFIX} %1 %{BKY_MAZE_DANCE_PULL_FACE_SUFFIX}',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['silly', 'silly'],
-            ['scary', 'scary'],
-            ['surprised', 'surprised'],
+            ['%{BKY_MAZE_DANCE_OPTION_SILLY}', 'silly'],
+            ['%{BKY_MAZE_DANCE_OPTION_SCARY}', 'scary'],
+            ['%{BKY_MAZE_DANCE_OPTION_SURPRISED}', 'surprised'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Make a funny face!',
+      tooltip: '%{BKY_MAZE_DANCE_PULL_FACE_TOOLTIP}',
     },
     {
       type: 'dance_make_noise',
-      message0: 'make a %1 noise',
+      message0: '%{BKY_MAZE_DANCE_MAKE_NOISE_PREFIX} %1 %{BKY_MAZE_DANCE_MAKE_NOISE_SUFFIX}',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['moo', 'moo'],
-            ['beep', 'beep'],
-            ['roar', 'roar'],
+            ['%{BKY_MAZE_DANCE_OPTION_MOO}', 'moo'],
+            ['%{BKY_MAZE_DANCE_OPTION_BEEP}', 'beep'],
+            ['%{BKY_MAZE_DANCE_OPTION_ROAR}', 'roar'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Make a loud noise!',
+      tooltip: '%{BKY_MAZE_DANCE_MAKE_NOISE_TOOLTIP}',
     },
     {
       type: 'dance_strike_pose',
-      message0: 'strike a %1 pose',
+      message0: '%{BKY_MAZE_DANCE_STRIKE_POSE_PREFIX} %1 %{BKY_MAZE_DANCE_STRIKE_POSE_SUFFIX}',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['superhero', 'superhero'],
-            ['teapot', 'teapot'],
-            ['statue', 'statue'],
+            ['%{BKY_MAZE_DANCE_OPTION_SUPERHERO}', 'superhero'],
+            ['%{BKY_MAZE_DANCE_OPTION_TEAPOT}', 'teapot'],
+            ['%{BKY_MAZE_DANCE_OPTION_STATUE}', 'statue'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Strike a pose and hold it!',
+      tooltip: '%{BKY_MAZE_DANCE_STRIKE_POSE_TOOLTIP}',
     },
     {
       type: 'dance_wave',
-      message0: 'wave %1',
+      message0: '%{BKY_MAZE_DANCE_WAVE} %1',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['left hand', 'left hand'],
-            ['right hand', 'right hand'],
-            ['both hands', 'both hands'],
+            ['%{BKY_MAZE_DANCE_OPTION_LEFT_HAND}', 'left hand'],
+            ['%{BKY_MAZE_DANCE_OPTION_RIGHT_HAND}', 'right hand'],
+            ['%{BKY_MAZE_DANCE_OPTION_BOTH_HANDS}', 'both hands'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Give a big wave!',
+      tooltip: '%{BKY_MAZE_DANCE_WAVE_TOOLTIP}',
     },
     {
       type: 'dance_step',
-      message0: 'step %1',
+      message0: '%{BKY_MAZE_DANCE_STEP} %1',
       args0: [
         {
           type: 'field_dropdown',
           name: 'MOVE',
           options: [
-            ['forward', 'forward'],
-            ['back', 'back'],
-            ['sideways', 'sideways'],
+            ['%{BKY_MAZE_DANCE_OPTION_FORWARD}', 'forward'],
+            ['%{BKY_MAZE_DANCE_OPTION_BACK}', 'back'],
+            ['%{BKY_MAZE_DANCE_OPTION_SIDEWAYS}', 'sideways'],
           ],
         },
       ],
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Take a step!',
+      tooltip: '%{BKY_MAZE_DANCE_STEP_TOOLTIP}',
     },
     {
       type: 'dance_freeze',
-      message0: 'freeze for %1 seconds',
+      message0: '%{BKY_MAZE_DANCE_FREEZE_PREFIX} %1 %{BKY_MAZE_DANCE_FREEZE_SUFFIX}',
       args0: [
         {
           type: 'field_dropdown',
@@ -508,13 +510,13 @@ export function registerMazeBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Freeze! Hold still.',
+      tooltip: '%{BKY_MAZE_DANCE_FREEZE_TOOLTIP}',
     },
 
     // Dance party blocks — container (repeat).
     {
       type: 'dance_repeat',
-      message0: 'repeat %1 times %2 do %3',
+      message0: '%{BKY_MAZE_DANCE_REPEAT_PREFIX} %1 %{BKY_MAZE_DANCE_REPEAT_SUFFIX} %2 %{BKY_MAZE_DO} %3',
       args0: [
         {
           type: 'field_dropdown',
@@ -536,7 +538,7 @@ export function registerMazeBlocks() {
       previousStatement: null,
       nextStatement: null,
       colour: DANCE_HUE,
-      tooltip: 'Do the moves inside a few times!',
+      tooltip: '%{BKY_MAZE_DANCE_REPEAT_TOOLTIP}',
     },
   ]);
 
