@@ -469,7 +469,10 @@ export class DanceStage {
    */
   private initInterpreter(interpreter: any, globalObj: any): void {
     const pushMove = (cmd: string, param: string | number | null, blockId: string | null) => {
-      this.log.push({cmd, param, blockId});
+      // Generators emit the id wrapped as "block_id_<ID>" to match maze
+      // conventions; strip the prefix so Blockly can find the actual block.
+      const id = blockId?.match(/^block_id_(.+)$/)?.[1] ?? null;
+      this.log.push({cmd, param, blockId: id});
     };
 
     const register = (name: string, fn: Function) => {
