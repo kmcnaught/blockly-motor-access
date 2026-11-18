@@ -599,60 +599,61 @@ export function registerMazeBlocks() {
     return `if (${functionName}('block_id_${block.id}')) {\n${branch0}} else {\n${branch1}}\n`;
   };
 
-  // Dance party generators.
-  javascriptGenerator.forBlock['dance_clap'] = function () {
-    return 'clap();\n';
+  // Dance party generators. Each call ends with the block id so the stage
+  // can highlight the currently-executing block, matching maze_moveForward.
+  javascriptGenerator.forBlock['dance_clap'] = function (block) {
+    return `clap('block_id_${block.id}');\n`;
   };
 
-  javascriptGenerator.forBlock['dance_spin'] = function () {
-    return 'spin();\n';
+  javascriptGenerator.forBlock['dance_spin'] = function (block) {
+    return `spin('block_id_${block.id}');\n`;
   };
 
-  javascriptGenerator.forBlock['dance_jump'] = function () {
-    return 'jump();\n';
+  javascriptGenerator.forBlock['dance_jump'] = function (block) {
+    return `jump('block_id_${block.id}');\n`;
   };
 
-  javascriptGenerator.forBlock['dance_wiggle'] = function () {
-    return 'wiggle();\n';
+  javascriptGenerator.forBlock['dance_wiggle'] = function (block) {
+    return `wiggle('block_id_${block.id}');\n`;
   };
 
-  javascriptGenerator.forBlock['dance_bow'] = function () {
-    return 'bow();\n';
+  javascriptGenerator.forBlock['dance_bow'] = function (block) {
+    return `bow('block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_like_a'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `danceLike("${move}");\n`;
+    return `danceLike("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_pull_face'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `pullFace("${move}");\n`;
+    return `pullFace("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_make_noise'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `makeNoise("${move}");\n`;
+    return `makeNoise("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_strike_pose'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `strikePose("${move}");\n`;
+    return `strikePose("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_wave'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `wave("${move}");\n`;
+    return `wave("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_step'] = function (block) {
     const move = block.getFieldValue('MOVE');
-    return `step("${move}");\n`;
+    return `step("${move}", 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_freeze'] = function (block) {
     const seconds = block.getFieldValue('SECONDS');
-    return `freeze(${seconds});\n`;
+    return `freeze(${seconds}, 'block_id_${block.id}');\n`;
   };
 
   javascriptGenerator.forBlock['dance_repeat'] = function (block) {

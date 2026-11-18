@@ -131,6 +131,7 @@ function moveDuration(cmd: string, param: string | number | null): number {
 interface Move {
   cmd: string;
   param: string | number | null;
+  blockId: string | null;
 }
 
 /**
@@ -145,6 +146,7 @@ export class DanceStage {
   private progressBarEl: HTMLElement;
   private nextUpEl: HTMLElement;
   private speedButtons: Record<Speed, HTMLButtonElement>;
+  private muteBtn: HTMLButtonElement;
 
   private log: Move[] = [];
   private running = false;
@@ -153,6 +155,8 @@ export class DanceStage {
   private onRunningChange: ((isRunning: boolean) => void) | null = null;
   private onAboutRequest: (() => void) | null = null;
   private onNaturalComplete: (() => void) | null = null;
+  private onMuteToggle: (() => void) | null = null;
+  private onHighlight: ((blockId: string | null) => void) | null = null;
 
   /** Selected UI speed; read into currentSpeedMultiplier at Run time. */
   private selectedSpeed: Speed = 'normal';
@@ -171,7 +175,13 @@ export class DanceStage {
     stage.id = 'danceStage';
     stage.className = 'dance-stage hidden';
     stage.innerHTML = `
-      <button type="button" class="dance-about-btn" id="danceAboutBtn" aria-label="About this level">&#9432;</button>
+      <div class="dance-stage-corner">
+        <button type="button" class="dance-mute-btn" id="danceMuteBtn" aria-label="Mute sound" aria-pressed="false">
+          <span class="dance-mute-on">&#128266;</span>
+          <span class="dance-mute-off">&#128263;</span>
+        </button>
+        <button type="button" class="dance-about-btn" id="danceAboutBtn" aria-label="About this level">&#9432;</button>
+      </div>
       <div class="dance-card">
         <div class="dance-card-emoji" id="danceCardEmoji">${IDLE_EMOJI}</div>
         <div class="dance-card-label" id="danceCardLabel">Ready!</div>
@@ -204,6 +214,28 @@ export class DanceStage {
 
     const aboutBtn = stage.querySelector('#danceAboutBtn') as HTMLButtonElement;
     aboutBtn.addEventListener('click', () => this.onAboutRequest?.());
+
+    this.muteBtn = stage.querySelector('#danceMuteBtn') as HTMLButtonElement;
+    this.muteBtn.addEventListener('click', () => this.onMuteToggle?.());
+  }
+
+  /**
+   * Called by index.ts whenever the global soundEnabled flag changes so the
+   * stage's mute button reflects the shared mute state.
+   */
+  public setMuteButtonState(muted: boolean): void {
+    this.muteBtn.classList.toggle('is-muted', muted);
+    this.muteBtn.setAttribute('aria-pressed', String(muted));
+  }
+
+  /** Install the handler the stage's mute button fires when clicked. */
+  public onMute(cb: () => void): void {
+    this.onMuteToggle = cb;
+  }
+
+  /** Install the handler that highlights (or clears) the currently-running block. */
+  public onHighlighted(cb: (blockId: string | null) => void): void {
+    this.onHighlight = cb;
   }
 
   /**
@@ -266,6 +298,7 @@ export class DanceStage {
     this.cardLabelEl.textContent = 'Ready!';
     this.resetProgressBar();
     this.nextUpEl.textContent = '';
+    this.onHighlight?.(null);
   }
 
   private resetProgressBar(): void {
@@ -362,8 +395,8 @@ export class DanceStage {
    * stepping completes.
    */
   private initInterpreter(interpreter: any, globalObj: any): void {
-    const pushMove = (cmd: string, param: string | number | null = null) => {
-      this.log.push({cmd, param});
+    const pushMove = (cmd: string, param: string | number | null, blockId: string | null) => {
+      this.log.push({cmd, param, blockId});
     };
 
     const register = (name: string, fn: Function) => {
@@ -374,18 +407,18 @@ export class DanceStage {
       );
     };
 
-    register('clap', () => pushMove('clap'));
-    register('spin', () => pushMove('spin'));
-    register('jump', () => pushMove('jump'));
-    register('wiggle', () => pushMove('wiggle'));
-    register('bow', () => pushMove('bow'));
-    register('danceLike', (which: string) => pushMove('dance_like_a', which));
-    register('pullFace', (which: string) => pushMove('pull_face', which));
-    register('makeNoise', (which: string) => pushMove('make_noise', which));
-    register('strikePose', (which: string) => pushMove('strike_pose', which));
-    register('wave', (which: string) => pushMove('wave', which));
-    register('step', (which: string) => pushMove('step', which));
-    register('freeze', (seconds: number) => pushMove('freeze', seconds));
+    register('clap', (id: string) => pushMove('clap', null, id));
+    register('spin', (id: string) => pushMove('spin', null, id));
+    register('jump', (id: string) => pushMove('jump', null, id));
+    register('wiggle', (id: string) => pushMove('wiggle', null, id));
+    register('bow', (id: string) => pushMove('bow', null, id));
+    register('danceLike', (which: string, id: string) => pushMove('dance_like_a', which, id));
+    register('pullFace', (which: string, id: string) => pushMove('pull_face', which, id));
+    register('makeNoise', (which: string, id: string) => pushMove('make_noise', which, id));
+    register('strikePose', (which: string, id: string) => pushMove('strike_pose', which, id));
+    register('wave', (which: string, id: string) => pushMove('wave', which, id));
+    register('step', (which: string, id: string) => pushMove('step', which, id));
+    register('freeze', (seconds: number, id: string) => pushMove('freeze', seconds, id));
   }
 
   /** Play back the first queued move; recurses until log empty or cancelled. */
@@ -394,12 +427,13 @@ export class DanceStage {
 
     const move = this.log.shift();
     if (!move) {
-      // End of program. Leave the progress bar drained — reads as "done".
+      // End of program. Bracketed text reads as a title card rather than an
+      // instruction, and we deliberately don't speak it (the move labels are
+      // imperatives; narrating "the end" would just read like another move).
       this.cardEmojiEl.textContent = DONE_EMOJI;
-      const doneText = "That's all!";
-      this.cardLabelEl.textContent = doneText;
+      this.cardLabelEl.textContent = '[the end]';
       this.nextUpEl.textContent = '';
-      this.speak(doneText);
+      this.onHighlight?.(null);
       this.running = false;
       if (this.onRunningChange) this.onRunningChange(false);
       // Celebration fires only on natural completion — stop() short-circuits
@@ -412,6 +446,7 @@ export class DanceStage {
     this.cardEmojiEl.textContent = moveEmoji(move.cmd, move.param);
     const label = moveLabel(move.cmd, move.param);
     this.cardLabelEl.textContent = label;
+    this.onHighlight?.(move.blockId);
     this.speak(label);
 
     // Drive the progress bar. Speed multiplier scales freezes too — a Fast

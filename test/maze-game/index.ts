@@ -757,8 +757,11 @@ const mazeGame = new MazeGame('mazeCanvas', initialLevel, savedSkin);
 // updateDanceModeUI() below toggles body.dance-mode and shows/hides the stage.
 const danceStageHost = document.querySelector('.canvas-wrapper') as HTMLElement;
 const danceStage = danceStageHost ? new DanceStage(danceStageHost) : null;
-// Dance stage TTS honours the global mute toggle.
+// Dance stage TTS honours the global mute toggle; the stage carries its own
+// mute button that just fires the same toggle.
 danceStage?.setSoundEnabledGetter(() => soundEnabled);
+danceStage?.onMute(() => toggleSound());
+danceStage?.onHighlighted((blockId) => workspace.highlightBlock(blockId));
 danceStage?.onRunningChanged((isRunning) => {
   const runBtn = document.getElementById('runButton') as HTMLButtonElement | null;
   const stopBtn = document.getElementById('danceStopButton') as HTMLButtonElement | null;
@@ -814,17 +817,20 @@ const muteButton = document.getElementById('muteButton');
  * Update the mute button UI to reflect current sound state.
  */
 function updateMuteButtonUI(): void {
-  if (!muteButton) return;
-
-  if (soundEnabled) {
-    muteButton.classList.remove('muted');
-    muteButton.setAttribute('aria-pressed', 'false');
-    muteButton.setAttribute('aria-label', msg('MAZE_UNMUTE'));
-  } else {
-    muteButton.classList.add('muted');
-    muteButton.setAttribute('aria-pressed', 'true');
-    muteButton.setAttribute('aria-label', msg('MAZE_MUTE'));
+  if (muteButton) {
+    if (soundEnabled) {
+      muteButton.classList.remove('muted');
+      muteButton.setAttribute('aria-pressed', 'false');
+      muteButton.setAttribute('aria-label', msg('MAZE_UNMUTE'));
+    } else {
+      muteButton.classList.add('muted');
+      muteButton.setAttribute('aria-pressed', 'true');
+      muteButton.setAttribute('aria-label', msg('MAZE_MUTE'));
+    }
   }
+  // Mirror the state to the dance stage's own mute button, which is a
+  // thin shortcut to the same global flag.
+  danceStage?.setMuteButtonState(!soundEnabled);
 }
 
 /**

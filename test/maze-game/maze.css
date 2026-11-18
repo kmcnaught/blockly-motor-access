@@ -1985,14 +1985,16 @@ body.grid-coding-mode .screen-padding {
  * Replaces the maze canvas on the "G - Dance Party" level.
  * ================================================================ */
 
-/* Hide the canvas, its overlays, and the maze-specific instruction bar
- * when a dance level is active. The dance stage carries its own copy.
+/* Hide the canvas and its overlays when a dance level is active. The
+ * instruction text is blanked (it would show the wrong "move the man"
+ * copy), but the bar itself stays visible because the stage dropdown
+ * and info button live inside it.
  * #confettiContainer stays visible — it sits behind the stage with
  * pointer-events: none and only fills on natural end-of-program. */
 body.dance-mode #mazeCanvas,
 body.dance-mode #levelBanner,
 body.dance-mode #fallOverlay,
-body.dance-mode #instructionBar {
+body.dance-mode #instructionBar .instruction-content {
   display: none;
 }
 
@@ -2132,12 +2134,20 @@ body.dance-mode #resetButton {
   display: none;
 }
 
-/* About (ⓘ) button — top-right corner of the dance stage, re-opens the
- * stage-7 intro copy. Large enough for switch-scan / eye-gaze targeting. */
-.dance-about-btn {
+/* Top-right corner of the dance stage: mute + About buttons stacked side
+ * by side. Both are big enough for switch-scan / eye-gaze targeting. */
+.dance-stage-corner {
   position: absolute;
   top: 12px;
   right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
+}
+
+.dance-about-btn,
+.dance-mute-btn {
+  --element-color: hsl(320, 70%, 55%);
   width: 44px;
   height: 44px;
   padding: 0;
@@ -2145,20 +2155,34 @@ body.dance-mode #resetButton {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.85);
   color: hsl(320, 70%, 45%);
-  font-size: 28px;
+  font-size: 22px;
   line-height: 1;
   font-family: 'Roboto', Arial, sans-serif;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
   transition: background 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.dance-about-btn:hover {
+.dance-about-btn {
+  font-size: 28px;
+}
+
+.dance-about-btn:hover,
+.dance-mute-btn:hover {
   background: white;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
 }
 
-.dance-about-btn:focus-visible {
-  outline: 3px solid hsl(320, 70%, 55%);
-  outline-offset: 2px;
+/* Show the matching icon for the current state; hide the other. */
+.dance-mute-btn .dance-mute-off {
+  display: none;
+}
+.dance-mute-btn.is-muted .dance-mute-on {
+  display: none;
+}
+.dance-mute-btn.is-muted .dance-mute-off {
+  display: inline;
 }
