@@ -1250,6 +1250,18 @@ export class MazeGame {
     return this.soundEnabled;
   }
 
+  /**
+   * Play the win sound once from the start. Honours the global mute flag and
+   * silently no-ops if audio hasn't loaded yet. Used by non-maze stages (e.g.
+   * Dance Party) that want to reuse the maze's celebration chime.
+   */
+  public playWinSound(): void {
+    if (this.winAudio && this.soundEnabled) {
+      this.winAudio.currentTime = 0;
+      this.winAudio.play().catch(() => {}); // Ignore audio errors
+    }
+  }
+
   public getMarkerPath(): string {
     return this.skin.marker || 'assets/marker.png';
   }

@@ -1986,10 +1986,11 @@ body.grid-coding-mode .screen-padding {
  * ================================================================ */
 
 /* Hide the canvas, its overlays, and the maze-specific instruction bar
- * when a dance level is active. The dance stage carries its own copy. */
+ * when a dance level is active. The dance stage carries its own copy.
+ * #confettiContainer stays visible — it sits behind the stage with
+ * pointer-events: none and only fills on natural end-of-program. */
 body.dance-mode #mazeCanvas,
 body.dance-mode #levelBanner,
-body.dance-mode #confettiContainer,
 body.dance-mode #fallOverlay,
 body.dance-mode #instructionBar {
   display: none;
@@ -2129,4 +2130,35 @@ body.dance-mode #resetButton {
 
 #danceStopButton.hidden {
   display: none;
+}
+
+/* About (ⓘ) button — top-right corner of the dance stage, re-opens the
+ * stage-7 intro copy. Large enough for switch-scan / eye-gaze targeting. */
+.dance-about-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: hsl(320, 70%, 45%);
+  font-size: 28px;
+  line-height: 1;
+  font-family: 'Roboto', Arial, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.dance-about-btn:hover {
+  background: white;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+.dance-about-btn:focus-visible {
+  outline: 3px solid hsl(320, 70%, 55%);
+  outline-offset: 2px;
 }

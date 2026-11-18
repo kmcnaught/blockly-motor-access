@@ -151,6 +151,8 @@ export class DanceStage {
   private cancelled = false;
   private activeTimeout: ReturnType<typeof setTimeout> | null = null;
   private onRunningChange: ((isRunning: boolean) => void) | null = null;
+  private onAboutRequest: (() => void) | null = null;
+  private onNaturalComplete: (() => void) | null = null;
 
   /** Selected UI speed; read into currentSpeedMultiplier at Run time. */
   private selectedSpeed: Speed = 'normal';
@@ -169,6 +171,7 @@ export class DanceStage {
     stage.id = 'danceStage';
     stage.className = 'dance-stage hidden';
     stage.innerHTML = `
+      <button type="button" class="dance-about-btn" id="danceAboutBtn" aria-label="About this level">&#9432;</button>
       <div class="dance-card">
         <div class="dance-card-emoji" id="danceCardEmoji">${IDLE_EMOJI}</div>
         <div class="dance-card-label" id="danceCardLabel">Ready!</div>
@@ -198,6 +201,9 @@ export class DanceStage {
     (Object.keys(this.speedButtons) as Speed[]).forEach((speed) => {
       this.speedButtons[speed].addEventListener('click', () => this.setSpeed(speed));
     });
+
+    const aboutBtn = stage.querySelector('#danceAboutBtn') as HTMLButtonElement;
+    aboutBtn.addEventListener('click', () => this.onAboutRequest?.());
   }
 
   /**
@@ -223,6 +229,19 @@ export class DanceStage {
   /** Register a callback that fires when run start/stop transitions happen. */
   public onRunningChanged(cb: (isRunning: boolean) => void): void {
     this.onRunningChange = cb;
+  }
+
+  /** Register a callback that fires when the About button is pressed. */
+  public onAbout(cb: () => void): void {
+    this.onAboutRequest = cb;
+  }
+
+  /**
+   * Register a callback that fires once when a program finishes naturally
+   * (reaches the end of the queue without being stopped). Not invoked on stop().
+   */
+  public onCompleted(cb: () => void): void {
+    this.onNaturalComplete = cb;
   }
 
   /** Show the stage, hide the maze canvas. */
@@ -383,6 +402,9 @@ export class DanceStage {
       this.speak(doneText);
       this.running = false;
       if (this.onRunningChange) this.onRunningChange(false);
+      // Celebration fires only on natural completion — stop() short-circuits
+      // playback before reaching this branch.
+      this.onNaturalComplete?.();
       return;
     }
 

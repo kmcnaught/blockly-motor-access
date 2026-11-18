@@ -294,7 +294,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_6_NAME: 'Challenge',
     MAZE_STAGE_6_CONCEPT: 'Put everything together to solve these challenging mazes!',
     MAZE_STAGE_7_NAME: 'Dance Party',
-    MAZE_STAGE_7_CONCEPT: 'Pick some dance moves, press Run, and watch the show!',
+    MAZE_STAGE_7_CONCEPT: 'Find a willing victim and make them dance! Build a sequence of moves and press Run. They have to keep up.',
     MAZE_STAGE: 'Stage',
     MAZE_STAGE_SELECT: 'Select Stage',
 
@@ -581,7 +581,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_6_NAME: 'Défi',
     MAZE_STAGE_6_CONCEPT: 'Combinez tout pour résoudre ces labyrinthes difficiles !',
     MAZE_STAGE_7_NAME: 'Soirée dansante',
-    MAZE_STAGE_7_CONCEPT: 'Choisis des pas de danse, appuie sur Lancer et regarde le spectacle !',
+    MAZE_STAGE_7_CONCEPT: 'Trouve un cobaye volontaire et fais-le danser ! Enchaîne des pas, appuie sur Lancer. Il devra tenir le rythme.',
     MAZE_STAGE: 'Étape',
     MAZE_STAGE_SELECT: 'Sélectionner l\'étape',
 
@@ -858,7 +858,7 @@ const MESSAGES: Record<SupportedLocale, Record<string, string>> = {
     MAZE_STAGE_6_NAME: 'Reto',
     MAZE_STAGE_6_CONCEPT: '¡Combínalo todo para resolver estos laberintos difíciles!',
     MAZE_STAGE_7_NAME: 'Fiesta de baile',
-    MAZE_STAGE_7_CONCEPT: '¡Elige unos pasos de baile, pulsa Ejecutar y disfruta del espectáculo!',
+    MAZE_STAGE_7_CONCEPT: '¡Busca a una víctima dispuesta y hazla bailar! Encadena pasos y pulsa Ejecutar. Tendrá que seguirte el ritmo.',
     MAZE_STAGE: 'Etapa',
     MAZE_STAGE_SELECT: 'Seleccionar etapa',
 

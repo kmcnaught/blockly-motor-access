@@ -765,6 +765,13 @@ danceStage?.onRunningChanged((isRunning) => {
   if (runBtn) runBtn.disabled = isRunning;
   if (stopBtn) stopBtn.classList.toggle('hidden', !isRunning);
 });
+// Natural end-of-run celebration — reuses the maze win chime + confetti rain.
+// Fires only when the program runs to completion; stop() short-circuits before
+// this hook triggers, so interrupted runs stay quiet.
+danceStage?.onCompleted(() => {
+  launchConfetti();
+  mazeGame.playWinSound();
+});
 
 /**
  * Determine whether the current level is a Dance Party level.
@@ -2116,6 +2123,11 @@ function showStageIntroModal(stageId: number): void {
 if (stageIntroOk) {
   stageIntroOk.addEventListener('click', () => stageIntroDialog.hide());
 }
+
+// Dance stage About button -> re-show the stage 7 intro copy on demand.
+// Dance Party is Stage 7 (see STAGES in maze.ts); reusing stageIntroDialog
+// keeps the surface consistent with how every other stage introduces itself.
+danceStage?.onAbout(() => showStageIntroModal(7));
 
 // ========== GRID CODING INTRO MODAL ==========
 
